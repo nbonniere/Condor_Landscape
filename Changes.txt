@@ -1,0 +1,220 @@
+
+v0.1 - feb 2012
+- initial save
+
+v0.5 - 24 feb 2013
+- fix selection rectangle error
+  - if cursor out of bounds, coords are not clampe to bounds
+    - add additional check!
+- fix floodfill within selection
+  - not a feature as such but can be used at this time
+  - selection rectangle color is same as exclusion color so if two overlp, there
+    can be hole for the flood to escape
+  - change selection color slightly
+- use the imagery selection to select the background tiles for forest/thermal editing
+- fix thermal index issue - read a version of thermal map with index instead of thermal index. 
+- force MaskView ON and tool to t_none on starting editing forest/thermal
+- relocate "Apply Filter" button and re-organize other buttons
+- add undo function for all draw tools except t_pen
+- modify brush size to include size=1 and fix circular brush size=2
+- fix LineTo to draw last pixel.
+
+v0.6 - mar 2018
+- better lineTo fix - change lineTo to draw backwards and draw first pixel separately
+- change brush start size=1, and Circular shape
+- for t_Pen moved by more than +/- 1 pixel -> draw in between points!
+
+v0.7 - 02 jan 2019
+- fix recursive frame bug in WriteCondorXfile
+- add 'alternate' background bitmap for editing forest/thermals
+- add GeoDatabase batch file creation
+- add right-click menu to graphics - no go - problem with screen refresh ?
+- add DEM helper
+
+v0.7.1 - Feb 2019
+- added TL_BR checkbox to DEM and added file to save of lat/long coords
+- bug due to file if NEW folder not present
+
+v0.7.2 - Mar 2019
+- added contour map help
+- added overall map help
+- added VFRmap helper with Wget.bat and swapXY.bat
+- added OSM shapefile parsing for forest maps and thermal maps
+- remove NEW and require manual creation of landscape folder for new landscape
+
+v0.7.3 - Apr 2019
+- ObjectPlacer 
+  - draw object position
+  - clear if landscape changed
+- AirportPlacer - 
+  - draw runway, windsock, glider, towplane
+  - clear if landscape changed
+  - show object list
+- object view
+  - show surfaces instead of vectors
+  - save as condor C3D files
+
+v0.7.4 - Apr 2019
+- If no 'Working' folder, i.e. reading some other scenery, don't try to create dummy airport, cup, etc...
+- change initial Object folder to be 'Landscapes'
+- If no 'Working' folder, don't try to save Gradient file
+- If no .obj objects file, show message
+- If no .apt airport file, show message
+- If no 'Working' folder, don't try to create Working\Temp
+  - adjust location of Temp folder for 'corrected' bitmaps
+- for 3D view, adjust texture file reference for Condor relative or Object relative
+- add TRN generation to DEM page
+- add TR3 generation to DEM page (Condor BUG found ?)
+
+v0.7.5 - Oct 2019, Mar 2020
+- add quarter tile KML, GDAL, and DDS for processing screen captures from Google-Earth for
+  older imagery.
+- add quarter tile GMID to use GMID or GEID for older imagery  
+- fix bug - flying range which need to use Northing and Easting
+- UTM_Right and UTM_Bottom - standardize - problem between tile corner versus tile centre !  What is correct ?
+  - read from TerrainHeader - UTM_Bottom = Northing + 45 i.e. TerrainHeader has extents, but UTM has centre of tile  
+  - Scenery header - UTM_Bottom as is.
+  - MakeTileList - Northing = UTM_Bottom - 45, i.e. back to extent, as it assumes centre of tile for UTM_Bottom
+  - KML - uses extents from tile list
+  - DEM - KML - need to offset to create proper tile list
+  - DEM - DEM - uses corners
+  - DEM - SceneryHeader file - corners, not centre - fix ?
+  - need to re-think everything... but not screw up existing landscapes.
+  - add support for GEID
+  - remove intermediate file'browse' for open and save in Object View
+  - add date selection VFR map helper.
+
+v0.7.6 - Mar 2020
+  - add support for command line version of AllMapSoft GMID Downloader
+  - add support for GeoTiff version of combined file
+  - add confirm dialog for zoom level and tile size.
+  - add GEO database option OSM or CanVec
+  - overall and single GMID or GEO tile generation
+  - Change location of overall KML file to SourceTiles. This changed DEM overall KML too.
+  - changed sequence of file generation so that overall and batch files show last in memo
+  - fixed batch file names in MakeGEO_GO_batchFile
+
+v0.7.7 - Apr 2020
+  - change overall DEM KML folder from SourceTiles\Overall to KML
+  - add MKlink as part of creating file structure instead of in batchfiles
+  - V2 forest - import thermal mask scaling fix
+  - add V2 2 decimals support to airport direction
+  - add +/- zoom buttons to graphics page
+  - add airportPlacer airport latitude and longitude adjustment, 1/10/100 metres
+  - add +/-/= zoom to AirportPlacer
+  - TBD AirportPlacer - re-centre on form re-size ???
+    - perhaps re-centre on currrent cursor ???
+      - change way +/- work and re-centre on cursor click zoom/unzoom ???
+  - add DDS generation (DXT3)
+  - add utility to convert from DXT3 to DXT1 4 colors
+    - Landscape Editor uses nvdxt dxt1c but nvdxt bug does dxt1a only, 3 color and alpha, 
+      and has extra bug which can causes transparent spots in dark areas
+      - DDS batch file now uses dxt3, 4 colors instead as a workaround. Convert back to DXT1 to save 50% size
+	  - no, DDS batch still uses dxt1c
+  - add support for command line version of AllMapSoft GMID Combiner
+  - fix AirportPlacer 'Paved' radioButton to actually select paved and not grass
+  - fix 2 Southern Hemisphere bugs
+    - validate - NOT only applied to North. Added bracket to apply to North and South
+    - UTMtoLatLong - added missing No0 calculation 
+
+v0.7.8 - Apr 2020
+  - SourceFiles/VFRmap should be in Working/; fixed initial_Folder versus Working_Folder
+  - Right-click on object map for latLong to relative UTM calculator
+  - Fix object rotation in Object Placer  
+  - add ObjectPlacer airport northing and easting adjustment, 1/10/100 metres
+  - add +/-/= zoom to ObjectPlacer
+
+v0.7.9 - May 2020
+  - 'ALL' batch files in column sequence instead row sequence.
+  - GDAL - calculations in batch file. No need to wait for .gmid and BMP.
+  - DDS batch - use DXT3 instead of DXT1C
+  - add progressbar to utilities DXT conversion
+  
+v0.7.10 - May 2020
+  - bug - removed 45 m offset in airport Placer - big mistake ! - put back for now.
+  - airport placer - if changed and exit without saving -> force reload
+  - object placer  - if changed and exit without saving -> force reload
+  - update individual tile GDAL with gdaltransform 
+  - remove source tif support until Allmapsoft fix
+  - quatertile auto GDAL
+
+v0.8.0 - June 2020
+  - airport placer using DDS tiles
+  - PNG basic file support
+    - Note: ObjectViewer V1 does not work with PNG
+  - GMID overall - don't ask for size 
+  - GDAL overall - make even if BMP not found.
+  - DDS - read bitmap size within batch file. No need to wait for BMP
+  - DDS - use -triangle instead of -cubic for size 16384 tiles.
+  - path of glider and tow-plane on airport for V2 
+  - fix DEM bug for East HGT tiles
+
+v0.8.1 - June 2020
+  - Clamp .trn and .tr3 data to 0 if negative. Condor elevation cannot be negative.
+    - Note: .raw and .tif files can still contain negative elevation data
+
+v0.8.2 - November 2020 - January 2021
+  - add DEM 'import .trn' for older landscapes where DEM is missing
+  - add FTM to rotate and translate objects when writing c3d object
+  - add creation of DEM DEM_WGET.bat
+  - add export of landscape OBJ file to Working folder
+  - add import of landscape OBJ.csv file from Working folder
+  - on terrain read, show 6 decimals for res/dx/dy and 3 decimals for bottom/right 
+  - fix access to left and top dds tiles for airport viewer
+  - add export of landscape APT file to Working folder
+  - add import of landscape APT.csv file from Working folder
+  - add water-tile generation batch files
+    - GDAL_Translate does not support 32 bit map BMP i.e. with transparency ! so it does not work !
+	- change to TIFF instead of BMP, GDAL_Translate nows cuts tile in 4x4 OK
+	- However, nvdxt uses only 0 or 15 for transparency in DXT3, not 15 levels ???
+  - WGET_Generic - for use with ArcGIS for example - need URL and type
+    - TBD - option to read and parse working\Tile_URL.txt 
+  - add utilities -> fix puddles - scan files for color0<=color1 and if c3 is used (transparent), change to c2
+  - add texture compressor path for DDS generation
+  - add DXT type selection
+  - add makeDDS function and remove from MakeGDAL
+  - add UTM zone offset option
+  - add Texture Reducer in Utilities, by file, TBD for scenery all, or TBD for scenery edge
+  - add scenery conversion from Condor V1 to V2
+  - fix zoom-out issue when tile becomes smaller than scrollbox in thermal/forest editor
+  - add CIElab color matching
+  - add calibration scaling from header to AirportPlacer
+
+v0.8.3 - November 2021
+  - add GDAL for DetectTree support
+    - convert Terragen\Textures BMP to 2048x2048 and export TIF into Terragen\Textures_DetecTree 
+    - TBD - import predicted TIF tiles into Terragen\ForestMaps BMP
+  - add support for extra 'parameter' in AllMapSoft combiner
+
+v0.8.4 - December 2021
+  - add GDAL_ALL_DetectTree.bat
+  - add DT_Save to save forest tile as TIF in response_Tiles
+  - bug fix - EditThermal - load thermal mask incorrect after
+    first doing an EditForest and changing scale, but not vice-versa.
+  - bug fix - EditThermal - save thermal mask thFileName not mFileName
+  - replace +datum=wgs84 by +datum=WGS84 to work with newer QGIS/GDAL versions
+    - u_Make_GDAL, u_Make_GEO, Unit_DEM
+  - DEM page - add 'by Extent'
+  - DEM page - DEM_WGET.bat, add prompting for userName and Password
+  - DEM page - add DEM_Extract.bat
+  - DEM page - add 'Execute Batch Files' button
+
+v0.8.5 - January 2022 - ???
+  - Merge u_Exec with latest code in u_DEM and remove WaitExec32
+  - bug - DDS generation with nvDXT requires lowercase -dxt1c not upper case !
+  - Fix_Puddles - re-arrange status string display - no need for counters 1 and 2
+  - fix - some forms were re-sizable and maximizeable when they shouldn't be
+  - add Xplane object conversion for use with Condor
+  - fix object DXT5 texture view
+  - change DXT3-to-DXT1 to do DXT5 as well
+  - add landscape merge/crop/expand
+
+Issues:
+- Condor_Tiles does not use calibration data for showing airports and objects so they will be
+  incorrectly placed. 90 m dx and dy assumed !
+
+- if reading c3d file with object name containing a space -> creates issue as parse of X, cx, px files use a space as delimiter ! - creates problem with re-read of generated x, cx, px file
+- no possible workaround.  don't use object names with spaces !
+- convert space to '_' on read of c3d ?  would re-write with '_' of course. Is that an issue ?
+
+- drawing on top of selection box causes issues ? - turn off box first and turn back on after
