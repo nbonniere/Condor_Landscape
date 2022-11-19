@@ -23,7 +23,7 @@ unit Unit_Main;
 INTERFACE
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, {Dialogs,}
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
   StdCtrls, Registry, Menus, ExtCtrls, ComCtrls;
 
 type
@@ -129,16 +129,16 @@ IMPLEMENTATION
 
 uses
   FileCtrl, Dialogs,
-     Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
-     Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects,
-     u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
-     u_MakeForest, u_MakeThermal, u_MakeGradient,
-     u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
-     u_Terrain, u_Forest, u_Thermal, u_UTM,
-     u_X_CX, u_CalibImport, u_LandsatMet,
-     u_CalibExport, u_Object, u_CUP, u_INI,
-     u_Airport{, Unit_Convolve}, u_ReduceColors, u_Tile_XYZ, u_TIFF,
-     u_BrowseFolder;
+  Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
+  Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects,
+  u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
+  u_MakeForest, u_MakeThermal, u_MakeGradient,
+  u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
+  u_Terrain, u_Forest, u_Thermal, u_UTM,
+  u_X_CX, u_CalibImport, u_LandsatMet,
+  u_CalibExport, u_Object, u_CUP, u_INI,
+  u_Airport, u_ReduceColors, u_Tile_XYZ, u_TIFF,
+  u_BrowseFolder;
 
 const
   ShortPathNameLength = 50;
