@@ -88,6 +88,8 @@ Procedure ForceTerrainSize(TerrainFileName : string);
 procedure Merge_TRN_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongInt;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
+procedure Create_Dummy_TR3_Files(Default_Value : integer;
+                                 FilePath, Name : string);
 procedure Fix_TR3_Seams(Offset_X, Offset_Y : LongInt;
                         FilePath,Filename,
                         FilePath_a,Filename_a : string);
@@ -332,6 +334,63 @@ begin
     CloseFile(TRN_File);
     ProgressBar_Status.Position := 0;
   end;
+end;
+
+{----------------------------------------------------------------------------}
+procedure Create_Dummy_TR3_Files(Default_Value : integer;
+                                 FilePath, Name : string);
+type
+  pIntArray = ^tIntArray;
+  tIntArray = array[0..193-1] of SmallInt;
+
+var
+  Dummy_File : File of Byte;
+  TRN_File : File of Byte;
+  i,j,k : integer;
+  File_Prefix, File_Ext, File_Folder : string;
+  File_Name : string;
+  P : PIntArray;
+begin
+  File_Prefix := 'h';
+  File_Ext := '.tr3';
+  File_Folder := 'HeightMaps';
+
+  AssignFile(TRN_File,FilePath+'\'+Name+'.trn');
+  Reset(TRN_File);
+  BlockRead(TRN_File,TerrainHeader,sizeof(CondorTerrainHeader));
+
+ try
+  P := AllocMem(193*2); // initial values
+  for k := 0 to 193-1 do begin
+    P^[k] := Default_Value;
+  end;
+
+  with TerrainHeader do begin
+    ProgressBar_Status.Max := tWidth div 64;
+    for i := 0 to (tWidth div 64)-1 do begin
+      for j := 0 to (tHeight div 64)-1 do begin
+        File_Name := FilePath+'\'+File_Folder+'\'+
+          format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+        if (NOT FileExists(File_Name)) then begin
+          AssignFile(Dummy_File,File_Name);
+          Rewrite(Dummy_File);
+          for k := 0 to 193-1 do begin
+            BlockWrite(Dummy_File,P^,193*2);
+          end;
+          CloseFile(Dummy_File);
+        end;
+      end;
+      ProgressBar_Status.StepIt;
+      Application.ProcessMessages;
+    end;
+  end;
+
+ finally
+   freemem(P);
+ end;
+
+  CloseFile(TRN_File);
+  ProgressBar_Status.Position := 0;
 end;
 
 {----------------------------------------------------------------------------}

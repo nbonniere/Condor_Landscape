@@ -46,6 +46,9 @@ type
     Edit_Bottom: TEdit;
     Edit_Left: TEdit;
     Edit_Right: TEdit;
+    GroupBox_Defaults: TGroupBox;
+    Label_Elevation: TLabel;
+    Edit_Elevation: TEdit;
     procedure Button_CreateClick(Sender: TObject);
     procedure Button_CheckClick(Sender: TObject);
     procedure Button_MergeClick(Sender: TObject);
@@ -148,6 +151,7 @@ begin
   writeln(Temp_file, Form_Merge.Edit_Left.text);
   writeln(Temp_file, Form_Merge.Edit_Top.text);
   writeln(Temp_file, Form_Merge.Edit_Bottom.text);
+  writeln(Temp_file, Form_Merge.Edit_Elevation.text);
   with Form_Merge.CheckListBox_LandscapeList do begin
     for i := 0 to Items.Count-1 do begin
       if (Checked[i]) then begin
@@ -177,6 +181,8 @@ begin
     Form_Merge.Edit_Top.text := TempSTR;
     readln(Temp_file, TempSTR);
     Form_Merge.Edit_Bottom.text := TempSTR;
+    readln(Temp_file, TempSTR);
+    Form_Merge.Edit_Elevation.text := TempSTR;
     with Form_Merge.CheckListBox_LandscapeList do begin
       While (NOT EOF(Temp_File)) do begin
         Readln(Temp_file, TempSTR);
@@ -670,6 +676,7 @@ var
   NewFolderName : string;
   SearchRec: TSearchRec;
   Crop_Min_X, Crop_Min_Y, Crop_Max_X, Crop_Max_Y : longint;
+  df_Elevation : integer;
 begin
   // if .trn terrain file already created externally, i.e. check size
   // then nothing to do (.trn is not flattened, only .tr3 are flattened)
@@ -725,9 +732,17 @@ begin
   // then add dummy missing files for empty areas
   // fix seams after to also make a good transition edge
   MessageShow('Adding missing tiles');
-  // for now just add tiles of 0s
+  // use a user defined default elevation
+  df_Elevation := StrToInt(Edit_Elevation.text);
   // duplicate TR3 edge and fade to 0 (or other) for smoother transition  ???
-  Create_Dummy_Files(Type_TR3,
+  // for now just add tiles of 0s
+//  Create_Dummy_Files(Type_TR3,
+//    Condor_folder+'\Landscapes\'+LandscapeName, LandscapeName);
+  // use a user defined default elevation
+  df_Elevation := StrToInt(Edit_Elevation.text);
+//  u_Terrain.Memo_Message := Memo_Message;
+//  u_Terrain.ProgressBar_Status := ProgressBar_Status;
+  Create_Dummy_TR3_Files(df_Elevation,
     Condor_folder+'\Landscapes\'+LandscapeName, LandscapeName);
 
 // !!! need to fix 'duplicate' tr3 before fixing seams ???
@@ -742,7 +757,8 @@ begin
   MessageShow('Fixing seams');
 //  u_Terrain.Memo_Message := Memo_Message;
 //  u_Terrain.ProgressBar_Status := ProgressBar_Status;
-  for i := 1 to Merge_Count-1 do begin  // no need to do first one, start at 1
+//  for i := 1 to Merge_Count-1 do begin  // no need to do first one, start at 1
+  for i := 0 to Merge_Count-1 do begin  // no need to do first one, start at 1
     with Merge_Array[i] do begin
       Fix_TR3_Seams(trunc(qtX) * (256 div 4),
                     trunc(qtY) * (256 div 4),

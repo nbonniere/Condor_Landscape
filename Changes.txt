@@ -199,7 +199,7 @@ v0.8.4 - December 2021
   - DEM page - add DEM_Extract.bat
   - DEM page - add 'Execute Batch Files' button
 
-v0.8.5 - January 2022 - ???
+v0.8.5 - January 2022 - Apr 2022
   - Merge u_Exec with latest code in u_DEM and remove WaitExec32
   - bug - DDS generation with nvDXT requires lowercase -dxt1c not upper case !
   - Fix_Puddles - re-arrange status string display - no need for counters 1 and 2
@@ -208,6 +208,10 @@ v0.8.5 - January 2022 - ???
   - fix object DXT5 texture view
   - change DXT3-to-DXT1 to do DXT5 as well
   - add landscape merge/crop/expand
+
+v0.8.6 - November 2022
+  - Add default elevation to Merge Function
+  - Fix seam bug on left edge
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
