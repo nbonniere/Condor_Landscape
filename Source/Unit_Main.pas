@@ -1,6 +1,6 @@
 {
  * Unit_Main.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -79,6 +79,13 @@ type
     ComboBox_DXT: TComboBox;
     Button_DDS: TButton;
     Button_Merge: TButton;
+    GroupBox_Downloader: TGroupBox;
+    Edit_DownloaderPath: TEdit;
+    Button_Downloader: TButton;
+    GroupBox_Type: TGroupBox;
+    ComboBox_Type: TComboBox;
+    GroupBox_MapID: TGroupBox;
+    ComboBox_MapID: TComboBox;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -112,6 +119,7 @@ type
     procedure Button_TextureCompressorPathClick(Sender: TObject);
     procedure Button_DDSClick(Sender: TObject);
     procedure Button_MergeClick(Sender: TObject);
+    procedure Button_DownloaderClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -148,6 +156,7 @@ var
   CondorPathName : string;
   GDALpathName : string;
   CompressorPathName : string;
+  DownloaderPathName : string;
   CondorLandscapeName : string;
   WorkingPathName : string;
   TileName : string;
@@ -325,6 +334,31 @@ begin
     Edit_CompressorPath.Text := ShortenFolderString(CompressorPathName,ShortPathNameLength);
     Edit_CompressorPath.Hint := CompressorPathName;
     FIniFile.WriteString('Paths','CompressorPath',CompressorPathName);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_DownloaderClick(Sender: TObject);
+var
+  S : String;
+  Ext_File : TextFile;
+  fExt : string;
+
+begin
+  S := BrowseForFolder('Downloader/Combiner folder',DownloaderPathName);
+  if (S <> '') then begin
+    DownloaderPathName := S;
+    if (FileExists(S+'\INI\t.txt')) then begin
+      AssignFile(Ext_File,S+'\INI\t.txt');
+      Reset(Ext_File);
+      readln(Ext_File,fExt);
+      ComboBox_Type.Text := fExt;
+      CloseFile(Ext_File);
+    end;
+
+    Edit_DownloaderPath.Text := ShortenFolderString(DownloaderPathName,ShortPathNameLength);
+    Edit_DownloaderPath.Hint := DownloaderPathName;
+    FIniFile.WriteString('Paths','DownloaderPath',DownloaderPathName);
   end;
 end;
 
@@ -621,6 +655,8 @@ begin
 
     u_MakeGMID.Memo_Message := Memo_Info;
     u_MakeGMID.GMIDfolder := WorkingPathName;
+    u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
+    u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
     TileName := ComboBox_Single.text;
 
     if (TileName = 'Overall') then begin // only overall tile
@@ -1676,6 +1712,11 @@ begin
   Edit_CompressorPath.Text := ShortenFolderString(CompressorPathName,ShortPathNameLength);
   Edit_CompressorPath.Hint := CompressorPathName;
 
+  DownloaderPathName := Edit_DownloaderPath.text; {default}
+  DownloaderPathName := FIniFile.ReadString('Paths','DownloaderPath',DownloaderPathName);
+  Edit_DownloaderPath.Text := ShortenFolderString(DownloaderPathName,ShortPathNameLength);
+  Edit_DownloaderPath.Hint := DownloaderPathName;
+
   ComboBox_DXT.text:= FIniFile.ReadString('Tiles','DXT_Type',ComboBox_DXT.Items[0]);
   ComboBoxMatchString(ComboBox_DXT,'');
   ComboBox_TileSize.text:= FIniFile.ReadString('Tiles','OutputSize',ComboBox_TileSize.Items[0]);
@@ -1686,6 +1727,8 @@ begin
   ComboBoxMatchString(ComboBox_Imagery,'');
   ComboBox_GEO.text:= FIniFile.ReadString('MapData','GeoData',ComboBox_GEO.Items[0]);
   ComboBoxMatchString(ComboBox_GEO,'');
+  ComboBox_MapID.text:= FIniFile.ReadString('MapData','MapID',ComboBox_MapID.Items[0]);
+  ComboBoxMatchString(ComboBox_MapID,'');
 
   ComboBox_Version.text:= FIniFile.ReadString('Condor','Version',ComboBox_Version.Items[0]);
   ComboBoxMatchString(ComboBox_Version,'');
@@ -1707,6 +1750,7 @@ begin
   FIniFile.WriteString('MapData','ZoomLevel',ComboBox_ZoomLevel.text);
   FIniFile.WriteString('MapData','Imagery',ComboBox_Imagery.text);
   FIniFile.WriteString('MapData','GeoData',ComboBox_GEO.text);
+  FIniFile.WriteString('MapData','MapID',ComboBox_MapID.text);
   FIniFile.WriteString('Condor','Version',ComboBox_Version.text);
 end;
 
@@ -1742,6 +1786,8 @@ begin
   Unit_Utilities.OutputTileSize := ComboBox_TileSize.text;
   Unit_Utilities.DXT_Type := ComboBox_DXT.Text;
   u_X_CX.oTreeView := Unit_Objects.Form_Objects.TreeView_Object;
+  u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
+  u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
 
   // offset to be able to see status and progressbar
 //  Form_Utilities.Position := poDefault;

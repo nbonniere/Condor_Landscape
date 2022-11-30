@@ -70,12 +70,16 @@ type
                                                dwFlags : DWORD
                                               ) : boolean; stdcall;
 
+  Type_DC = (td_D, td_C, td_Both);
+
 var
   fHandle : THandle;
   CreateSymbolicLink : Windows_CreateSymbolicLink_Type;
 
   Memo_Message : TMemo;  // external TMemo for messages
   GMIDFolder : string;   // external path for file output
+  GMIDProgramsFolder : string; // external path for library
+  GMIDMapID : string;    // external path for mapstype
   ZoomLevel : string;
 
 function OpenDLL : boolean;
@@ -90,8 +94,11 @@ Procedure MakeGMIDquarterTile(geid : boolean; CurrentRow, CurrentColumn, offset_
 // a few extra functions for when you need separate processing
 Procedure MakeGMID_All_Combine_BatchFile;
 
-//Procedure MakeBatchCombineFile(FilePath : string; TileIndex : Integer; fExt : string);
-Procedure MakeBatchCombineFile(FilePath, TileName, fExt : string);
+Procedure Make_Batch_DownloadCombine(Which : Type_DC;
+                                     Name, ID,
+                                     FilePath, FileName : string;
+                                     ZoomLevel : string;
+                                     XL, XR, YT, YB : real);
 Procedure MakeWGET_All_BatchFile;
 
 //----------------------------------------------------------------------------
@@ -132,25 +139,64 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
-Procedure MakeBatchCombineFile(FilePath, TileName, fExt : string);
-var
-  FileName : string;
+Procedure Make_Batch_DownloadCombine(Which : Type_DC;
+                                     Name, ID,
+                                     FilePath, FileName : string;
+                                     ZoomLevel : string;
+                                     XL, XR, YT, YB : real);
 
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure Do_Downloader;
 begin
-  //open the file
-  FileName := 'Batch_Combine_'+TileName+'.bat';
-  AssignFile(GMIDfile, FilePath +'\'+ FileName);
-  Rewrite(GMIDfile);
-  writeln(GMIDfile,'rem for tif use "bmp,tif" instead of "bmp"');
+  writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
+                     '"'+GMIDProgramsFolder+'\downloader.exe"',
+                     Name,
+                     ID,
+                     ZoomLevel,
+                     XL, XR, YT, YB,
+                     '"'+FilePath+'"'
+                     ]));
+end;
 
+// search (for loop) for file extension instead of hard coding
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure Do_Combiner;
+begin
+  writeln(GMIDfile,'@echo off');
   writeln(GMIDfile,'IF [%1] NEQ [] (set type=%1 & set option=%2) else (set type=bmp & set option=meters)');
+
+  writeln(GMIDfile,'setlocal enabledelayedexpansion');
+  writeln(GMIDfile,'rem goto directory where batch file is');
+  writeln(GMIDfile,'cd /d %~dp0');
+  writeln(GMIDfile,'for %%f in (*) do (');
+  writeln(GMIDfile,'  if "%%~nf"=="'+Name+'" (');
+  writeln(GMIDfile,'    set Ext=%%~xf');
+
   writeln(GMIDfile,format('%s %s %s', [
-                     '"C:\allmapsoft\gmid\combiner.exe"',
-                     '"'+FilePath+'\'+TileName+fExt+'"',
-// no tif                     'tif'
-//                     'bmp%1%'    // optional
+                     '"'+GMIDProgramsFolder+'\combiner.exe"',
+                     '"'+FilePath+'\'+Name+'"!Ext! ',
+//                     'bmp meters'
                      '%type% %option% %3'
                      ]));
+
+  writeln(GMIDfile,'    goto :continue');
+  writeln(GMIDfile,'   )');
+  writeln(GMIDfile,')');
+  writeln(GMIDfile,':continue');
+  writeln(GMIDfile,'endlocal');
+end;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  AssignFile(GMIDfile, FilePath +'\'+ FileName);
+  Rewrite(GMIDfile);
+
+  if ((which = td_Both) or (which = td_D)) then begin
+    Do_Downloader;
+  end;
+  if ((which = td_Both) or (which = td_C)) then begin
+    Do_Combiner;
+  end;
 
   // close the file
   Close(GMIDfile);
@@ -217,7 +263,6 @@ begin
     end;
   end;
 
-
   //open the file
   FileName := 'Initial_'+TileList[TileIndex].TileName;
   if (geid) then begin
@@ -257,60 +302,28 @@ begin
   MessageShow(FileName+' done.');
 
   if (NOT geid) then begin // only for gmid for now
-{
-  // now make a batch Download and Combine file
-  //open the file
-  FileName := 'Batch_Download_'+TileList[TileIndex].TileName+'.bat';
-  AssignFile(GMIDfile, FilePath +'\'+ FileName);
-  Rewrite(GMIDfile);
-  writeln(GMIDfile,'rem for tif add ",tif" at end of combine call');
-
-  writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
-                     '"C:\allmapsoft\gmid\downloader.exe"',
-                     TileList[TileIndex].TileName+'.gmid',
-                     '1',
-                     Zoomlevel,
-                     Tile_Left_Long - Xsize,
-                     Tile_Right_Long + Xsize,
-                     Tile_Top_Lat + Ysize,
-                     Tile_Bottom_Lat - Ysize,
-                     '"'+FilePath+'"'
-                     ]));
-  writeln(GMIDfile,format('%s %s %s', [
-                     '"C:\allmapsoft\gmid\combiner.exe"',
-                     '"'+FilePath+'\'+TileList[TileIndex].TileName+'.gmid"',
-// no tif                     'tif'
-                     'bmp%1%'    // optional
-                     ]));
-
-  // close the file
-  Close(GMIDfile);
-  MessageShow(FileName+' done.');
-}
     // now make a batch Download only file
-    //open the file
     FileName := 'Batch_Download_'+TileList[TileIndex].TileName+'.bat';
-    AssignFile(GMIDfile, FilePath +'\'+ FileName);
-    Rewrite(GMIDfile);
+    Make_Batch_DownloadCombine(td_D, TileList[TileIndex].TileName, GMIDMapID,
+                               FilePath, FileName,
+                               ZoomLevel,
+                               Tile_Left_Long - Xsize,
+                               Tile_Right_Long + Xsize,
+                               Tile_Top_Lat + Ysize,
+                               Tile_Bottom_Lat - Ysize
+                              );
 
-    writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
-                     '"C:\allmapsoft\gmid\downloader.exe"',
-                     TileList[TileIndex].TileName+'.gmid',
-                     '1',
-                     Zoomlevel,
-                     Tile_Left_Long - Xsize,
-                     Tile_Right_Long + Xsize,
-                     Tile_Top_Lat + Ysize,
-                     Tile_Bottom_Lat - Ysize,
-                     '"'+FilePath+'"'
-                     ]));
-
-    // close the file
-    Close(GMIDfile);
-    MessageShow(FileName+' done.');
-
-    // now make a batch Combine only file
-    MakeBatchCombineFile(FilePath, TileList[TileIndex].TileName, '.gmid');
+    // now make a batch combine only file
+    FileName := 'Batch_Combine_'+TileList[TileIndex].TileName+'.bat';
+    Make_Batch_DownloadCombine(td_C, TileList[TileIndex].TileName, GMIDMapID,
+                               FilePath, FileName,
+                               ZoomLevel,
+                               Tile_Left_Long - Xsize,
+                               Tile_Right_Long + Xsize,
+                               Tile_Top_Lat + Ysize,
+                               Tile_Bottom_Lat - Ysize
+                              );
+  end else begin //geid
   end;
 end;
 
@@ -401,8 +414,10 @@ end;
 Procedure MakeGMIDoverallProjectFile;
 
 const
-  ExtraDist = 0.1;  // extra 100 metres on each edge
-
+  ExtraDist = 0.1;  // extra 100 metres on each edge, to acccount for UTM warping
+  // with zoom of 10, a small expansion/warp is needed
+  // with zoom of 11, a large shrinkage/warp is needed, but quality may be a little better
+  Default_Zoom = '10';
 var
   i : integer;
   FileName : string;
@@ -414,6 +429,7 @@ var
   Tile_Bottom_Lat  : real;
   Tile_Right_Long : real;
 
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
   Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
   Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
@@ -443,63 +459,32 @@ begin
   writeln(GMIDfile,'BottomLatitude='+format('%1.8f',[Tile_Bottom_Lat - Ysize]));
   writeln(GMIDfile);
   writeln(GMIDfile,'[Zoom]');
-//  writeln(GMIDfile,'Zoom='+Zoomlevel);
-  writeln(GMIDfile,'Zoom=10'); // fixed zoom level for overall - expand a bit
-//  writeln(GMIDfile,'Zoom=11'); // fixed zoom level for overall - shrink a fair amount
+  writeln(GMIDfile,'Zoom='+Default_Zoom);
 
   // close the file
   Close(GMIDfile);
   MessageShow(FileName+' done.');
 
-  // now make a batch download file
-  //open the file
+  // now make a batch download & combine file
   FileName := 'Batch_Download.bat';
-  AssignFile(GMIDfile, FilePath +'\'+ FileName);
-  Rewrite(GMIDfile);
-//  writeln(GMIDfile,'rem for tif add ",tif" at end of combine call');
-
-  writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
-                     '"C:\allmapsoft\gmid\downloader.exe"',
-                     'Overall.gmid',
-                     '1',
-                     '10',
-                     Tile_Left_Long - Xsize,
-                     Tile_Right_Long + Xsize,
-                     Tile_Top_Lat + Ysize,
-                     Tile_Bottom_Lat - Ysize,
-                     '"'+FilePath+'"'
-                     ]));
-
-  writeln(GMIDfile,format('%s %s %s', [
-                     '"C:\allmapsoft\gmid\combiner.exe"',
-                     '"'+FilePath+'\Overall.gmid" ',
-//                     'tif'
-//                     'bmp%1%'    // optional
-                     'bmp meters'
-                     ]));
-
-  // close the file
-  Close(GMIDfile);
-  MessageShow(FileName+' done.');
-
-  // now make a batch combine file
-  //open the file
+  Make_Batch_DownloadCombine(td_Both, 'Overall', GMIDMapID,
+                             FilePath, FileName,
+                             Default_Zoom,
+                             Tile_Left_Long - Xsize,
+                             Tile_Right_Long + Xsize,
+                             Tile_Top_Lat + Ysize,
+                             Tile_Bottom_Lat - Ysize
+                            );
+  // now make a batch combine only file
   FileName := 'Batch_Combine.bat';
-  AssignFile(GMIDfile, FilePath +'\'+ FileName);
-  Rewrite(GMIDfile);
-//  writeln(GMIDfile,'rem for tif add ",tif" at end of combine call');
-
-  writeln(GMIDfile,format('%s %s %s', [
-                     '"C:\allmapsoft\gmid\combiner.exe"',
-                     '"'+FilePath+'\Overall.gmid" ',
-//                     'tif'
-//                     'bmp%1%'    // optional
-                     'bmp meters'
-                     ]));
-
-  // close the file
-  Close(GMIDfile);
-  MessageShow(FileName+' done.');
+  Make_Batch_DownloadCombine(td_C, 'Overall', GMIDMapID,
+                             FilePath, FileName,
+                             Default_Zoom,
+                             Tile_Left_Long - Xsize,
+                             Tile_Right_Long + Xsize,
+                             Tile_Top_Lat + Ysize,
+                             Tile_Bottom_Lat - Ysize
+                            );
 end;
 
 //-------------------------------------------------------------------------------------

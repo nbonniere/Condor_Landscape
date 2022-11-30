@@ -212,6 +212,11 @@ v0.8.5 - January 2022 - Apr 2022
 v0.8.6 - November 2022
   - Add default elevation to Merge Function
   - Fix seam bug on left edge
+  - dds.pas - adjust types to compile on New Delphi
+  - u_MakeGMID.pas - adjust types to compile on New Delphi
+
+v0.8.7 - November 2022
+  - add path selection and map ID/type for downloader/combiner  
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

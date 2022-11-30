@@ -1349,7 +1349,12 @@ var
     ForceDirectories(TilePath+'\'+TileName);
     WGET_Generic(i, j, i+1, j+1, strtoint(ZoomLevel), TMS, SwapXY, URL,
       TileName, TilePath);
-    MakeBatchCombineFile(TilePath, TileName, '.umd');
+//    MakeBatchCombineFile(TilePath, TileName, '.umd');
+    Make_Batch_DownloadCombine(td_C, TileName, '0',
+                               TilePath, 'Batch_Combine_'+TileName+'.bat',
+                               '0',
+                               0,0,0,0
+                              );
     MakeBatchDo_All(TilePath, TileName, true);
   end;
 
@@ -1439,7 +1444,12 @@ begin
       ForceDirectories(TilePath+'\'+TileName);
       WGET_Generic(0, 0, TileRowCount, TileColumnCount, 10, TMS, SwapXY, URL,
         TileName, TilePath);
-      MakeBatchCombineFile(TilePath, TileName, '.umd');
+//      MakeBatchCombineFile(TilePath, TileName, '.umd');
+      Make_Batch_DownloadCombine(td_C, TileName, '0',
+                                 TilePath, 'Batch_Combine_'+TileName+'.bat',
+                                 '0',
+                                 0,0,0,0
+                                );
       MakeBatchDo_All(TilePath, TileName, false);
     end else begin // individual tile only
       if (length(TileName) <> 4) then begin
