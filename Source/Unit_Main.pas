@@ -1822,6 +1822,7 @@ begin
     Unit_DEM.library_Folder := GDALpathName;
     Unit_DEM.File_Folder := WorkingPathName+'\DEM';
     Unit_DEM.CurrentLandscape := CondorLandscapeName;
+    Unit_DEM.Programsfolder := DownloaderPathName; // for 7-zip for now
 
     // offset to be able to see status and progressbar
 //    Form_DEM.Position := poDefault;

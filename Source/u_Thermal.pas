@@ -965,70 +965,73 @@ begin
   cWidth  := TDM_Header.Width;
   cHeight := TDM_Header.Height;
 
+  if (NOT FileExists(FilePath_a+'\'+Filename_a)) then begin
+//    MessageShow('Warning: '+Filename_a+' file not found');
+    Beep;
+  end else begin
+    AssignFile(TDM_File_a,FilePath_a+'\'+Filename_a);
+    Reset(TDM_File_a);
+    BlockRead(TDM_File_a,TDM_Header,sizeof(TDM_Header));
 
-  AssignFile(TDM_File_a,FilePath_a+'\'+Filename_a);
-  Reset(TDM_File_a);
-  BlockRead(TDM_File_a,TDM_Header,sizeof(TDM_Header));
+    with TDM_Header do begin
+      gWidth  := TDM_Header.Width;
+      gHeight := TDM_Header.Height;
+    end;
 
-  with TDM_Header do begin
-    gWidth  := TDM_Header.Width;
-    gHeight := TDM_Header.Height;
-  end;
-
-  try
-    // need a buffer
-    P := AllocMem(gWidth);
+    try
+      // need a buffer
+      P := AllocMem(gWidth);
 // make limit calc common for BMP, TDM and TRN ???
-    // calculate vertical crop limits i_Min and i_Max
-    if (Min_Y > Offset_Y) then begin
-      i_Min := Min_Y - Offset_Y;
-    end else begin
-      i_Min := 0;
-    end;
-    if (Max_Y > Offset_Y + gHeight) then begin
-      i_Max := gHeight;
-    end else begin
-      i_Max := Max_Y - Offset_Y;
-    end;
-    // calculate horizontal crop limits j_Delta, j_Index and j_Width
-    if ( ((-Offset_X)+gWidth)< Max_X) then begin // crop left ?
-      j_Index := cWidth - ((-Offset_X)+gWidth - Min_X);
-      j_DeltaL := 0;
-    end else begin
-      j_Index := 0;
-      j_DeltaL := (-Offset_X)+gWidth - Max_X;
-    end;
-    j_DeltaR := 0;
-    j_Width := gWidth - j_DeltaL;
-    if (Min_X > (-Offset_X)) then begin // crop right ?
-      j_DeltaR := Min_X + (-Offset_X);
-      j_Width := j_Width - j_DeltaR;
-    end;
+      // calculate vertical crop limits i_Min and i_Max
+      if (Min_Y > Offset_Y) then begin
+        i_Min := Min_Y - Offset_Y;
+      end else begin
+        i_Min := 0;
+      end;
+      if (Max_Y > Offset_Y + gHeight) then begin
+        i_Max := gHeight;
+      end else begin
+        i_Max := Max_Y - Offset_Y;
+      end;
+      // calculate horizontal crop limits j_Delta, j_Index and j_Width
+      if ( ((-Offset_X)+gWidth)< Max_X) then begin // crop left ?
+        j_Index := cWidth - ((-Offset_X)+gWidth - Min_X);
+        j_DeltaL := 0;
+      end else begin
+        j_Index := 0;
+        j_DeltaL := (-Offset_X)+gWidth - Max_X;
+      end;
+      j_DeltaR := 0;
+      j_Width := gWidth - j_DeltaL;
+      if (Min_X > (-Offset_X)) then begin // crop right ?
+        j_DeltaR := Min_X + (-Offset_X);
+        j_Width := j_Width - j_DeltaR;
+      end;
 
-    ProgressBar_Status.Max := gHeight;
-    for i := i_Min to i_Max-1 do begin
-      // get input data    // do seek only once and then just sequential ?
-      FileIndex := sizeof(TDM_Header) +
-        ((i) * gWidth);
-      seek(TDM_File_a,FileIndex);
-      BlockRead(TDM_File_a,P^,gWidth);
-      // write output data
-      FileIndex := sizeof(TDM_Header) +
-        ((i + Offset_Y - Min_Y) * cWidth) +
-        j_Index;
-      seek(TDM_File,FileIndex);
-      // use delta right offset because data in in reverse order for TDM
-      BlockWrite(TDM_File,P^[j_DeltaR],j_Width);
-      ProgressBar_Status.StepIt;
-      Application.ProcessMessages;
+      ProgressBar_Status.Max := gHeight;
+      for i := i_Min to i_Max-1 do begin
+        // get input data    // do seek only once and then just sequential ?
+        FileIndex := sizeof(TDM_Header) +
+          ((i) * gWidth);
+        seek(TDM_File_a,FileIndex);
+        BlockRead(TDM_File_a,P^,gWidth);
+        // write output data
+        FileIndex := sizeof(TDM_Header) +
+          ((i + Offset_Y - Min_Y) * cWidth) +
+          j_Index;
+        seek(TDM_File,FileIndex);
+        // use delta right offset because data in in reverse order for TDM
+        BlockWrite(TDM_File,P^[j_DeltaR],j_Width);
+        ProgressBar_Status.StepIt;
+        Application.ProcessMessages;
+      end;
+    finally
+      Freemem(P);
+      CloseFile(TDM_File_a);
+      ProgressBar_Status.Position := 0;
     end;
-  finally
-    Freemem(P);
-    CloseFile(TDM_File_a);
-    CloseFile(TDM_File);
-    ProgressBar_Status.Position := 0;
   end;
-
+  CloseFile(TDM_File);
 end;
 
 {----------------------------------------------------------------------------}

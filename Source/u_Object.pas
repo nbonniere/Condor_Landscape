@@ -214,56 +214,60 @@ begin
     end;
   end;
 
-  AssignFile(OBJ_File_a,FilePath_a+'\'+Filename_a+'.obj');
-  Reset(OBJ_File_a);
+  if (NOT FileExists(FilePath_a+'\'+Filename_a+'.obj')) then begin
+//    MessageShow('Warning: '+Filename_a+'.obj file not found');
+    Beep;
+  end else begin
+    AssignFile(OBJ_File_a,FilePath_a+'\'+Filename_a+'.obj');
+    Reset(OBJ_File_a);
 
-  with Object_list[0] do begin
-    While not EOF(OBJ_File_a) do begin
-      Read(OBJ_File_a,Object_list[0]);
+    with Object_list[0] do begin
+      While not EOF(OBJ_File_a) do begin
+        Read(OBJ_File_a,Object_list[0]);
 
-      // adjust UTM coords
-      coEasting  := coEasting +  Offset_X - Min_X;
-      coNorthing := coNorthing + Offset_Y - Min_Y;
+        // adjust UTM coords
+        coEasting  := coEasting +  Offset_X - Min_X;
+        coNorthing := coNorthing + Offset_Y - Min_Y;
 
-      if (coEasting > (Max_X-Min_X)) then begin
-        continue;
-      end;
-      if (coEasting < 0) then begin
-        continue;
-      end;
-      if (coNorthing > (Max_Y-Min_Y)) then begin
-        continue;
-      end;
-      if (coNorthing < 0) then begin
-        continue;
-      end;
-
-      // read Object file and copy textures files
-      with Object_list[0] do begin
-        ForceDirectories(FilePath+'\World\Objects');
-
-        ObjectFileName_a := FilePath_a+'\World\Objects\'+coName;
-        if (FileExists(ObjectFileName_a)) then begin
-
-          ObjectFileName := FilePath+'\World\Objects\'+coName;
-          CopyFile(pchar(ObjectFileName_a),
-            pchar(ObjectFileName),false);
-
-          ReadCondorC3Dfile(ObjectFileName);
-          // Need to copy textures for this object
-          CopyObjectTextures(FilePath,Filename,
-                             FilePath_a,Filename_a,
-                             'World\Objects');
-          // update if changed
-          WriteCondorC3Dfile(ObjectFileName);
+        if (coEasting > (Max_X-Min_X)) then begin
+          continue;
         end;
+        if (coEasting < 0) then begin
+          continue;
+        end;
+        if (coNorthing > (Max_Y-Min_Y)) then begin
+          continue;
+        end;
+        if (coNorthing < 0) then begin
+          continue;
+        end;
+
+        // read Object file and copy textures files
+        with Object_list[0] do begin
+          ForceDirectories(FilePath+'\World\Objects');
+
+          ObjectFileName_a := FilePath_a+'\World\Objects\'+coName;
+          if (FileExists(ObjectFileName_a)) then begin
+
+            ObjectFileName := FilePath+'\World\Objects\'+coName;
+            CopyFile(pchar(ObjectFileName_a),
+              pchar(ObjectFileName),false);
+
+            ReadCondorC3Dfile(ObjectFileName);
+            // Need to copy textures for this object
+            CopyObjectTextures(FilePath,Filename,
+                               FilePath_a,Filename_a,
+                               'World\Objects');
+            // update if changed
+            WriteCondorC3Dfile(ObjectFileName);
+          end;
+        end;
+
+        Write(OBJ_File,Object_list[0]);
       end;
-
-      Write(OBJ_File,Object_list[0]);
     end;
+    CloseFile(OBJ_File_a);
   end;
-
-  CloseFile(OBJ_File_a);
   CloseFile(OBJ_File);
 end;
 

@@ -106,48 +106,53 @@ begin
     Append(CUP_File);
   end;
 
-  AssignFile(CUP_File_a,FilePath_a+'\'+Filename_a+'.cup');
-  Reset(CUP_File_a);
-  readln(CUP_File_a,LineString);  // skip first line
-  While not EOF(CUP_File_a) do begin
-    readln(CUP_File_a,LineString);
-    // parse lat and long fields and compare to limits
-    // kludge, replace first two commas and look for third as an index
-    cupString := StringReplace(LineString,',','|',[]);
-    cupString := StringReplace(cupString,',','|',[]);
-    CommaPos := pos(',',cupString);
-    if (CommaPos <> 0) then begin
-      apLatitude := strtofloat(copy(cupString,CommaPos+1,2));
-      apLatitude := apLatitude + strtofloat(copy(cupString,CommaPos+1+2,6))/60;
-      if (uppercase(cupString[CommaPos+1+2+6]) = 'S') then begin
-        apLatitude := -apLatitude;
+  if (NOT FileExists(FilePath_a+'\'+Filename_a+'.cup')) then begin
+//    MessageShow('Warning: '+Filename_a+'.obj file not found');
+    Beep;
+  end else begin
+    AssignFile(CUP_File_a,FilePath_a+'\'+Filename_a+'.cup');
+    Reset(CUP_File_a);
+    readln(CUP_File_a,LineString);  // skip first line
+    While not EOF(CUP_File_a) do begin
+      readln(CUP_File_a,LineString);
+      // parse lat and long fields and compare to limits
+      // kludge, replace first two commas and look for third as an index
+      cupString := StringReplace(LineString,',','|',[]);
+      cupString := StringReplace(cupString,',','|',[]);
+      CommaPos := pos(',',cupString);
+      if (CommaPos <> 0) then begin
+        apLatitude := strtofloat(copy(cupString,CommaPos+1,2));
+        apLatitude := apLatitude + strtofloat(copy(cupString,CommaPos+1+2,6))/60;
+        if (uppercase(cupString[CommaPos+1+2+6]) = 'S') then begin
+          apLatitude := -apLatitude;
+        end;
+        apLongitude := strtofloat(copy(cupString,CommaPos+11,3));
+        apLongitude := apLongitude + strtofloat(copy(cupString,CommaPos+11+3,6))/60;
+        if (uppercase(cupString[CommaPos+11+3+6]) = 'W') then begin
+          apLongitude := -apLongitude;
+        end;
+      end else begin
+        continue;
       end;
-      apLongitude := strtofloat(copy(cupString,CommaPos+11,3));
-      apLongitude := apLongitude + strtofloat(copy(cupString,CommaPos+11+3,6))/60;
-      if (uppercase(cupString[CommaPos+11+3+6]) = 'W') then begin
-        apLongitude := -apLongitude;
+
+      LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+      if (uEasting > UTM_Limits.xMax) then begin
+        continue;
       end;
-    end else begin
-      continue;
-    end;
+      if (uEasting < UTM_Limits.xMin) then begin
+        continue;
+      end;
+      if (uNorthing > UTM_Limits.yMax) then begin
+        continue;
+      end;
+      if (uNorthing < UTM_Limits.yMin) then begin
+        continue;
+      end;
 
-    LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
-    if (uEasting > UTM_Limits.xMax) then begin
-      continue;
+      writeln(CUP_File,LineString);
     end;
-    if (uEasting < UTM_Limits.xMin) then begin
-      continue;
-    end;
-    if (uNorthing > UTM_Limits.yMax) then begin
-      continue;
-    end;
-    if (uNorthing < UTM_Limits.yMin) then begin
-      continue;
-    end;
-
-    writeln(CUP_File,LineString);
+    CloseFile(CUP_File_a);
   end;
-  CloseFile(CUP_File_a);
   CloseFile(CUP_File);
 end;
 

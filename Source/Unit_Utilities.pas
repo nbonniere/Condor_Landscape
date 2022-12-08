@@ -401,7 +401,6 @@ begin
     MessageShow(format('Y: %d .. %d',[Generic_TN[0,1],Generic_TN[1,1]]));
     MessageShow(format('X: %d .. %d',[Generic_TN[0,0],Generic_TN[1,0]]));
 
-//    FilePath := Working_Folder+'\SourceTiles\VFRmap';
     if (NOT DirectoryExists(FilePath+'\URLs')) then begin
       ForceDirectories(FilePath+'\URLs');
     end;
@@ -618,6 +617,9 @@ begin
     if (NOT DirectoryExists(FilePath+'\URLs')) then begin
       ForceDirectories(FilePath+'\URLs');
     end;
+    if (NOT DirectoryExists(FilePath+'\VFRmap')) then begin
+      ForceDirectories(FilePath+'\VFRmap');
+    end;
 
     // convert from tile Z/X/Y to Z/Y/X format
     // mkdir row folders
@@ -698,8 +700,8 @@ begin
 //    BitmapWidth  := 256 * (1 + VFR_TN[1,0] - VFR_TN[0,0]);
 //    BitmapHeight := 256 * (1 + VFR_TN[1,1] - VFR_TN[0,1]);
 
-    GDALfolder := Working_Folder;
-    GDALlibraryfolder := Library_Folder;
+    u_MakeGDAL.GDALfolder := Working_Folder;
+    u_MakeGDAL.GDALlibraryfolder := Library_Folder;
     MakeGDALoverallBatchFile('VFRmap');
 
     // also need a .gmid file for combiner to combine ???

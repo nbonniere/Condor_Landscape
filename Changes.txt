@@ -217,6 +217,12 @@ v0.8.6 - November 2022
 
 v0.8.7 - November 2022
   - add path selection and map ID/type for downloader/combiner  
+  - allow for elevation-only merging by ignoring other missing files.
+  - fix airport object merge bug
+  - fix areas[] not cleared bug
+  - add merging of alternate flight-planners
+  - fix path for VFRmap in Utilities
+  - change default path for DEM 7-zip
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

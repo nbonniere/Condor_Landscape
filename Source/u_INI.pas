@@ -50,7 +50,7 @@ begin
   AssignFile(INI_File,FilePath+'\'+Filename);
   Rewrite(INI_File);
   writeln(INI_File,'[General]');
-  writeln(INI_File,'Version=0.1');
+  writeln(INI_File,'Version=1.0');
   writeln(INI_File,'RealtimeShading=1');
   CloseFile(INI_File);
 end;

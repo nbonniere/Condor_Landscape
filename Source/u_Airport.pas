@@ -262,73 +262,76 @@ begin
     end;
   end;
 
-  AssignFile(APT_File_a,FilePath_a+'\'+Filename_a+'.apt');
-  Reset(APT_File_a);
+  if (NOT FileExists(FilePath_a+'\'+Filename_a+'.apt')) then begin
+//    MessageShow('Warning: '+Filename_a+'.apt file not found');
+    Beep;
+  end else begin
+    AssignFile(APT_File_a,FilePath_a+'\'+Filename_a+'.apt');
+    Reset(APT_File_a);
 
-  While not EOF(APT_File_a) do begin
-    Read(APT_File_a,Airport_list[0]);
+    While not EOF(APT_File_a) do begin
+      Read(APT_File_a,Airport_list[0]);
 
-    // only keep airports within crop area
-    with (Airport_list[0]) do begin
-      LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
-    end;
-    if (uEasting > UTM_Limits.xMax) then begin
-      continue;
-    end;
-    if (uEasting < UTM_Limits.xMin) then begin
-      continue;
-    end;
-    if (uNorthing > UTM_Limits.yMax) then begin
-      continue;
-    end;
-    if (uNorthing < UTM_Limits.yMin) then begin
-      continue;
-    end;
-
-    Write(APT_File,Airport_list[0]);
-
-    // read G and O files and copy textures files
-    with Airport_list[0] do begin
-      ForceDirectories(FilePath+'\Airports');
-
-      // look for G file
-      ObjectFileName_a := FilePath_a+'\Airports\'+apName+'G.c3d';
-      if (FileExists(ObjectFileName_a)) then begin
-
-        ObjectFileName := FilePath+'\Airports\'+apName+'G.c3d';
-        CopyFile(pchar(ObjectFileName_a),
-          pchar(ObjectFileName),false);
-
-        ReadCondorC3Dfile(ObjectFileName);
-        // Need to copy textures for this object
-        CopyObjectTextures(FilePath,Filename,
-                           FilePath_a,Filename_a,
-                           'Airports');
-        // update if changed
-        WriteCondorC3Dfile(ObjectFileName);
+      // only keep airports within crop area
+      with (Airport_list[0]) do begin
+        LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+      end;
+      if (uEasting > UTM_Limits.xMax) then begin
+        continue;
+      end;
+      if (uEasting < UTM_Limits.xMin) then begin
+        continue;
+      end;
+      if (uNorthing > UTM_Limits.yMax) then begin
+        continue;
+      end;
+      if (uNorthing < UTM_Limits.yMin) then begin
+        continue;
       end;
 
-      // look for O file
-      ObjectFileName_a := FilePath_a+'\Airports\'+apName+'O.c3d';
-      if (FileExists(ObjectFileName_a)) then begin
+      Write(APT_File,Airport_list[0]);
 
-        ObjectFileName := FilePath+'\Airports\'+apName+'O.c3d';
-        CopyFile(pchar(ObjectFileName_a),
-          pchar(ObjectFileName),false);
+      // read G and O files and copy textures files
+      with Airport_list[0] do begin
+        ForceDirectories(FilePath+'\Airports');
 
-        ReadCondorC3Dfile(ObjectFileName);
-        // Need to copy textures for this object
-        CopyObjectTextures(FilePath,Filename,
-                           FilePath_a,FileName_a,
-                           'Airports');
-        // update if changed
-        WriteCondorC3Dfile(ObjectFileName);
+        // look for G file
+        ObjectFileName_a := FilePath_a+'\Airports\'+apName+'G.c3d';
+        if (FileExists(ObjectFileName_a)) then begin
+
+          ObjectFileName := FilePath+'\Airports\'+apName+'G.c3d';
+          CopyFile(pchar(ObjectFileName_a),
+            pchar(ObjectFileName),false);
+
+          ReadCondorC3Dfile(ObjectFileName);
+          // Need to copy textures for this object
+          CopyObjectTextures(FilePath,Filename,
+                             FilePath_a,Filename_a,
+                             'Airports');
+          // update if changed
+          WriteCondorC3Dfile(ObjectFileName);
+        end;
+
+        // look for O file
+        ObjectFileName_a := FilePath_a+'\Airports\'+apName+'O.c3d';
+        if (FileExists(ObjectFileName_a)) then begin
+
+          ObjectFileName := FilePath+'\Airports\'+apName+'O.c3d';
+          CopyFile(pchar(ObjectFileName_a),
+            pchar(ObjectFileName),false);
+
+          ReadCondorC3Dfile(ObjectFileName);
+          // Need to copy textures for this object
+          CopyObjectTextures(FilePath,Filename,
+                             FilePath_a,FileName_a,
+                             'Airports');
+          // update if changed
+          WriteCondorC3Dfile(ObjectFileName);
+        end;
       end;
     end;
-
+    CloseFile(APT_File_a);
   end;
-
-  CloseFile(APT_File_a);
   CloseFile(APT_File);
 end;
 

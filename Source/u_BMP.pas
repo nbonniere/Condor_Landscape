@@ -942,10 +942,10 @@ const
 begin
   AssignFile(BitmapFile,FileName);
   if (FileExists(FileName)) then begin
-    MessageShow('Updating BMP header');
+//    MessageShow('Updating BMP header');
 //    reset(BitmapFile);
   end else begin
-    MessageShow('Writing BMP header');
+//    MessageShow('Writing BMP header');
 //    rewrite(BitmapFile);
   end;
     rewrite(BitmapFile);  // ALWAYS start new file !
@@ -1070,18 +1070,26 @@ var
   BMP_File : File of Byte;
   BMP_File_a : File of Byte;
   P : PByteArray;
-  i, i_Min, i_Max : integer;
+  i, j, i_Min, i_Max : integer;
   FileIndex : LongInt;
   cWidth, cHeight : integer;
   gWidth, gHeight : integer;
   BMP_Header : BMP_V1_Header;
   j_Delta, j_DeltaR, j_Index, j_Width : integer;
+  Flag_32 : boolean;
+  Color_Size : integer;
+  pColor : ColorConvert;
 
 begin
   if (NOT FileExists(FilePath+'\'+Filename)) then begin
     MessageShow('BMP file not found');
     Beep; Exit;
   end;
+  if (NOT FileExists(FilePath_a+'\'+Filename_a)) then begin
+    MessageShow('Warning: '+Filename_a+' file not found');
+    Beep; Exit;
+  end;
+
   AssignFile(BMP_File,FilePath+'\'+Filename);
   Reset(BMP_File);
   BlockRead(BMP_File,BMP_Header,sizeof(BMP_Header));
@@ -1094,15 +1102,21 @@ begin
   Reset(BMP_File_a);
   BlockRead(BMP_File_a,BMP_Header,sizeof(BMP_Header));
 
-  // only allow 24 bit format for now
+  // only allow 32 and 24 bit format for now
   with BMP_Header do begin
+    gWidth := bDib.bWidth;
+    gHeight := bDib.bHeight;
     case BMP_Header.bDib.bColorBits of
+      32: begin
+        Flag_32 := True;
+        Color_Size := Color32Size;
+      end;
       24: begin
-        gWidth := bDib.bWidth;
-        gHeight := bDib.bHeight;
+        Flag_32 := False;
+        Color_Size := Color24Size;
       end;
       else begin
-        MessageShow('BMP file not 24 bit format');
+        MessageShow('BMP file not 32 or 24 bit format');
         Beep; Exit;
       end;
     end;
@@ -1111,9 +1125,9 @@ begin
   try
     // need a buffer
 //    P := AllocMem(bDib.bWidth * Color24Size);
-    P := AllocMem(gWidth * Color24Size);
+//    P := AllocMem(gWidth * Color24Size);
     // could be 24 or 32, assume 32 as max size.
-//    P_a := AllocMem(gWidth * Color32Size); // one row at a time
+    P := AllocMem(gWidth * Color_Size);
 // make limit calc common for BMP, TDM and TRN ???
     // calculate vertical crop limits i_Min and i_Max
     if (Min_Y > Offset_Y) then begin
@@ -1146,9 +1160,15 @@ begin
     for i := i_Min to i_Max-1 do begin
       // get input data    // do seek only once and then just sequential ?
       FileIndex := sizeof(BMP_Header) +
-        ((i) * gWidth) * Color24Size;
+        ((i) * gWidth) * Color_Size;
       seek(BMP_File_a,FileIndex);
-      BlockRead(BMP_File_a,P^,gWidth * Color24Size);
+      BlockRead(BMP_File_a,P^,gWidth * Color_Size);
+      if (Flag_32) then begin // need to convert from 32 to 24 bit color
+        for j := 0 to gWidth-1 do begin
+          pColor.cRGBA := pRGBAlphaArray(P)^[j];
+          pRGBArray(P)^[j] := pColor.cRGB;
+        end;
+      end;
       // write output data
       FileIndex := sizeof(BMP_Header) +
         ((i + Offset_Y - Min_Y) * cWidth) * Color24Size +

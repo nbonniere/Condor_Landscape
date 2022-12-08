@@ -1,6 +1,6 @@
 {
  * Unit_DEM.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -145,6 +145,7 @@ var
   CurrentLandscape : string;
   File_Folder : string;              // external path for file
   library_Folder : string;           // external path for library
+  Programsfolder : string;           // external path for library
   CondorVersion : string;
 
   Areas : array of AreaPoints;
@@ -845,7 +846,8 @@ begin
 
     writeln(DEM_file,'@echo off');
     writeln(DEM_file,'setlocal');
-    writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
+//    writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
+    writeln(DEM_file,'set PATH=%PATH%;"'+ProgramsFolder+'\geotiff"');
     writeln(DEM_file,'rem goto directory where batch file is');
     writeln(DEM_file,'cd /d %~dp0');
 
@@ -1242,7 +1244,8 @@ begin
       Button_Import.enabled := true;
     end;
   end;
-  ClearGrid(Sender);
+  SetLength(Areas,0); // erase any old data
+  ClearGrid(Sender);  // erase any old grid
 end;
 
 //---------------------------------------------------------------------------

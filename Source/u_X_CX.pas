@@ -3495,7 +3495,8 @@ begin
       // look for the next one
       INC(NodeIndex);
     end;
-  until (Tn = '');
+//  until (Tn = '');  // bug ! need to continue until end
+  until (NodeIndex > oTreeView.Items.Count-1)
 end;
 
 {----------------------------------------------------------------------------

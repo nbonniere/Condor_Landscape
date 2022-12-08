@@ -671,12 +671,34 @@ end;
 {----------------------------------------------------------------------------}
 procedure TForm_Merge.Button_MergeClick(Sender: TObject);
 var
-  i : integer;
+  i, j : integer;
   FolderName : string;
   NewFolderName : string;
   SearchRec: TSearchRec;
   Crop_Min_X, Crop_Min_Y, Crop_Max_X, Crop_Max_Y : longint;
   df_Elevation : integer;
+  FileList : array of string;
+  FileCount : integer;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+  Procedure FilterFile(BaseName, FoundName : string);
+  var
+    i : integer;
+  begin
+    if (Basename+'.bmp' <> FoundName) then begin
+      for i := 0 to FileCount-1 do begin
+        if (FileList[i] = FoundName) then begin
+          exit; // duplicate, ignore
+        end;
+      end;
+      // FileCount = 0 or not already in list
+      INC(FileCount);
+      SetLength(FileList,FileCount);
+      FileList[FileCount-1] := FoundName;
+    end;
+  end;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
 begin
   // if .trn terrain file already created externally, i.e. check size
   // then nothing to do (.trn is not flattened, only .tr3 are flattened)
@@ -803,8 +825,6 @@ begin
 
   // merge flight planner map bitmaps
   // ??? what about 24 versus 32 bit color ???
-  // ??? for other map bitmaps, if names match, merge ???
-  // disregard others
   MessageShow('Merging FlightPlanner');
   u_BMP.Memo_Message := Memo_Message;
   u_BMP.ProgressBar_Status := ProgressBar_Status;
@@ -823,6 +843,45 @@ begin
         Condor_folder+'\Landscapes\'+Name,Name+'.bmp');
     end;
   end;
+
+  // for other map bitmaps, make list of all bitmaps and then merge by matching name
+  MessageShow('Merging alternate FlightPlanner(s)');
+  // first make list, except for flightplanner, and avoid duplicates
+  FileCount := 0;
+  for i := 0 to Merge_Count-1 do begin
+    FolderName := Condor_folder+'\Landscapes\'+
+      Merge_Array[i].Name;
+    if (FindFirst(FolderName+'\*.bmp', faNormalFile, SearchRec)) = 0 then begin
+      FilterFile(Merge_Array[i].Name, SearchRec.Name);
+      while (FindNext(SearchRec) = 0) do begin
+        FilterFile(Merge_Array[i].Name, SearchRec.Name);
+      end;
+      FindClose(SearchRec);
+    end;
+  end;
+
+  u_BMP.Memo_Message := Memo_Message;
+  u_BMP.ProgressBar_Status := ProgressBar_Status;
+  // then for each unique filename, merge files with same name
+  for j := 0 to FileCount-1 do begin
+    // create an initial dummy .bmp file.
+    WriteBMP24Header(Condor_folder+'\Landscapes\'+LandscapeName+'\'+FileList[j]);
+    // now force its size
+    ForceBMP24size(Condor_folder+'\Landscapes\'+LandscapeName+'\'+FileList[j]);
+    for i := 0 to Merge_Count-1 do begin
+      with Merge_Array[i] do begin
+        Merge_BMP24_File(trunc(qtX) * (256 div 4),
+                         trunc(qtY) * (256 div 4),
+                         Crop_Min_X * (256 div 4),
+                         Crop_Max_X * (256 div 4),
+                         Crop_Min_Y * (256 div 4),
+                         Crop_Max_Y * (256 div 4),
+          Condor_folder+'\Landscapes\'+LandscapeName,FileList[j],
+          Condor_folder+'\Landscapes\'+Name,FileList[j]);
+      end;
+    end;
+  end;
+  MessageShow('Delete incomplete alternate flightplanner(s) as desired');
 
   // merge .obj files
   MessageShow('Merging Objects');
