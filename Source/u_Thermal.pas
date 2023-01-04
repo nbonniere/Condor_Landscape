@@ -85,7 +85,8 @@ Procedure ClearThermalGrid;
 Procedure TDM_To_Greyscale_Bitmap(TDM_FileName,Greyscale_FileName : string);
 Procedure Greyscale_Bitmap_To_TDM(Greyscale_FileName,TDM_FileName : string);
 Procedure WriteTDMHeader(TDM_FileName : string);
-Procedure ForceTDMsize(TDM_FileName : string);
+//Procedure ForceTDMsize(TDM_FileName : string);
+Procedure ForceTDMsize(TDM_FileName : string; Default_Value : integer);
 procedure Merge_TDM_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongInt;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
@@ -864,7 +865,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure ForceTDMsize(TDM_FileName : string);
+Procedure xxxForceTDMsize(TDM_FileName : string);
 const
   ZeroByte : byte = 0;
 var
@@ -882,6 +883,45 @@ begin
     seek(TDM_File,sizeof(TDM_Header)+Width*Height-1);
   end;
   Write(TDM_File,ZeroByte);
+  Close(TDM_File);
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ForceTDMsize(TDM_FileName : string; Default_Value : integer);
+var
+  TDM_File : File of byte;
+  P : PByteArray;
+  ByteCount : longint;
+begin
+  AssignFile(TDM_File,TDM_FileName);
+  if (NOT FileExists(TDM_FileName)) then begin
+    MessageShow('Thermal file not found');
+    beep; Exit;
+  end;
+  reset(TDM_File);
+  BlockRead(TDM_File,TDM_Header,sizeof(TDM_Header));
+ try
+  with TDM_Header do begin
+    P := AllocMem(512); // initial values
+    for ByteCount := 0 to 512-1 do begin
+      P^[ByteCount] := Default_Value;
+    end;
+
+    ByteCount := Width*Height;
+    while (ByteCount > 0) do begin
+      if (ByteCount > 512) then begin
+        BlockWrite(TDM_File,P^,512);
+      end else begin
+        BlockWrite(TDM_File,P^,ByteCount);
+      end;
+      DEC(ByteCount,512);
+    end;
+  end;
+
+ finally
+   freemem(P);
+ end;
+
   Close(TDM_File);
 end;
 
@@ -1018,7 +1058,8 @@ begin
         // write output data
         FileIndex := sizeof(TDM_Header) +
           ((i + Offset_Y - Min_Y) * cWidth) +
-          j_Index;
+//          j_Index;  // bug, need to reverse order for TDM
+          (cWidth - j_Width - j_Index);
         seek(TDM_File,FileIndex);
         // use delta right offset because data in in reverse order for TDM
         BlockWrite(TDM_File,P^[j_DeltaR],j_Width);

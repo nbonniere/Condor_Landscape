@@ -846,14 +846,16 @@ begin
 
     writeln(DEM_file,'@echo off');
     writeln(DEM_file,'setlocal');
-//    writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
-    writeln(DEM_file,'set PATH=%PATH%;"'+ProgramsFolder+'\geotiff"');
+    writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
+    writeln(DEM_file,'rem set PATH=%PATH%;"'+ProgramsFolder+'\geotiff"');
     writeln(DEM_file,'rem goto directory where batch file is');
     writeln(DEM_file,'cd /d %~dp0');
 
     for i := HGT_Lat_Min to HGT_Lat_Max do begin
       for j := HGT_Long_Min to HGT_Long_Max do begin
         writeln(DEM_file, '7z e '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
+        // alternate Win10 has tar
+        // writeln(DEM_file, 'tar -xf '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
       end;
     end;
 

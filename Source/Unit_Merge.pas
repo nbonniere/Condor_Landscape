@@ -932,7 +932,8 @@ begin
   u_Thermal.Memo_Message := Memo_Message;
   u_Thermal.ProgressBar_Status := ProgressBar_Status;
   // first force size
-  ForceTDMsize(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tdm');
+//  ForceTDMsize(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tdm');
+  ForceTDMsize(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tdm',128);
   // now merge
   for i := 0 to Merge_Count-1 do begin
     with Merge_Array[i] do begin

@@ -224,6 +224,12 @@ v0.8.7 - November 2022
   - fix path for VFRmap in Utilities
   - change default path for DEM 7-zip
 
+v0.8.8 - December 2022
+  - fix bug - thermal map incorrectly merged
+  - add default thermal level of 1/2 i.e. 128 
+  - fix bug - terrain map incorrectly merged
+
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

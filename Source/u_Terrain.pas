@@ -322,7 +322,8 @@ begin
       BlockRead(TRN_File_a,P^,gHeight*TerrainSize);
       FileIndex := sizeof(CondorTerrainHeader) +
         (i + (-Offset_X) - Min_X) * cHeight*TerrainSize +
-        j_Index*TerrainSize;
+//        j_Index*TerrainSize;   // bug, data is reversed
+        (cHeight - j_Width - j_Index)*TerrainSize;
       seek(TRN_File,FileIndex);
       BlockWrite(TRN_File,P^[j_DeltaR*TerrainSize],j_Width*TerrainSize);
       ProgressBar_Status.StepIt;
