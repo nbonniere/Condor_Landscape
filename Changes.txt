@@ -229,6 +229,11 @@ v0.8.8 - December 2022
   - add default thermal level of 1/2 i.e. 128 
   - fix bug - terrain map incorrectly merged
 
+v0.8.9 - January 2023
+  - add option to standardize grid to equator and centre of UTM zone
+    - multiple of Condor quarter-tile (90 m * 64)
+    - to enable merging to future sceneries on same grid
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

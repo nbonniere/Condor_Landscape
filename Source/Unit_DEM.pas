@@ -110,6 +110,7 @@ type
     Edit_zOffset: TEdit;
     Label_zOffset: TLabel;
     Button_Batch: TButton;
+    Button_Standardize: TButton;
     procedure Button_CoordToUTMClick(Sender: TObject);
     procedure Button_CheckShowClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -125,6 +126,7 @@ type
     procedure RadioButton_ExtentClick(Sender: TObject);
     procedure Button_BatchClick(Sender: TObject);
     procedure ShowGrid(mBitmap: Tbitmap; Columns, Rows : single);
+    procedure Button_StandardizeClick(Sender: TObject);
   private
     { Private declarations }
     function  GetMargin(Sender: TObject) : double;
@@ -653,6 +655,38 @@ begin
     MessageShow('DEM: Invalid UTM data');
   end;
 
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_DEM.Button_StandardizeClick(Sender: TObject);
+var
+  UTM_Width  : double;
+  UTM_Height : double;
+  UTM_Offset : double;
+begin
+  if (NOT UTM_Validate) then begin
+    Beep; ClearGrid(Sender);
+  end else begin
+    UTM_Width  := UTM_Right - UTM_Left;
+    // put on standardized Condor quarter-tile (90 m * 64)
+    UTM_Offset := 500000;
+    UTM_Left   := Floor( (UTM_Left - UTM_Offset + (90*64/2)) / (90*64) )*(90*64) + UTM_Offset;
+    UTM_Right  := UTM_Left + UTM_Width;
+    Edit_UTMwest.Text := FloatToStr(UTM_Left);
+    Edit_UTMeast.Text := FloatToStr(UTM_Right);
+    UTM_Height := UTM_Top - UTM_Bottom;
+    // put on standardized Condor quarter-tile (90 m * 64)
+    if (UTM_ZoneNS = 'N') then begin
+      UTM_Offset := 0;
+    end else begin
+      UTM_Offset := 10000000;
+    end;
+    UTM_Bottom := Floor( (UTM_Bottom - UTM_Offset + (90*64/2)) / (90*64) )*(90*64) + UTM_Offset;
+    UTM_Top    := UTM_Bottom + UTM_Height;
+    Edit_UTMsouth.Text := FloatToStr(UTM_Bottom);
+    Edit_UTMnorth.Text := FloatToStr(UTM_Top);
+
+  end;
 end;
 
 //---------------------------------------------------------------------------
