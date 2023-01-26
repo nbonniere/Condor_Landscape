@@ -152,6 +152,8 @@ begin
   writeln(Temp_file, Form_Merge.Edit_Top.text);
   writeln(Temp_file, Form_Merge.Edit_Bottom.text);
   writeln(Temp_file, Form_Merge.Edit_Elevation.text);
+  writeln(Temp_file, Form_Merge.Edit_Latitude.text);
+  writeln(Temp_file, Form_Merge.Edit_Longitude.text);
   with Form_Merge.CheckListBox_LandscapeList do begin
     for i := 0 to Items.Count-1 do begin
       if (Checked[i]) then begin
@@ -183,6 +185,10 @@ begin
     Form_Merge.Edit_Bottom.text := TempSTR;
     readln(Temp_file, TempSTR);
     Form_Merge.Edit_Elevation.text := TempSTR;
+    readln(Temp_file, TempSTR);
+    Form_Merge.Edit_Latitude.text := TempSTR;
+    readln(Temp_file, TempSTR);
+    Form_Merge.Edit_Longitude.text := TempSTR;
     with Form_Merge.CheckListBox_LandscapeList do begin
       While (NOT EOF(Temp_File)) do begin
         Readln(Temp_file, TempSTR);
@@ -897,12 +903,18 @@ begin
   // can open file and copy blocks of 152 bytes for each object
   for i := 0 to Merge_Count-1 do begin
     with Merge_Array[i] do begin
-      Append_OBJ_File(qtX * Header.tDeltaX * (256/4),
-                      qtY * Header.tDeltaY * (256/4),
-                      Crop_Min_X * -Header.tDeltaX * (256/4),
-                      Crop_Max_X * -Header.tDeltaX * (256/4),
-                      Crop_Min_Y *  Header.tDeltaY * (256/4),
-                      Crop_Max_Y *  Header.tDeltaY * (256/4),
+//      Append_OBJ_File(qtX * Header.tDeltaX * (256/4),
+//                      qtY * Header.tDeltaY * (256/4),
+//                      Crop_Min_X * -Header.tDeltaX * (256/4),
+//                      Crop_Max_X * -Header.tDeltaX * (256/4),
+//                      Crop_Min_Y *  Header.tDeltaY * (256/4),
+//                      Crop_Max_Y *  Header.tDeltaY * (256/4),
+      Append_OBJ_File(qtX * 90 * (256/4),  // needs to be UTM grid relative ???
+                      qtY * 90 * (256/4),
+                      Crop_Min_X * 90 * (256/4),
+                      Crop_Max_X * 90 * (256/4),
+                      Crop_Min_Y * 90 * (256/4),
+                      Crop_Max_Y * 90 * (256/4),
         Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
         Condor_folder+'\Landscapes\'+Name,Name);
     end;

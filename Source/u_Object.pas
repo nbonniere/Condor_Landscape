@@ -71,8 +71,10 @@ var
 
 procedure ReadObjectFile;
 procedure WriteObjectFile;
-procedure ExportCSV_ObjectFile;
-procedure ImportCSV_ObjectFile;
+procedure ExportCSV_ObjectFile;    // relative UTM
+procedure ExportCSV_LL_ObjectFile; // absolute Latitude/Longitude
+procedure ImportCSV_ObjectFile;    // relative UTM
+procedure ImportCSV_LL_ObjectFile; // absolute Latitude/Longitude
 procedure Append_OBJ_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : single;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
@@ -81,7 +83,7 @@ procedure Append_OBJ_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : singl
 IMPLEMENTATION
 
 uses Windows, FileCtrl, SysUtils,
-     u_X_CX;
+     u_X_CX, u_UTM{, u_Condor_NaviconDLL};
 
 var
   Object_File : File of CondorObject;
@@ -118,7 +120,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-procedure ExportCSV_ObjectFile;
+procedure ExportCSV_ObjectFile; // relative UTM
 var
   i : integer;
   CSV_File : TextFile;
@@ -141,11 +143,13 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-procedure ImportCSV_ObjectFile;
+procedure ImportCSV_ObjectFile; // relative UTM
 var
   CSV_File : TextFile;
   Input : string;
   CommaPos : integer;
+  conv_Latitude : single;
+  conv_Longitude : single;
 
 begin
   AssignFile(CSV_File,lObjectFolderName+'\Working\'+lObjectFileName+'.csv');
@@ -170,6 +174,111 @@ begin
       if (CommaPos <> 0) then begin
         coNorthing := strToFloat(copy(Input,1,CommaPos-1));
         Input := copy(Input, CommaPos+1, length(Input));
+      end;
+      CommaPos := pos(',',Input);
+      if (CommaPos <> 0) then begin
+        coElevation := strToFloat(copy(Input,1,CommaPos-1));
+        Input := copy(Input, CommaPos+1, length(Input));
+      end;
+      CommaPos := pos(',',Input);
+      if (CommaPos <> 0) then begin
+        coScale := strToFloat(copy(Input,1,CommaPos-1));
+        Input := copy(Input, CommaPos+1, length(Input));
+      end;
+      coRotation := strToFloat(Input);
+    end;
+    INC(Object_Count);
+  end;
+  WriteObjectFile;
+
+  Close(CSV_File);
+end;
+
+{----------------------------------------------------------------------------}
+{procedure xExportCSV_LL_ObjectFile; // absolute Latitude/Longitude
+var
+  i : integer;
+  CSV_File : TextFile;
+  conv_Latitude : single;
+  conv_Longitude : single;
+
+begin
+  AssignFile(CSV_File,lObjectFolderName+'Working\'+lObjectFileName+'.LL.csv');
+  Rewrite(CSV_File);
+  for i := 0 to Object_Count-1 do begin
+    with Object_list[i] do begin
+      // convert to lat/long, using Condor navicon.dll
+      conv_Longitude := Condor_Navicon_XYToLon(coEasting,coNorthing);
+      conv_Latitude  := Condor_Navicon_XYToLat(coEasting,coNorthing);
+      writeln(CSV_File,format('%s,%1.7f,%1.7f,%1.6f,%1.6f,%1.6f',[
+        coName, conv_Longitude, conv_Latitude, coElevation, coScale, coRotation
+      ]));
+    end;
+  end;
+
+  Close(CSV_File);
+end;
+}
+{----------------------------------------------------------------------------}
+procedure ExportCSV_LL_ObjectFile; // absolute Latitude/Longitude
+var
+  i : integer;
+  CSV_File : TextFile;
+
+begin
+  AssignFile(CSV_File,lObjectFolderName+'Working\'+lObjectFileName+'.LL.csv');
+  Rewrite(CSV_File);
+  for i := 0 to Object_Count-1 do begin
+    with Object_list[i] do begin
+      with TerrainHeader do begin
+//        UTMtoLatLong(tBottomMapNorthing+coNorthing, tRightMapEasting-coEasting, IntToStr(tUTMzone), tUTMgrid[0]);
+        UTMtoLatLong(tBottomMapNorthing+coNorthing*tDeltaY/90.0, tRightMapEasting+coEasting*tDeltaX/90.0, IntToStr(tUTMzone), tUTMgrid[0]);
+      end;
+      writeln(CSV_File,format('%s,%1.7f,%1.7f,%1.6f,%1.6f,%1.6f',[
+        coName, uLongitude, uLatitude, coElevation, coScale, coRotation
+      ]));
+    end;
+  end;
+
+  Close(CSV_File);
+end;
+
+{----------------------------------------------------------------------------}
+procedure ImportCSV_LL_ObjectFile; // absolute Latitude/Longitude
+var
+  CSV_File : TextFile;
+  Input : string;
+  CommaPos : integer;
+
+begin
+  AssignFile(CSV_File,lObjectFolderName+'\Working\'+lObjectFileName+'.LL.csv');
+  Reset(CSV_File);
+
+  Object_Count := 0;
+  While NOT EOF(CSV_File) do begin
+    SetLength(Object_List,Object_Count+1);
+    with Object_list[Object_Count] do begin // coName, coEasting, coNorthing, coElevation, coScale, coRotation
+      readln(CSV_File, Input);
+      CommaPos := pos(',',Input);
+      if (CommaPos <> 0) then begin
+        coName := copy(Input,1,CommaPos-1);
+        Input := copy(Input, CommaPos+1, length(Input));
+      end;
+      CommaPos := pos(',',Input);
+      if (CommaPos <> 0) then begin
+        uLongitude := strToFloat(copy(Input,1,CommaPos-1));
+        Input := copy(Input, CommaPos+1, length(Input));
+      end;
+      CommaPos := pos(',',Input);
+      if (CommaPos <> 0) then begin
+        uLatitude := strToFloat(copy(Input,1,CommaPos-1));
+        Input := copy(Input, CommaPos+1, length(Input));
+      end;
+      // convert lat/long to relative UTM
+      with TerrainHeader do begin
+        LatLongToUTM(uLatitude,uLongitude,IntToStr(tUTMzone), tUTMgrid[0]);
+        coNorthing := (uNorthing - tBottomMapNorthing)*90.0/tDeltaY;
+        coEasting := (uEasting - tRightMapEasting)*90.0/tDeltaX;
       end;
       CommaPos := pos(',',Input);
       if (CommaPos <> 0) then begin

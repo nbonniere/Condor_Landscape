@@ -1,5 +1,5 @@
 {
- * Unit_Main.pas
+ * u_MakeGEO.pas
  * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
@@ -52,7 +52,7 @@ Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
 //----------------------------------------------------------------------------
 implementation
 
-uses Graphics, u_TileList, u_SceneryHDR, u_BMP;
+uses Graphics, u_TileList, u_SceneryHDR, u_BMP, u_Util, u_UTM;
 
 type
   GeoFeature = record
@@ -60,6 +60,7 @@ type
     fColor : array[0..3-1] of string[3];
     ftColor : ColorConvert;
     fSql : string;
+    fOpt : string;
   end;
 
 const
@@ -71,7 +72,7 @@ const
   // for OSM SHP data only
   OSM_FeatureCount_250K = 1;
   OSM_FeatureCount_50K = 12;
-  OSM_FeatureCount_Water = 2;
+  OSM_FeatureCount_Water = 3;
 
 var
   GEOfile : TextFile;
@@ -84,7 +85,7 @@ var
   FeatureList_50K : array of GeoFeature;
   FeatureList_Water : array of GeoFeature;
 
-  // for for CANVEC Canadian data only
+  // for CANVEC Canadian data only
   CanVec_FeatureList_250K : array[0..CanVec_FeatureCount_250K-1] of GeoFeature = (
     (fDesc:'wooded_area_2';         fColor:('  0','255','  0')),  // deciduous forest
     (fDesc:'saturated_soil_2';      fColor:('192','224',' 32'))   // coniferous forest
@@ -135,7 +136,8 @@ var
   );
   OSM_FeatureList_Water : array[0..OSM_FeatureCount_Water-1] of GeoFeature = (
     (fDesc:'gis_osm_water_a_free_1';     fColor:('  0','  0','255')),
-    (fDesc:'gis_osm_waterways_free_1';   fColor:('  0','  0','255'))
+    (fDesc:'gis_osm_waterways_free_1';   fColor:('  0','  0','255')),
+    (fDesc:'water_polygons';             fColor:('  0','  0','255'))
   );                                                                  // NO coniferous forest, unfortunately
 
 {----------------------------------------------------------------------------}
@@ -160,6 +162,20 @@ begin
       FeatureList_50K[0].fSql :=  ' -where "fclass=''farm'' OR fclass=''grass'' OR fclass=''meadow''"';
       FeatureList_50K[7].fSql :=  ' -where "fclass=''quary''"';
       FeatureList_50K[9].fSql :=  ' -where "fclass=''residential'' OR fclass=''industrial'' OR fclass=''retail'' OR fclass=''commercial''"';
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure Init_Options;
+begin
+  case GeoDatabaseType of
+    CanVec: begin
+      // cor CanVec, no options
+    end;
+    OSM: begin
+      // for OSM SHP data only
+      FeatureList_Water[2].fOpt := ' --config OGR_ENABLE_PARTIAL_REPROJECTION TRUE';
     end;
   end;
 end;
@@ -264,6 +280,7 @@ begin
   end;
   Init_Colors;
   Init_Sql;
+  Init_Options;
 end;
 
 //-------------------------------------------------------------------------------------
@@ -275,6 +292,7 @@ var
   FileName : string;
   FilePath : string;
   BatchFileName : string;
+
 
 begin
   // create a folder if necessary
@@ -291,8 +309,8 @@ begin
   writeln(GEOfile,'setlocal');
   writeln(GEOfile,'cd ..\SourceTiles\0000');
 
-    for i := 0 to TileRowCount-1 do begin
-      for j := 0 to TileColumnCount-1 do begin
+  for i := 0 to TileRowCount-1 do begin
+    for j := 0 to TileColumnCount-1 do begin
       TileIndex := i*(TileColumnCount+1)+j;
       FileName := 'GEO_t_'+TileList[TileIndex].TileName+'.bat';
       writeln(GEOfile,'cd ..\'+TileList[TileIndex].TileName);
@@ -385,8 +403,8 @@ begin
   writeln(GEOfile,'setlocal');
   writeln(GEOfile,'cd ..\SourceTiles\0000');
 
-    for i := 0 to TileRowCount-1 do begin
-      for j := 0 to TileColumnCount-1 do begin
+  for i := 0 to TileRowCount-1 do begin
+    for j := 0 to TileColumnCount-1 do begin
       TileIndex := i*(TileColumnCount+1)+j;
       FileName := 'GEO_V2_w_'+TileList[TileIndex].TileName+'.bat';
       writeln(GEOfile,'cd ..\'+TileList[TileIndex].TileName);
@@ -973,6 +991,129 @@ end;
 
 //-------------------------------------------------------------------------------------
 Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
+
+const
+  ExtraDist = 0.1;  // extra 100 metres on each edge
+
+var
+  i : integer;
+  FileName : string;
+  FilePath : string;
+
+  Tile_B_Lat : double;
+  Tile_T_Lat : double;
+  Tile_L_Long : double;
+  Tile_R_Long : double;
+
+  Xsize,Ysize : real;
+
+begin
+  FilePath := GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName;
+
+  //open the file
+  FileName := 'GEO_V2_w_'+TileList[TileIndex].TileName+'.bat';
+  AssignFile(GEOfile, FilePath +'\'+ FileName);
+  Rewrite(GEOfile);
+
+  writeln(GEOfile,'echo off');
+  // enable delayed expansion for for loops with !sourcevec!; also need ^! instead of %%
+  writeln(GEOfile,'setlocal enabledelayedexpansion');
+  writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
+  writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  writeln(GEOfile,'gdalinfo --version');
+
+  writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
+
+  writeln(GEOfile,'rem set the size');
+  writeln(GEOfile,'set image_width='+OutputTileSize);
+  writeln(GEOfile,'set image_height='+OutputTileSize);
+
+  // extra margin to make sure all area is included
+  Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
+  Xsize := Ysize*cos(TileList[TileIndex].TileLatBottom*Pi/180);
+
+  // tile corners
+  Tile_B_Lat := f_Minimum(TileList[TileIndex].TileLatBottom,
+    TileList[TileIndex+1].TileLatBottom);
+
+  Tile_T_Lat := f_Maximum(TileList[TileIndex+1+TileColumnCount].TileLatBottom,
+    TileList[TileIndex+1+TileColumnCount+1].TileLatBottom);
+
+  Tile_L_Long := f_Minimum(TileList[TileIndex+1+TileColumnCount+1].TileLongRight,
+    TileList[TileIndex+1].TileLongRight);
+
+  Tile_R_Long := f_Maximum(TileList[TileIndex].TileLongRight,
+    TileList[TileIndex+1+TileColumnCount].TileLongRight);
+
+  writeln(GEOfile,'rem set the range');
+  writeln(GEOfile,'set real_left='+format('%1.8f',[Tile_L_Long - Xsize]));
+  writeln(GEOfile,'set real_top='+format('%1.8f',[Tile_T_Lat + Ysize]));
+  writeln(GEOfile,'set real_right='+format('%1.8f',[Tile_R_Long - Xsize]));
+  writeln(GEOfile,'set real_bottom='+format('%1.8f',[Tile_B_Lat - Ysize]));
+  writeln(GEOfile,'set destTiff=gEPSGmap.tif');
+
+  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+  writeln(GEOfile,'echo ^!sourcevec^!');
+  writeln(GEOfile,'gdal_rasterize -init 255 -ot Byte -ts %image_width% %image_height% -te %real_left% %real_bottom% %real_right% %real_top% -of GTiff -a_srs EPSG:4326 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+
+  // loop through all ShapeFiles
+  writeln(GEOfile,'rem loop through all *.SHP folders');
+  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
+  writeln(GEOfile,'set sourcevec=../../GeoDatabase/%%f'+DBfolderName);
+  writeln(GEOfile,'echo ^!sourcevec^!');
+  for i := 0 to FeatureCount_Water-1 do begin
+    with FeatureList_Water[i] do begin
+      writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l '+fDesc + fSql + fOpt +' ^!sourcevec^! %destTiff%'); // half transparency
+    end;
+  end;
+//  writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l water_polygons ^!sourcevec^! %destTiff% --config OGR_ENABLE_PARTIAL_REPROJECTION TRUE');
+  writeln(GEOfile,')'); // end loop
+
+  // now convert to UTM
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_T_Lat  := Tile_B_Lat + 23040;
+  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_R_Long  := Tile_L_Long + 23040;
+
+  writeln(GEOfile,'rem convert to UTM coordinates');
+  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  if (UTM_ZoneNS = 'N') then begin
+    writeln(GEOfile,'set utm_grid=north');
+  end else begin
+    writeln(GEOfile,'set utm_grid=south');
+  end;
+  writeln(GEOfile,format('set utm_left=%1.1f',[Tile_L_Long]));
+  writeln(GEOfile,format('set utm_bottom=%1.1f',[Tile_B_Lat]));
+  writeln(GEOfile,format('set utm_right=%1.1f',[Tile_R_Long]));
+  writeln(GEOfile,format('set utm_top=%1.1f',[Tile_T_Lat]));
+
+  writeln(GEOfile,'set sourcetiff=gEPSGmap.tif');
+  writeln(GEOfile,'set destinationtiff=gUTMmap.tif');
+
+  writeln(GEOfile,'rem convert, with cropping, and re-sizing');
+  writeln(GEOfile,'if exist %destinationTIFF% del %destinationTIFF%'); // if already present
+  writeln(GEOfile,'gdalwarp.exe -of GTiff -t_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% %sourcetiff% %destinationtiff%');
+  writeln(GEOfile,'del %sourcetiff%');
+
+  // finally convert to bitmap for use as an 'alpha' tranparency
+  writeln(GEOfile,'rem convert to bitmap');
+//  writeln(GEOfile,'set sourcetiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
+  writeln(GEOfile,'set sourcetiff=gUTMmap.tif');
+  writeln(GEOfile,'set destinationbmp='+TileList[TileIndex].TileName+'.bmp');
+  writeln(GEOfile,'gdal_translate -of BMP %sourcetiff% %destinationbmp%');
+  writeln(GEOfile,'del %sourcetiff%');
+  writeln(GEOfile,'move %destinationbmp% ..\..\Terragen\WaterMaps');
+
+  writeln(GEOfile,'endlocal');
+
+  // close the file
+  Close(GEOfile);
+  MessageShow(FileName+' done.');
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure xMakeGEO_V2_Water_batchFile(TileIndex : integer);
 
 var
   i : integer;

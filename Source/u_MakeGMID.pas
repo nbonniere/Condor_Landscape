@@ -417,7 +417,7 @@ const
   ExtraDist = 0.1;  // extra 100 metres on each edge, to acccount for UTM warping
   // with zoom of 10, a small expansion/warp is needed
   // with zoom of 11, a large shrinkage/warp is needed, but quality may be a little better
-  Default_Zoom = '10';
+  Default_Zoom = '11';
 var
   i : integer;
   FileName : string;

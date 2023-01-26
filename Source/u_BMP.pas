@@ -1075,7 +1075,7 @@ var
   cWidth, cHeight : integer;
   gWidth, gHeight : integer;
   BMP_Header : BMP_V1_Header;
-  j_Delta, j_DeltaR, j_Index, j_Width : integer;
+  j_DeltaL, j_DeltaR, j_Index, j_Width : integer;
   Flag_32 : boolean;
   Color_Size : integer;
   pColor : ColorConvert;
@@ -1143,16 +1143,17 @@ begin
     // calculate horizontal crop limits j_Delta, j_Index and j_Width
     if ( ((-Offset_X)+gWidth)< Max_X) then begin // crop left ?
       j_Index := cWidth - ((-Offset_X)+gWidth - Min_X);
-      j_Delta := 0;
+      j_DeltaL := 0;
     end else begin
       j_Index := 0;
-      j_Delta := (-Offset_X)+gWidth - Max_X;
+      j_DeltaL := (-Offset_X)+gWidth - Max_X;
     end;
     j_DeltaR := 0;
-    j_Width := gWidth - j_Delta;
+    j_Width := gWidth - j_DeltaL;
     if (Min_X > (-Offset_X)) then begin // crop right ?
       j_DeltaR := Min_X + (-Offset_X);
-      j_Width := j_Width - -j_DeltaR;
+//      j_Width := j_Width - -j_DeltaR; // bug
+      j_Width := j_Width - j_DeltaR;
     end;
 
     ProgressBar_Status.Max := gHeight;
@@ -1174,7 +1175,7 @@ begin
         ((i + Offset_Y - Min_Y) * cWidth) * Color24Size +
         j_Index * Color24Size;
       seek(BMP_File,FileIndex);
-      BlockWrite(BMP_File,P^[j_Delta * Color24Size],j_Width * Color24Size);
+      BlockWrite(BMP_File,P^[j_DeltaL * Color24Size],j_Width * Color24Size);
       ProgressBar_Status.StepIt;
       Application.ProcessMessages;
     end;

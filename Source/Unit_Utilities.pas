@@ -414,7 +414,7 @@ begin
       FileName := 'Swap_XY.bat';
       AssignFile(GDALfile, FilePath +'\'+ FileName);
       Rewrite(GDALfile);
-
+{
       for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
         writeln(GDALfile, 'mkdir '+Name+'\T'+IntToStr(i));  // use Temporary folder in case of name conflict
         for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
@@ -428,6 +428,13 @@ begin
       // now rename temp folders
       for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
         writeln(GDALfile, 'rename '+Name+'\T'+IntToStr(i) + ' '+IntToStr(i));
+      end;
+}
+      for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
+        writeln(GDALfile, 'mkdir '+Name+'\'+IntToStr(i));
+        for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
+          writeln(GDALfile, 'move /Y '+Name+'\WG\'+IntToStr(j)+'\'+IntToStr(i)+'.jpg '+Name+'\'+IntToStr(i)+'\'+IntToStr(j)+'.jpg');
+        end;
       end;
 
       // close the file
@@ -452,8 +459,10 @@ begin
         CloseFile(URLfile);
       end;
     end else begin
+      writeln(GDALfile, 'mkdir '+Name+'\WG');  // use Download folder in case of name conflict
       for i := Generic_TN[0,1] to Generic_TN[1,1] do begin
-        writeln(GDALfile, 'wget -P '+Name+'\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
+//        writeln(GDALfile, 'wget -P '+Name+'\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
+        writeln(GDALfile, 'wget -P '+Name+'\WG\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
         AssignFile(URLfile, FilePath +'\URLs\urls_'+IntToStr(i)+'.txt');
         Rewrite(URLfile);
         for j := Generic_TN[0,0] to Generic_TN[1,0] do begin
@@ -552,7 +561,9 @@ try using a different map type that uses  Z/Y/X ?
 - Map type 6 - TMS, xxx folders, files yyy.jpg (Virtual Earth)
 ---------------------------------------------------------------------------}
 
+// uses WGET, SwapXY, and UMD combiner.
 //-------------------------------------------------------------------------------------
+{
 procedure TForm_Utilities.Button_VFRmapClick(Sender: TObject);
 const
   ExtraDist = 0.1;  // extra 100 metres on each edge
@@ -565,11 +576,11 @@ var
   Xsize,Ysize : real;
   VFR_TN: array [0..2-1,0..2-1] of integer;
 begin
-{  WGET_Generic(0, 0, TileRowCount-1+1, TileColumnCount-1+1, 11, True, True,
-    'http://vfrmap.com/20200227/tiles/vfrc',
-    'TEST', Working_Folder+'\SourceTiles\TEST');
-  exit;
-}
+//  WGET_Generic(0, 0, TileRowCount-1+1, TileColumnCount-1+1, 11, True, True,
+//    'http://vfrmap.com/20200227/tiles/vfrc',
+//    'TEST', Working_Folder+'\SourceTiles\TEST');
+//  exit;
+
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
     // date
@@ -720,6 +731,105 @@ begin
     writeln(GDALfile, 'FolderStyleValue=2');
     writeln(GDALfile, '[TilenameStyle]');
     writeln(GDALfile, 'TilenameStyleValue=2');
+    CloseFile(GDALfile);
+
+  end else begin
+    MessageShow('Need Header file first');
+    Beep;
+  end;
+end;
+}
+// uses UMD custom map definition
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_VFRmapClick(Sender: TObject);
+const
+  ExtraDist = 0.1;  // extra 100 metres on each edge
+  // with zoom of 10, a small expansion/warp is needed
+  // with zoom of 11, a large shrinkage/warp is needed, but quality may be a little better
+  Default_Zoom = '11';
+  xyz_Order = '{z}/{y}/{x}';  // Y first
+  espg = '3857';
+
+var
+  VFRdate : string;
+  httpReference : string;
+  FileName : string;
+  FilePath : string;
+  GDALfile : TextFile;
+  i : integer;
+  Xsize,Ysize : real;
+
+  Tile_Top_Lat  : real;
+  Tile_Left_Long : real;
+  Tile_Bottom_Lat  : real;
+  Tile_Right_Long : real;
+
+begin
+  // need landscape header and tile extent
+  if (HeaderOpen) AND (TileOpen) then begin
+    // date
+    VFRdate := Edit_VFR_Date.Text;
+    if (length(VFRdate) <> 8) then begin
+      MessageShow('Date must be in yyyymmdd format');
+      exit;
+    end;
+
+    // zoom and tile type
+    zoom := 11;
+    TMS := true;
+    // extra distance around edges to make sure
+    Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
+    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+    // calc tile numbers from top left (corner[3]) and bottom right (corner[0])
+    Tile_Bottom_Lat := f_Minimum(CornerList[0].TileLatBottom, CornerList[1].TileLatBottom);
+    Tile_Top_Lat :=    f_Maximum(CornerList[2].TileLatBottom, CornerList[3].TileLatBottom);
+    Tile_Left_Long :=  f_Minimum(CornerList[3].TileLongRight, CornerList[1].TileLongRight);
+    Tile_Right_Long := f_Maximum(CornerList[0].TileLongRight, CornerList[2].TileLongRight);
+
+    FilePath := Working_Folder+'\SourceTiles\VFRmap';
+    if (NOT DirectoryExists(FilePath+'\VFRmap')) then begin
+      ForceDirectories(FilePath+'\VFRmap');
+    end;
+
+    u_MakeGDAL.GDALfolder := Working_Folder;
+    u_MakeGDAL.GDALlibraryfolder := Library_Folder;
+//    MakeGDALoverallBatchFile('VFRmap');
+    MakeAutoGDALoverallBatchFile('VFRmap');
+
+    // make custom map (Universal)
+    AssignFile(GDALfile, FilePath +'\Initial_VFRmap.umd');
+    Rewrite(GDALfile);
+    writeln(GDALfile, '[MapsType]');
+    writeln(GDALfile, 'MapsType=263');
+    writeln(GDALfile);
+    writeln(GDALfile,'[AREA]');
+    writeln(GDALfile,'LeftLongitude='+format('%1.8f',[Tile_Left_Long - Xsize]));
+    writeln(GDALfile,'RightLongitude='+format('%1.8f',[Tile_Right_Long + Xsize]));
+    writeln(GDALfile,'TopLatitude='+format('%1.8f',[Tile_Top_Lat + Ysize]));
+    writeln(GDALfile,'BottomLatitude='+format('%1.8f',[Tile_Bottom_Lat - Ysize]));
+    writeln(GDALfile);
+    writeln(GDALfile,'[Zoom]');
+    writeln(GDALfile,'Zoom='+Default_Zoom);
+    writeln(GDALfile);
+    writeln(GDALfile,'[CustomMap]');
+    writeln(GDALfile,'PngOrJpg=2');   // jpeg
+    if (TMS = true) then begin
+      writeln(GDALfile,'Direction=2');
+    end else begin
+      writeln(GDALfile,'Direction=1');
+    end;
+    writeln(GDALfile,'Width=256');
+    writeln(GDALfile,'Height=256');
+    writeln(GDALfile,'SSL=0');
+    httpReference := 'http://vfrmap.com/'+VFRdate+'/tiles/vfrc';
+    writeln(GDALfile,'Referer='+httpReference);
+    writeln(GDALfile,'UrlTemplate='+httpReference+'/'+xyz_Order+'.jpg');
+    if (espg = '3857') then begin
+      writeln(GDALfile,'MType=1');  // espg:3857
+    end else begin
+      writeln(GDALfile,'MType=9');  // espg:4326:
+    end;
+
     CloseFile(GDALfile);
 
   end else begin

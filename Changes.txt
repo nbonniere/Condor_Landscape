@@ -234,6 +234,14 @@ v0.8.9 - January 2023
     - multiple of Condor quarter-tile (90 m * 64)
     - to enable merging to future sceneries on same grid
 
+v0.8.10 - January 2023
+  - add reference lat/long to merge.txt
+  - fix merge crop-right bug
+  - object crop needs to be UTM relative, not distance relative
+  - alternately use UMD for VFRmap generation
+  - add object import and export in latitude/longitude format
+  - Change water tile generation to ESPG followed by Conversion to UTM
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
