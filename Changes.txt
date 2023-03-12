@@ -240,7 +240,13 @@ v0.8.10 - January 2023
   - object crop needs to be UTM relative, not distance relative
   - alternately use UMD for VFRmap generation
   - add object import and export in latitude/longitude format
-  - Change water tile generation to ESPG followed by Conversion to UTM
+  - Change water tile generation to EPSG followed by Conversion to UTM
+
+v0.8.11 - Mar 2023
+  - fix water tile generation bug - sign error on extra dist on right side
+
+v0.8.12 - Mar 2023
+  - 
 
 
 Issues:

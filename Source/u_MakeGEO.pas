@@ -989,6 +989,9 @@ begin
   MessageShow(FileName+' done.');
 end;
 
+// changed EPSG followed by UTM to work with some databases that didn't work
+// with direct UTM rasterize
+// not as good since lines are 'warped' to UTM after
 //-------------------------------------------------------------------------------------
 Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
 
@@ -1048,7 +1051,7 @@ begin
   writeln(GEOfile,'rem set the range');
   writeln(GEOfile,'set real_left='+format('%1.8f',[Tile_L_Long - Xsize]));
   writeln(GEOfile,'set real_top='+format('%1.8f',[Tile_T_Lat + Ysize]));
-  writeln(GEOfile,'set real_right='+format('%1.8f',[Tile_R_Long - Xsize]));
+  writeln(GEOfile,'set real_right='+format('%1.8f',[Tile_R_Long + Xsize]));
   writeln(GEOfile,'set real_bottom='+format('%1.8f',[Tile_B_Lat - Ysize]));
   writeln(GEOfile,'set destTiff=gEPSGmap.tif');
 
@@ -1112,6 +1115,9 @@ begin
   MessageShow(FileName+' done.');
 end;
 
+// changed EPSG followed by UTM to work with some databases that didn't work
+// with direct UTM rasterize
+// not as good since lines are 'warped' to UTM after
 //-------------------------------------------------------------------------------------
 Procedure xMakeGEO_V2_Water_batchFile(TileIndex : integer);
 
