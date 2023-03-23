@@ -82,8 +82,8 @@ type
     GroupBox_Downloader: TGroupBox;
     Edit_DownloaderPath: TEdit;
     Button_Downloader: TButton;
-    GroupBox_Type: TGroupBox;
-    ComboBox_Type: TComboBox;
+    GroupBox_MapType: TGroupBox;
+    ComboBox_MapType: TComboBox;
     GroupBox_MapID: TGroupBox;
     ComboBox_MapID: TComboBox;
     procedure Button_CondorPathClick(Sender: TObject);
@@ -146,7 +146,7 @@ uses
   u_X_CX, u_CalibImport, u_LandsatMet,
   u_CalibExport, u_Object, u_CUP, u_INI,
   u_Airport, u_ReduceColors, u_Tile_XYZ, u_TIFF,
-  u_BrowseFolder;
+  u_BrowseFolder{, u_FTR};
 
 const
   ShortPathNameLength = 50;
@@ -352,7 +352,7 @@ begin
       AssignFile(Ext_File,S+'\INI\t.txt');
       Reset(Ext_File);
       readln(Ext_File,fExt);
-      ComboBox_Type.Text := fExt;
+      ComboBox_MapType.Text := fExt;
       CloseFile(Ext_File);
     end;
 
@@ -657,6 +657,7 @@ begin
     u_MakeGMID.GMIDfolder := WorkingPathName;
     u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
     u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
+    u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
     TileName := ComboBox_Single.text;
 
     if (TileName = 'Overall') then begin // only overall tile
@@ -713,6 +714,9 @@ end;
 //---------------------------------------------------------------------------
 Procedure MakeGeoBatch(TileIndex : integer);
 begin
+  ForceDirectories(GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName);
+  Form_Main.Memo_Info.Lines.Add(GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName);
+
           MakeGEObatchFile(TileIndex);  // do first to create paths if needed
 // still make for now       if (ComboBox_Version.text = 'V1') then begin
             MakeGEO_V1_Forest_batchFile(TileIndex);
@@ -764,6 +768,7 @@ begin
     // create if needed
     ForceDirectories(WorkingPathName+'\Terragen\ForestMaps');
     ForceDirectories(WorkingPathName+'\Terragen\WaterMaps');
+    ForceDirectories(WorkingPathName+'\GeoDatabase');
 
     TileName := ComboBox_Single.text;
     if (TileName = '') then begin // default blank -> all
@@ -1729,11 +1734,13 @@ begin
   ComboBoxMatchString(ComboBox_GEO,'');
   ComboBox_MapID.text:= FIniFile.ReadString('MapData','MapID',ComboBox_MapID.Items[0]);
   ComboBoxMatchString(ComboBox_MapID,'');
+  ComboBox_MapType.text:= FIniFile.ReadString('MapData','MapType',ComboBox_MapType.Items[0]);
+  ComboBoxMatchString(ComboBox_MapType,'');
 
   ComboBox_Version.text:= FIniFile.ReadString('Condor','Version',ComboBox_Version.Items[0]);
   ComboBoxMatchString(ComboBox_Version,'');
 
-  // centre vertically and offset horintally for other windows to show memo  and progress bar
+  // centre vertically and offset horizontally for other windows to show memo  and progress bar
    if SystemParametersInfo(SPI_GETWORKAREA,0,@Desktop,0) then begin
       Form_Main.Left := (Desktop.Right - Desktop.Left - Form_Main.Width) div 2 - 150;
       if (Form_Main.Left < 0) then Form_Main.Left :=0;
@@ -1751,6 +1758,7 @@ begin
   FIniFile.WriteString('MapData','Imagery',ComboBox_Imagery.text);
   FIniFile.WriteString('MapData','GeoData',ComboBox_GEO.text);
   FIniFile.WriteString('MapData','MapID',ComboBox_MapID.text);
+  FIniFile.WriteString('MapData','MapType',ComboBox_MapType.text);
   FIniFile.WriteString('Condor','Version',ComboBox_Version.text);
 end;
 
@@ -1788,6 +1796,7 @@ begin
   u_X_CX.oTreeView := Unit_Objects.Form_Objects.TreeView_Object;
   u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
   u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
+  u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
 
   // offset to be able to see status and progressbar
 //  Form_Utilities.Position := poDefault;

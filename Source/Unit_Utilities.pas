@@ -82,6 +82,9 @@ type
     Button_Convert_V1_V2: TButton;
     Label23: TLabel;
     Button_XP_Convert: TButton;
+    Label24: TLabel;
+    Button_OBJ_LL_Import_CSV: TButton;
+    Button_OBJ_LL_Export_CSV: TButton;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -104,6 +107,8 @@ type
     procedure Button_Convert_V1_V2Click(Sender: TObject);
     procedure Button_FOR_BMPClick(Sender: TObject);
     procedure Button_XP_ConvertClick(Sender: TObject);
+    procedure Button_OBJ_LL_Import_CSVClick(Sender: TObject);
+    procedure Button_OBJ_LL_Export_CSVClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -142,7 +147,8 @@ uses
   FileCtrl, IniFiles,
   u_BMP, u_Thermal, u_Forest, u_Terrain, u_Polar, u_Convolve, u_MakeGDAL,
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
-  u_GMIDlog, u_DXT, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX;
+  u_GMIDlog, u_DXT, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
+  u_Condor_NaviconDLL;
 
 const
   faNormalFile = 0; // for use with FindFirst FindNext
@@ -1317,6 +1323,60 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_OBJ_LL_Export_CSVClick(Sender: TObject);
+begin
+  // need landscape header and tile extent
+  if (HeaderOpen) AND (TileOpen) then begin
+    lObjectFolderName := Initial_Folder+'\';
+    lObjectFileName := LandscapeName+'.obj';
+    if (FileExists(lObjectFolderName+lObjectFileName)) then begin
+      // use Condor NAVICON DLL for conversion
+//      u_Condor_NaviconDLL.CondorFolder := Condor_Folder;
+//      if (NOT Condor_Navicon_Open (Condor_Folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.trn') ) then begin
+//        MessageShow('Unable to open navicon.dll');
+//        Beep; Exit;
+//      end;
+      ReadObjectFile;
+      ExportCSV_LL_ObjectFile;
+//      Condor_Navicon_Close;
+      MessageShow('File exported to Working folder');
+    end else begin
+      MessageShow('File '+lObjectFileName+' not found');
+      Beep;
+    end;
+  end else begin
+    MessageShow('Need Header file first');
+    Beep;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_OBJ_LL_Import_CSVClick(Sender: TObject);
+begin
+  // need landscape header and tile extent
+  if (HeaderOpen) AND (TileOpen) then begin
+    lObjectFolderName := Initial_Folder+'\';
+    lObjectFileName := LandscapeName+'.obj';
+    if (FileExists(lObjectFolderName+'Working\'+lObjectFileName+'.LL.csv')) then begin
+//      u_Condor_NaviconDLL.CondorFolder := Condor_Folder;
+//      if (NOT Condor_Navicon_Open (LandscapeName) ) then begin
+//        MessageShow('Unable to open navicon.dll');
+//        Beep; Exit;
+//      end;
+      ImportCSV_LL_ObjectFile;
+//      Condor_Navicon_Close;
+      MessageShow('File imported from Working folder');
+    end else begin
+      MessageShow('File '+'Working\'+lObjectFileName+'_LL.csv'+' not found');
+      Beep;
+    end;
+  end else begin
+    MessageShow('Need Header file first');
+    Beep;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
 procedure TForm_Utilities.Button_APT_Import_CSVClick(Sender: TObject);
 begin
   // need landscape header and tile extent
@@ -1462,7 +1522,7 @@ var
     WGET_Generic(i, j, i+1, j+1, strtoint(ZoomLevel), TMS, SwapXY, URL,
       TileName, TilePath);
 //    MakeBatchCombineFile(TilePath, TileName, '.umd');
-    Make_Batch_DownloadCombine(td_C, TileName, '0',
+    Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd',
                                TilePath, 'Batch_Combine_'+TileName+'.bat',
                                '0',
                                0,0,0,0
@@ -1557,7 +1617,7 @@ begin
       WGET_Generic(0, 0, TileRowCount, TileColumnCount, 10, TMS, SwapXY, URL,
         TileName, TilePath);
 //      MakeBatchCombineFile(TilePath, TileName, '.umd');
-      Make_Batch_DownloadCombine(td_C, TileName, '0',
+      Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd',
                                  TilePath, 'Batch_Combine_'+TileName+'.bat',
                                  '0',
                                  0,0,0,0

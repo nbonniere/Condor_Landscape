@@ -246,7 +246,11 @@ v0.8.11 - Mar 2023
   - fix water tile generation bug - sign error on extra dist on right side
 
 v0.8.12 - Mar 2023
-  - 
+  - force create folder GeoDatabase even just for one tile
+  - explicitly use file extension (.gmid, .geid, etc) for combiner
+  - make downloader/combiner work for geid - special case
+  - make clean.bat file in each source tile folder to force re-download
+  - add Utilities->BitmapMask to replace water areas by a selected color
 
 
 Issues:

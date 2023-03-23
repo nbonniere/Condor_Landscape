@@ -79,7 +79,8 @@ var
   Memo_Message : TMemo;  // external TMemo for messages
   GMIDFolder : string;   // external path for file output
   GMIDProgramsFolder : string; // external path for library
-  GMIDMapID : string;    // external path for mapstype
+  GMIDMapID : string;    // external path for maps ID
+  GMIDMapType : string;  // external path for maps type
   ZoomLevel : string;
 
 function OpenDLL : boolean;
@@ -95,7 +96,7 @@ Procedure MakeGMIDquarterTile(geid : boolean; CurrentRow, CurrentColumn, offset_
 Procedure MakeGMID_All_Combine_BatchFile;
 
 Procedure Make_Batch_DownloadCombine(Which : Type_DC;
-                                     Name, ID,
+                                     Name, ID, mType,
                                      FilePath, FileName : string;
                                      ZoomLevel : string;
                                      XL, XR, YT, YB : real);
@@ -140,7 +141,7 @@ end;
 
 //-------------------------------------------------------------------------------------
 Procedure Make_Batch_DownloadCombine(Which : Type_DC;
-                                     Name, ID,
+                                     Name, ID, mType,
                                      FilePath, FileName : string;
                                      ZoomLevel : string;
                                      XL, XR, YT, YB : real);
@@ -148,6 +149,10 @@ Procedure Make_Batch_DownloadCombine(Which : Type_DC;
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Procedure Do_Downloader;
 begin
+  if (mType = 'geid') then begin // only for geid
+    ZoomLevel := inttostr(strtoint(ZoomLevel)+1); // +1 for geid
+    ID := ZoomLevel;     // for geid start zoom level
+  end;
   writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
                      '"'+GMIDProgramsFolder+'\downloader.exe"',
                      Name,
@@ -161,10 +166,13 @@ end;
 // search (for loop) for file extension instead of hard coding
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Procedure Do_Combiner;
-begin
-  writeln(GMIDfile,'@echo off');
-  writeln(GMIDfile,'IF [%1] NEQ [] (set type=%1 & set option=%2) else (set type=bmp & set option=meters)');
+var
+  Params : string;
 
+begin
+//  writeln(GMIDfile,'@echo off');
+  writeln(GMIDfile,'IF [%1] NEQ [] (set type=%1 & set option=%2) else (set type=bmp & set option=meters)');
+{
   writeln(GMIDfile,'setlocal enabledelayedexpansion');
   writeln(GMIDfile,'rem goto directory where batch file is');
   writeln(GMIDfile,'cd /d %~dp0');
@@ -178,18 +186,30 @@ begin
 //                     'bmp meters'
                      '%type% %option% %3'
                      ]));
-
   writeln(GMIDfile,'    goto :continue');
   writeln(GMIDfile,'   )');
   writeln(GMIDfile,')');
   writeln(GMIDfile,':continue');
   writeln(GMIDfile,'endlocal');
+}
+  if (mType = 'geid') then begin // only for geid
+    ZoomLevel := inttostr(strtoint(ZoomLevel)+1); // +1 for geid
+    Params := ' '+Zoomlevel+ ' %type% %3'
+  end else begin
+    Params := ' %type% %option% %3'
+  end;
+  writeln(GMIDfile,format('%s %s %s', [
+                     '"'+GMIDProgramsFolder+'\combiner.exe"',
+                     '"'+FilePath+'\'+Name+'.'+mType+'"',
+                     Params
+                     ]));
 end;
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
   AssignFile(GMIDfile, FilePath +'\'+ FileName);
   Rewrite(GMIDfile);
+  writeln(GMIDfile,'@echo off');
 
   if ((which = td_Both) or (which = td_D)) then begin
     Do_Downloader;
@@ -301,10 +321,10 @@ begin
   Close(GMIDfile);
   MessageShow(FileName+' done.');
 
-  if (NOT geid) then begin // only for gmid for now
+  begin
     // now make a batch Download only file
     FileName := 'Batch_Download_'+TileList[TileIndex].TileName+'.bat';
-    Make_Batch_DownloadCombine(td_D, TileList[TileIndex].TileName, GMIDMapID,
+    Make_Batch_DownloadCombine(td_D, TileList[TileIndex].TileName, GMIDMapID, GMIDMapType,
                                FilePath, FileName,
                                ZoomLevel,
                                Tile_Left_Long - Xsize,
@@ -315,7 +335,7 @@ begin
 
     // now make a batch combine only file
     FileName := 'Batch_Combine_'+TileList[TileIndex].TileName+'.bat';
-    Make_Batch_DownloadCombine(td_C, TileList[TileIndex].TileName, GMIDMapID,
+    Make_Batch_DownloadCombine(td_C, TileList[TileIndex].TileName, GMIDMapID, GMIDMapType,
                                FilePath, FileName,
                                ZoomLevel,
                                Tile_Left_Long - Xsize,
@@ -323,7 +343,6 @@ begin
                                Tile_Top_Lat + Ysize,
                                Tile_Bottom_Lat - Ysize
                               );
-  end else begin //geid
   end;
 end;
 
@@ -467,7 +486,7 @@ begin
 
   // now make a batch download & combine file
   FileName := 'Batch_Download.bat';
-  Make_Batch_DownloadCombine(td_Both, 'Overall', GMIDMapID,
+  Make_Batch_DownloadCombine(td_Both, 'Overall', GMIDMapID, GMIDMapType,
                              FilePath, FileName,
                              Default_Zoom,
                              Tile_Left_Long - Xsize,
@@ -477,7 +496,7 @@ begin
                             );
   // now make a batch combine only file
   FileName := 'Batch_Combine.bat';
-  Make_Batch_DownloadCombine(td_C, 'Overall', GMIDMapID,
+  Make_Batch_DownloadCombine(td_C, 'Overall', GMIDMapID, GMIDMapType,
                              FilePath, FileName,
                              Default_Zoom,
                              Tile_Left_Long - Xsize,
