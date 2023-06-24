@@ -43,6 +43,7 @@ Gams3.X object
 INTERFACE
 
 uses
+     StdCtrls,
      u_Terrain;
 
 type
@@ -64,6 +65,8 @@ type
     end;
 
 var
+  Memo_Message : TMemo;  // external TMemo for messages
+
   lObjectFolderName : String;
   lObjectFileName   : String;
   Object_Count      : integer;
@@ -78,6 +81,7 @@ procedure ImportCSV_LL_ObjectFile; // absolute Latitude/Longitude
 procedure Append_OBJ_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : single;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
+procedure List_OBJ_File_Object_Details(FilePath,FileName : string);
 
 //===========================================================================
 IMPLEMENTATION
@@ -87,6 +91,14 @@ uses Windows, FileCtrl, SysUtils,
 
 var
   Object_File : File of CondorObject;
+
+{----------------------------------------------------------------------------}
+Procedure MessageShow(Info : string);
+begin
+  if assigned(Memo_Message) then begin
+    Memo_Message.lines.add(Info);
+  end;
+end;
 
 {----------------------------------------------------------------------------}
 procedure ReadObjectFile;
@@ -156,6 +168,7 @@ begin
   Reset(CSV_File);
 
   Object_Count := 0;
+  SetLength(Object_List,Object_Count); // in case file is empty
   While NOT EOF(CSV_File) do begin
     SetLength(Object_List,Object_Count+1);
     with Object_list[Object_Count] do begin // coName, coEasting, coNorthing, coElevation, coScale, coRotation
@@ -226,6 +239,9 @@ var
   CSV_File : TextFile;
 
 begin
+  if (NOT DirectoryExists(lObjectFolderName+'Working')) then begin
+    ForceDirectories(lObjectFolderName+'Working');
+  end;
   AssignFile(CSV_File,lObjectFolderName+'Working\'+lObjectFileName+'.LL.csv');
   Rewrite(CSV_File);
   for i := 0 to Object_Count-1 do begin
@@ -255,6 +271,7 @@ begin
   Reset(CSV_File);
 
   Object_Count := 0;
+  SetLength(Object_List,Object_Count); // in case file is empty
   While NOT EOF(CSV_File) do begin
     SetLength(Object_List,Object_Count+1);
     with Object_list[Object_Count] do begin // coName, coEasting, coNorthing, coElevation, coScale, coRotation
@@ -308,9 +325,9 @@ var
   OBJ_File_a : File of CondorObject;
   ObjectFileName : string;
   ObjectFileName_a : string;
+  HeapStat: THeapStatus;
 begin
   SetLength(Object_List,1); // only need space for one at a time
-
   AssignFile(OBJ_File,FilePath+'\'+Filename+'.obj');
   if (NOT FileExists(FilePath+'\'+Filename+'.obj')) then begin
     Rewrite(OBJ_File);
@@ -335,7 +352,7 @@ begin
         Read(OBJ_File_a,Object_list[0]);
 
         // adjust UTM coords
-        coEasting  := coEasting +  Offset_X - Min_X;
+        coEasting  := coEasting + (-Offset_X) - Min_X;
         coNorthing := coNorthing + Offset_Y - Min_Y;
 
         if (coEasting > (Max_X-Min_X)) then begin
@@ -359,16 +376,23 @@ begin
           if (FileExists(ObjectFileName_a)) then begin
 
             ObjectFileName := FilePath+'\World\Objects\'+coName;
-            CopyFile(pchar(ObjectFileName_a),
-              pchar(ObjectFileName),false);
+            // only copy if not done already
+            if (NOT FileExists(ObjectFileName)) then begin
+              CopyFile(pchar(ObjectFileName_a),
+                pchar(ObjectFileName),false);
 
-            ReadCondorC3Dfile(ObjectFileName);
-            // Need to copy textures for this object
-            CopyObjectTextures(FilePath,Filename,
-                               FilePath_a,Filename_a,
-                               'World\Objects');
-            // update if changed
-            WriteCondorC3Dfile(ObjectFileName);
+//  HeapStat := GetHeapStatus;
+//  MessageShow(format('Heap: %s %d',[coName,HeapStat.TotalFree]));
+  MessageShow(format('Object: %s',[coName]));
+
+              ReadCondorC3Dfile(ObjectFileName);
+              // Need to copy textures for this object
+              CopyObjectTextures(FilePath,Filename,
+                                 FilePath_a,Filename_a,
+                                 'World\Objects');
+              // update if changed
+              WriteCondorC3Dfile(ObjectFileName);
+            end;
           end;
         end;
 
@@ -378,6 +402,83 @@ begin
     CloseFile(OBJ_File_a);
   end;
   CloseFile(OBJ_File);
+end;
+
+{----------------------------------------------------------------------------}
+procedure List_OBJ_File_Object_Details(FilePath,FileName : string);
+var
+//  OBJ_File : File of CondorObject;
+  objFileName : string;
+//  ObjectFileName : string;
+  SearchRec: TSearchRec;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+Procedure Extract_Details;
+var
+  i : integer;
+begin
+  Append_C3D_Details(objFileName,FilePath+'\Working\'+'World_Object_Details.csv');
+end;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+begin
+// based on the whole object list which has many duplicates
+{
+  SetLength(Object_List,1); // only need space for one at a time
+
+  AssignFile(OBJ_File,FilePath+'\'+Filename+'.obj');
+  if (NOT FileExists(FilePath+'\'+Filename+'.obj')) then begin
+//    MessageShow('Warning: '+Filename+'.obj file not found');
+    Beep;
+    Exit;
+  end else begin
+    // new CSV file
+    if (NOT DirectoryExists(FilePath+'Working')) then begin
+      ForceDirectories(FilePath+'Working');
+    end;
+    DeleteFile(FilePath+'\Working\'+'World_Object_Details.csv');
+
+    Reset(OBJ_File);
+    While not EOF(OBJ_File) do begin
+      Read(OBJ_File,Object_list[0]);
+
+      // read all files and extract details
+      with Object_list[0] do begin
+        // look for O file
+	objFileName := coName;
+        ObjectFileName := FilePath+'\World\Objects\'+objFileName;
+        if (FileExists(ObjectFileName)) then begin
+          ReadCondorC3Dfile(ObjectFileName);
+	  Extract_Details();
+        end;
+      end;
+    end;
+  end;
+  CloseFile(OBJ_File);
+}
+// based on scanning the World folder for objects
+    // new CSV file
+    if (NOT DirectoryExists(FilePath+'\Working')) then begin
+      ForceDirectories(FilePath+'\Working');
+    end;
+    DeleteFile(FilePath+'\Working\'+'World_Object_Details.csv');
+
+  if (FindFirst(FilePath+'\World\Objects\'+'\*.c3d', faDirectory {faAnyFile}, SearchRec)) = 0 then begin
+    if ((SearchRec.Name <> '.') AND (SearchRec.Name <> '..')) then begin
+      objFileName := SearchRec.Name;
+      ReadCondorC3Dfile(FilePath+'\World\Objects\'+objFileName);
+      Extract_Details();
+    end;
+
+    while (FindNext(SearchRec) = 0) do begin
+      if ((SearchRec.Name <> '.') AND (SearchRec.Name <> '..')) then begin
+        objFileName := SearchRec.Name;
+        ReadCondorC3Dfile(FilePath+'\World\Objects\'+objFileName);
+	Extract_Details();
+      end;
+    end;
+    FindClose(SearchRec);
+  end;
 end;
 
 {----------------------------------------------------------------------------}

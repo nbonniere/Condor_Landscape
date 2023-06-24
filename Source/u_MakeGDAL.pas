@@ -83,7 +83,7 @@ Procedure Make_DetectTree_to_ForestMaps_BatchFile;
 implementation
 
 uses Math,
-  u_TileList, u_GMIDlog, u_SceneryHDR, u_BMP;
+  u_Terrain, u_TileList, u_GMIDlog, u_SceneryHDR, u_BMP;
 
 var
   GDALfile : TextFile;
@@ -142,9 +142,9 @@ begin
   writeln(GDALfile,'gdal_translate -gcp 0 0 %real_left% %real_top% -gcp %image_width% 0 %real_right% %real_top% -gcp %image_width% %image_height% %real_right% %real_bottom% -gcp 0 %image_height% %real_left% %real_bottom% %sourcebmp% %destinationtiff%');
   writeln(GDALfile,'del %sourcebmp%');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -258,9 +258,9 @@ begin
   writeln(GDALfile,'del %sourcebmp%');
   writeln(GDALfile,'if exist %sourcetiff% del %sourcetiff%');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -414,9 +414,9 @@ begin
   writeln(GDALfile,'del %sourcebmp%');
 //  writeln(GDALfile,'if exist %sourcetiff% del %sourcetiff%');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -506,9 +506,9 @@ begin
 //  // if file in a separate combined subfolder move it into the main folder
 //  writeln(GDALfile,'move '+TileList[TileIndex].TileName+'_combined\'+TileList[TileIndex].TileName+'.tif'+' .\' );
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -603,10 +603,12 @@ begin
   writeln(GDALfile,'gdal_translate -gcp 0 0 %real_left% %real_top% -gcp %image_width% 0 %real_right% %real_top% -gcp %image_width% %image_height% %real_right% %real_bottom% -gcp 0 %image_height% %real_left% %real_bottom% %sourcebmp% %destinationtiff%');
   writeln(GDALfile,'rem del %sourcebmp%');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Resolution/2
+//  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Resolution/2
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset
     + offset_Row*Resolution*tRows/4;
   Tile_T_Lat  := Tile_B_Lat + 23040 /4;
-  Tile_R_Long  := UTM_Right +Resolution/2 - TileList[TileIndex].TileUTMRight
+//  Tile_R_Long  := UTM_Right +Resolution/2 - TileList[TileIndex].TileUTMRight
+  Tile_R_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex].TileUTMRight
    - offset_Column*Resolution*tColumns/4;
   Tile_L_Long  := Tile_R_Long - 23040 /4;
 
@@ -736,10 +738,12 @@ begin
   end;
   writeln(GDALfile,'rem del %sourcebmp%');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Resolution/2
+//  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Resolution/2
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset
     + offset_Row*Resolution*tRows/4;
   Tile_T_Lat  := Tile_B_Lat + 23040 /4;
-  Tile_R_Long  := UTM_Right +Resolution/2 - TileList[TileIndex].TileUTMRight
+//  Tile_R_Long  := UTM_Right +Resolution/2 - TileList[TileIndex].TileUTMRight
+  Tile_R_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex].TileUTMRight
    - offset_Column*Resolution*tColumns/4;
   Tile_L_Long  := Tile_R_Long - 23040 /4;
 
@@ -1026,9 +1030,9 @@ begin
   writeln(GDALfile,'gdal_translate -gcp 0 0 %real_left% %real_top% -gcp %image_width% 0 %real_right% %real_top% -gcp %image_width% %image_height% %real_right% %real_bottom% -gcp 0 %image_height% %real_left% %real_bottom% %sourcebmp% %destinationtiff%');
   writeln(GDALfile,'del %sourcebmp%');
 
-  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-  Tile_L_Long := UTM_Right + 45 - CornerList[1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -1133,9 +1137,9 @@ begin
 //  writeln(GDALfile,'rem gdalinfo %destinationtiff%');
   writeln(GDALfile,'del %sourcebmp%');
 
-  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-  Tile_L_Long := UTM_Right + 45 - CornerList[1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -1250,9 +1254,9 @@ begin
 //  writeln(GDALfile,'rem gdalinfo %destinationtiff%');
   writeln(GDALfile,'del %sourcebmp%');
 
-  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-  Tile_L_Long := UTM_Right + 45 - CornerList[1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -1336,9 +1340,9 @@ begin
 //  writeln(GDALfile,'rem gdalinfo %destinationtiff%');
   writeln(GDALfile,'del %sourcebmp%');
 
-  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-  Tile_L_Long := UTM_Right + 45 - CornerList[1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -1411,9 +1415,9 @@ begin
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
-  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-  Tile_L_Long := UTM_Right + 45 - CornerList[1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
@@ -1498,9 +1502,9 @@ begin
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');

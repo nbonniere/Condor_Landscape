@@ -54,7 +54,7 @@ Procedure MakeKML_QuarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Colu
 implementation
 
 uses SysUtils,
-  u_UTM, u_TileList, Unit_Main, u_LandsatMet, u_SceneryHDR; //??? to much cross-coupling!
+  u_UTM, u_TileList, Unit_Main, u_LandsatMet, u_SceneryHDR, u_Terrain; //??? to much cross-coupling!
 
 const
   earthRadius = 6371.0;
@@ -485,8 +485,10 @@ begin
 
   MakeKMLheader;
 
-  Easting := UTM_Right+Resolution/2;    // extra 1/2 of 90 metres all sides
-  Northing := UTM_Bottom-Resolution/2;  // i.e. from tile centre
+//  Easting := UTM_Right+Resolution/2;    // extra 1/2 of 90 metres all sides
+  Easting := UTM_Right+Legacy_Offset;    // extra 1/2 of 90 metres all sides
+//  Northing := UTM_Bottom-Resolution/2;  // i.e. from tile centre
+  Northing := UTM_Bottom-Legacy_Offset;  // i.e. from tile centre
 
   // tile corners
   UTMtoLatLong(Northing+CurrentRow*Resolution*tRows + offset_Row*Resolution*tRows/4,

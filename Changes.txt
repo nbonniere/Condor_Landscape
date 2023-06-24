@@ -252,6 +252,28 @@ v0.8.12 - Mar 2023
   - make clean.bat file in each source tile folder to force re-download
   - add Utilities->BitmapMask to replace water areas by a selected color
 
+v0.8.13 - Mar 2023
+  - document legacy 45 metre offset
+
+v0.8.14 - May 2023
+  - merge - out of memory
+    - seems to be fracturing of heap due to copying thousands of objects/textures
+      - in 'merge' don't copy object (and its textures) if already there
+  - object place - add object count at bottom of window
+  - quarter_tile - fix legacy offset for KML and GDAL
+  - force decimal separator to be '.'
+
+v0.8.15 - May 2023
+  - AirportPlacer, when click on image, copy coords to clipboard
+  - ObjectPlacer, when click on image, copy coords to object data
+  - Export object Lat/Long CSV - create 'Working' folder first if not there
+  - merge BUG! Object copy needs (-Offset_X) not Offset_X
+
+v0.8.16 - Jun 2023
+  - import CSV bug fix if file is empty.
+  - export Airports folder object details
+  - export World folder object details
+  
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

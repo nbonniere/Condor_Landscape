@@ -267,6 +267,7 @@ Procedure xLoadBMPfileFixAndSaveAsBMP(FileIn, FileOut : string);
 Function LoadBMPfileFixAndSaveAsBMP(FileIn, FileOut : string) : Boolean;
 
 Procedure ReadCondorC3Dfile(FileName : string);
+procedure Append_C3D_Details(c3dName, FileName : string);
 Procedure WriteCondorC3Dfile(FileName : string);
 //Procedure C3D_PlotIt(count : integer; aData : pFloatArray);
 Procedure C3D_PlotIt(count : integer; aData : pointer);
@@ -591,14 +592,16 @@ var
 begin
   // walk the tree and dispose of existing memory allocations TBD !
   with oTreeView do begin
-    for k := 0 to Items.Count-1 do begin
-      if (Items[k].data <> nil) then begin
+//    for k := 0 to Items.Count-1 do begin
+    while (Items.Count > 0) do begin
+      Items[0].delete;
+{      if (Items[k].data <> nil) then begin
         if (pObjectItem(Items[k].data)^.oPointer <> nil) then begin
           dispose(pObjectItem(Items[k].data)^.oPointer);
         end;
         dispose(Items[k].data);
       end;
-    end;
+}    end;
   end;
 
   oTreeView.Items.Clear; //make sure it's empty
@@ -3223,6 +3226,27 @@ begin
       end;
     end;
   end;
+end;
+
+{----------------------------------------------------------------------------}
+procedure Append_C3D_Details(c3dName, FileName : string);
+var
+  CSV_File : TextFile;
+  i : integer;
+begin
+  AssignFile(CSV_File,FileName);
+  if (NOT FileExists(FileName)) then begin
+    Rewrite(CSV_File);
+  end else begin
+    Append(CSV_File);
+  end;
+  writeln(CSV_File,format('File Name:,''%s''',[c3dName]));
+  writeln(CSV_File,format('Count:,''%d''',[Headers_C3D.Number_Objects]));
+  for i := 0 to Headers_C3D.Number_Objects-1 do begin
+    writeln(CSV_File,format('Name:,''%s''',[Objects_C3D[i].name]));
+    writeln(CSV_File,format('Path:,''%s''',[Objects_C3D[i].TexturePath]));
+  end;
+  CloseFile(CSV_File);
 end;
 
 //----------------------------------------------------------------------------

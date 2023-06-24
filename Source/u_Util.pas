@@ -75,10 +75,13 @@ Procedure ReadLine(X_File:F_Link;var InputString:string);
 //Procedure xReadLineReset;
 Procedure GT_ReadLine(GT_File:GT_Link; var InputString:string);
 
+function xxStrToFloat_DotDecimal(sString:String):real;
+procedure Force_DecimalSeparator;
+
 {============================================================================}
 IMPLEMENTATION
 
-uses SysUtils;
+uses SysUtils, Windows;
 
 //---------------------------------------------------------------------------
 function ShortenFolderString(S: String; Size : integer): String;
@@ -627,6 +630,35 @@ begin
   end;
 end;
 }
+
+// brute force for issue of ',' as decimal
+//---------------------------------------------------------------------------
+function xxStrToFloat_DotDecimal(sString:String):real;
+begin
+  try
+    result := StrToFloat(sString);
+  except
+    // try comma for decimal instead
+    sString := StringReplace(sString,'.', ',',[]);
+//    sString := StringReplace(sString,',', '.',[]);
+    result := StrToFloat(sString);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure Force_DecimalSeparator;
+var
+  changed : Boolean;
+begin
+  changed := (DecimalSeparator <> '.');
+//  changed := (DecimalSeparator <> ',');
+
+  if changed then begin
+    DecimalSeparator := '.';
+//    DecimalSeparator := ',';
+  end;
+end;
+
 //---------------------------------------------------------------------------
 begin
 end.

@@ -165,10 +165,10 @@ IMPLEMENTATION
 
 uses
   FileCtrl, Math, ShellAPI,
-  u_SceneryHdr, u_TileList, u_UTM, u_MakeKML, u_Terrain, u_Exec;
+  u_SceneryHdr, u_TileList, u_UTM, u_MakeKML, u_Terrain, u_Exec, u_Util;
 
 const
-  CondorTileSize = tColumns * Resolution;  // 23040
+  CondorTileSize = tColumns * Resolution;  // 256*90=23040 metres
 
 var
   mBitmap : TBitmap;
@@ -337,13 +337,6 @@ begin
   //extend evenly around area
   UTMmidX := (UTM_Left+UTM_Right)/2;
   UTMmidY := (UTM_Top+UTM_Bottom)/2;
-  // NOTE: use bottom-right as reference
-  // since elevation points are at centre of points. the result
-  // is offset by 1/2 of 90m or 30m from corner of desired area
-  // and could be fixed if not TLBR
-//  if (NOT CheckBox_TLBR.checked) then begin
-//  offset = (-45,+45) or (-15,+15)
-//  end;
   UTM_Right := round(UTMmidX + Columns * CondorTileSize / 2);
   UTM_Bottom := round(UTMmidY - Rows * CondorTileSize / 2);
   UTM_Left := UTM_Right - Columns * CondorTileSize;
@@ -447,13 +440,6 @@ begin
   //extend evenly around area
   UTMmidX := (UTM_Left+UTM_Right)/2;
   UTMmidY := (UTM_Top+UTM_Bottom)/2;
-  // NOTE: use bottom-right as reference
-  // since elevation points are at centre of points. the result
-  // is offset by 1/2 of 90m or 30m from corner of desired area
-  // and could be fixed if not TLBR
-//  if (NOT CheckBox_TLBR.checked) then begin
-//  offset = (-45,+45) or (-15,+15)
-//  end;
   UTM_Right := round(UTMmidX + Columns * CondorTileSize / 2);
   UTM_Bottom := round(UTMmidY - Rows * CondorTileSize / 2);
   UTM_Left := UTM_Right - Columns * CondorTileSize;
@@ -637,6 +623,7 @@ begin
       exit;
     end;
 
+//    UTM_Top := StrToFloat(Edit_UTMnorth.Text);
     UTM_Top := StrToFloat(Edit_UTMnorth.Text);
     UTM_Bottom := StrToFloat(Edit_UTMsouth.Text);
     UTM_Left  := StrToFloat(Edit_UTMwest.Text);
@@ -770,7 +757,7 @@ begin
 
     u_TileList.ProgressBar_Status := ProgressBar_Status;
 
-    MakeTileList(UTM_Right, UTM_Bottom); // kludge for now - no offset
+    MakeTileList(UTM_Right, UTM_Bottom);
 
     // ADD Desired area ??? TBD
 
@@ -1030,12 +1017,6 @@ begin
     MessageShow('DEM: UTM_Zone: '+UTM_Zone+' '+ UTM_ZoneNS);
     MessageShow(format('DEM: UTM_Right: %1.0f',[(UTM_Right)]));
     MessageShow(format('DEM: UTM_Bottom: %1.0f',[(UTM_Bottom)]));
-
-    // ??? if V2. offset by 30 m to use 90 m elevation centre
-    if (CondorVersion <> 'V1') then begin
-      MessageShow(format('DEM: 90m Terrain UTM_Right: %1.0f',[(UTM_Right-30)]));
-      MessageShow(format('DEM: 90m Terrain UTM_Bottom: %1.0f',[(UTM_Bottom+30)]));
-    end;
 
     // also create a header file
 //    Create_DEM_HeaderFile;

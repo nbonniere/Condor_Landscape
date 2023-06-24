@@ -56,6 +56,10 @@ type
     Button_ZoomIn: TButton;
     UpDown_Easting: TUpDown;
     UpDown_Northing: TUpDown;
+    GroupBox_Options: TGroupBox;
+    RadioButton_DDS: TRadioButton;
+    RadioButton_Terragen: TRadioButton;
+    Label_ObjectCount: TLabel;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -84,6 +88,11 @@ type
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure UpDown_NorthingMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure RadioButton_DDSMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure RadioButton_TerragenMouseUp(Sender: TObject;
+      Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure Image_TileClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -114,6 +123,17 @@ var
   opX, opY, opZoomScale : double;
 
 //---------------------------------------------------------------------------
+Procedure Image_Tile_Clear;
+begin
+  // clear bitmap
+  with Form_ObjectPlacer.Image_Tile do begin
+    Canvas.Brush.Style := bsSolid;
+    Canvas.Brush.Color := clBtnFace;
+    Canvas.FillRect(rect(0,0,Width,Height));
+  end;
+end;
+
+//---------------------------------------------------------------------------
 Procedure TForm_ObjectPlacer.Initialize(Sender: TObject);
 var
   i : integer;
@@ -124,15 +144,12 @@ begin
   for i := 0 to Object_Count-1 do begin
     ListBox_ObjectList.Items.Append(Object_List[i].coName);
   end;
+  Label_ObjectCount.Caption := IntToStr(Object_Count);
   ItemIndex := ListBox_ObjectList.ItemIndex;
   ObjectsChanged := false;
 
-  // clear bitmap
-  with Image_Tile do begin
-    Canvas.Brush.Style := bsSolid;
-    Canvas.Brush.Color := clBtnFace;
-    Canvas.FillRect(rect(0,0,Width,Height));
-  end;
+  // blank to start
+  Image_Tile_Clear;
 
   // also clear input boxes...
 end;
@@ -149,6 +166,7 @@ var
   Temp_CoordXY : CoordXY;
   Object_CoordXY : CoordXY;
   ScaleX , ScaleY : double;
+
 begin
   Object_CoordXY.X := 23040 - (ObjectEasting - TileList[TileIndex].TileUTMRight);
   Object_CoordXY.Y := 23040 - (ObjectNorthing - TileList[TileIndex].TileUTMBottom);
@@ -238,6 +256,8 @@ end;
 
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.ShowItem(Sender: TObject);
+const
+  T_Range = Resolution * tColumns; // 23040 km
 var
   TileIndex : integer;
   TileRow, TileColumn : integer;
@@ -257,8 +277,8 @@ begin
         ObjectRotation := coRotation*180/PI;
         ObjectEasting := coEasting;                // make relative to scenery
         ObjectNorthing := coNorthing;
-        TileColumn := trunc(coEasting/23040);
-        TileRow := trunc(coNorthing/23040);
+        TileColumn := trunc(coEasting/T_Range);
+        TileRow := trunc(coNorthing/T_Range);
         TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
         if (TileIndex >= TileCount) then begin
           BitmapAvail := false;
@@ -266,15 +286,15 @@ begin
           exit;
         end;
         // Relative fractional position
-        opX := (1-(ObjectEasting - TileList[TileIndex].TileUTMRight)/23040);
-        opY := (1-(ObjectNorthing - TileList[TileIndex].TileUTMBottom)/23040);
+        opX := (1-(ObjectEasting - TileList[TileIndex].TileUTMRight)/T_Range);
+        opY := (1-(ObjectNorthing - TileList[TileIndex].TileUTMBottom)/T_Range);
         // scenery relative coords
         Unit_Graphics.xCoord := TileList[TileIndex].TileUTMRight;
         Unit_Graphics.yCoord := TileList[TileIndex].TileUTMBottom;
         // object relative coords
 //        xCoord := TileList[TileIndex].TileUTMRight - coEasting;
 //        yCoord := TileList[TileIndex].TileUTMBottom - coNorthing;
-//        TileName := format('%2.2d%2.2d',[trunc(coEasting/23040),trunc(coNorthing/23040)]);
+//        TileName := format('%2.2d%2.2d',[trunc(coEasting/T_Range),trunc(coNorthing/T_Range)]);
         Label_Tile.Caption := TileList[TileIndex].TileName;
         if (LoadTileBitmap(TileList[TileIndex].TileName)) then begin
           BitmapAvail := true;
@@ -282,10 +302,13 @@ begin
           CentreObject;
           DrawObject(TileIndex);
         end else begin
-          BitmapAvail := false;
+          // blank image
+          Image_Tile_Clear;
         end;
+
       end else begin
-        BitmapAvail := false;
+        // blank image
+        Image_Tile_Clear;
       end;
     end;
   end;
@@ -314,15 +337,19 @@ end;
 //---------------------------------------------------------------------------
 function TForm_ObjectPlacer.LoadTileBitmap(TileName : string) : boolean;
 begin
-      if (NOT Unit_Main.Form_Main.GetTileFile(TileName)) then begin
-        result := false;
-      end else begin
-//        tFileName := Path+'\'+TileName+'.bmp';
-        Image_Tile.Picture.LoadFromFile(tFileName);
-        ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
-        ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
-        result := true;
-      end;
+  if (NOT Unit_Main.Form_Main.GetTileFile(TileName)) then begin
+    result := false;
+  end else begin
+    // set image to auto take its size from picture 1:1 and fit in window
+    Image_Tile.Align := alClient;
+    Image_Tile.AutoSize := true;
+    Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+//    tFileName := Path+'\'+TileName+'.bmp';
+    Image_Tile.Picture.LoadFromFile(tFileName);
+    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
+    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
+    result := true;
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -343,7 +370,7 @@ begin
   Object_list[Object_Count] := Object_list[Object_Count-1]; //default values
   Object_List[Object_Count].coName := 'New.X.CX.c3d';
   ListBox_ObjectList.Items.Append(Object_List[Object_Count].coName);
-  INC(Object_Count);
+  INC(Object_Count);   Label_ObjectCount.Caption := IntToStr(Object_Count);
   ObjectsChanged := true;
   ListBox_ObjectList.ItemIndex := ListBox_ObjectList.Items.Count-1;
   ItemIndex := ListBox_ObjectList.ItemIndex;
@@ -360,7 +387,7 @@ begin
     for i := ItemIndex to Object_Count-1-1 do begin
       Object_list[i] := Object_list[i+1];
     end;
-    DEC(Object_Count);
+    DEC(Object_Count); Label_ObjectCount.Caption := IntToStr(Object_Count);
     ObjectsChanged := true;
     ListBox_ObjectList.Items.Delete(ItemIndex);
     ItemIndex := ListBox_ObjectList.ItemIndex;
@@ -393,8 +420,8 @@ procedure TForm_ObjectPlacer.Button_SaveClick(Sender: TObject);
 begin
   if (ObjectsChanged) then begin
     WriteObjectFile;
+    ObjectsChanged := false;
   end;
-  ObjectsChanged := false;
 end;
 
 //---------------------------------------------------------------------------
@@ -484,16 +511,16 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_ObjectPlacer.FormDestroy(Sender: TObject);
-begin
-  Bitmap_Save.Free;
-end;
-
-//---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.FormCreate(Sender: TObject);
 begin
   CurrentLandscape := '';
   BitMap_Save := TBitMap.Create;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.FormDestroy(Sender: TObject);
+begin
+  Bitmap_Save.Free;
 end;
 
 //---------------------------------------------------------------------------
@@ -502,66 +529,6 @@ procedure TForm_ObjectPlacer.Image_TileMouseUp(Sender: TObject;
 begin
   if (Button = mbRight) then begin
     Form_Coords.ShowModal;
-  end;
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_ObjectPlacer.Button_ZoomResetClick(Sender: TObject);
-begin
-  if (BitmapAvail) then begin
-    opZoomScale := 1.0;
-    Image_Tile.Width := Image_Tile.Picture.Width;
-    Image_Tile.Height := Image_Tile.Picture.Width;
-    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
-    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
-    // now refresh
-    CentreObject;
-  end;
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_ObjectPlacer.Button_ZoomOutClick(Sender: TObject);
-begin
-  if (BitmapAvail) then begin
-    // allow re-size of image - picture stays the same
-    Image_Tile.Align := alNone;
-    Image_Tile.AutoSize := false;
-    Image_Tile.Stretch := true;
-    // scale image by 3/4
-//    opZoomScale := opZoomScale / 0.75;
-    opZoomScale := opZoomScale * Image_Tile.Width; // make more exact using before and after
-//    Image_Tile.Width := Image_Tile.Width - Image_Tile.Width div 4;
-//    Image_Tile.Height := Image_Tile.Height - Image_Tile.Height div 4;
-    Image_Tile.Width := round(Image_Tile.Width / 1.5);
-    Image_Tile.Height := round(Image_Tile.Height / 1.5);
-    opZoomScale :=  opZoomScale / Image_Tile.Width;
-    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
-    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
-    // now refresh
-    CentreObject;
-  end;
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_ObjectPlacer.Button_ZoomInClick(Sender: TObject);
-begin
-  if (BitmapAvail) then begin
-    // allow re-size of image - picture stays the same
-    Image_Tile.Align := alNone;
-    Image_Tile.AutoSize := false;
-    Image_Tile.Stretch := true;
-    // scale image by 1.5
-//    opZoomScale := opZoomScale / 1.5;
-    opZoomScale := opZoomScale * Image_Tile.Width; // make more exact using before and after
-//    Image_Tile.Width := Image_Tile.Width + Image_Tile.Width div 2;
-//    Image_Tile.Height := Image_Tile.Height + Image_Tile.Height div 2;
-    Image_Tile.Width := round(Image_Tile.Width * 1.5);
-    Image_Tile.Height := round(Image_Tile.Height * 1.5);
-    opZoomScale := opZoomScale / Image_Tile.Width;
-    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
-    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
-    // now refresh
-    CentreObject;
   end;
 end;
 
@@ -620,6 +587,80 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.RadioButton_DDSMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  ShowItem(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.RadioButton_TerragenMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  ShowItem(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Button_ZoomInClick(Sender: TObject);
+begin
+  if (BitmapAvail) then begin
+    // allow re-size of image - picture stays the same
+    Image_Tile.Align := alNone;
+    Image_Tile.AutoSize := false;
+    Image_Tile.Stretch := true;
+    // scale image by 1.5
+//    opZoomScale := opZoomScale / 1.5;
+    opZoomScale := opZoomScale * Image_Tile.Width; // make more exact using before and after
+//    Image_Tile.Width := Image_Tile.Width + Image_Tile.Width div 2;
+//    Image_Tile.Height := Image_Tile.Height + Image_Tile.Height div 2;
+    Image_Tile.Width := round(Image_Tile.Width * 1.5);
+    Image_Tile.Height := round(Image_Tile.Height * 1.5);
+    opZoomScale := opZoomScale / Image_Tile.Width;
+    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
+    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // now refresh
+    CentreObject;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Button_ZoomOutClick(Sender: TObject);
+begin
+  if (BitmapAvail) then begin
+    // allow re-size of image - picture stays the same
+    Image_Tile.Align := alNone;
+    Image_Tile.AutoSize := false;
+    Image_Tile.Stretch := true;
+    // scale image by 3/4
+//    opZoomScale := opZoomScale / 0.75;
+    opZoomScale := opZoomScale * Image_Tile.Width; // make more exact using before and after
+//    Image_Tile.Width := Image_Tile.Width - Image_Tile.Width div 4;
+//    Image_Tile.Height := Image_Tile.Height - Image_Tile.Height div 4;
+    Image_Tile.Width := round(Image_Tile.Width / 1.5);
+    Image_Tile.Height := round(Image_Tile.Height / 1.5);
+    opZoomScale :=  opZoomScale / Image_Tile.Width;
+    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
+    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // now refresh
+    CentreObject;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Button_ZoomResetClick(Sender: TObject);
+begin
+  if (BitmapAvail) then begin
+    opZoomScale := 1.0;
+    Image_Tile.Width := Image_Tile.Picture.Width;
+    Image_Tile.Height := Image_Tile.Picture.Width;
+    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
+    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
+    // now refresh
+    CentreObject;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.ZoomRestore(Sender: TObject);
 begin
   if (BitmapAvail) then begin
@@ -636,5 +677,27 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Image_TileClick(Sender: TObject);
+var
+  CommaPos : integer;
+  Str : string;
+begin
+  with Object_List[ItemIndex] do begin
+//    Clipboard.AsText := Label_Coords.Caption;
+    CommaPos := pos(',',Label_Coords.Caption);
+    if (CommaPos <> 0) then begin
+      Str := copy(Label_Coords.Caption,1,CommaPos-1);
+      coEasting := StrtoFloat(Str);
+      Edit_Easting.Text := format('%1.2f',[coEasting]);;
+      Str := copy(Label_Coords.Caption, CommaPos+1, length(Label_Coords.Caption));
+      coNorthing := StrtoFloat(Str);
+      Edit_Northing.Text := format('%1.2f',[coNorthing]);
+//      default coScale ?
+//      default coRotation ?
+//      default coElevation ?
+    end;
+  end;
+end;
+
 end.
 

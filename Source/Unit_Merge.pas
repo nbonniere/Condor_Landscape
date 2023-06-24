@@ -891,6 +891,7 @@ begin
 
   // merge .obj files
   MessageShow('Merging Objects');
+  u_Object.Memo_Message := Memo_Message;
   // make sure there is no old file
   DeleteFile(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.obj');
   // - ??? how to deal with duplicate names ???

@@ -24,7 +24,7 @@ INTERFACE
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, comctrls;
+  StdCtrls, comctrls, ExtCtrls;
 
 type
   TForm_Utilities = class(TForm)
@@ -85,6 +85,11 @@ type
     Label24: TLabel;
     Button_OBJ_LL_Import_CSV: TButton;
     Button_OBJ_LL_Export_CSV: TButton;
+    Label25: TLabel;
+    Label26: TLabel;
+    Button_BMPmask: TButton;
+    Shape_Pick: TShape;
+    ColorDialog1: TColorDialog;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -109,6 +114,9 @@ type
     procedure Button_XP_ConvertClick(Sender: TObject);
     procedure Button_OBJ_LL_Import_CSVClick(Sender: TObject);
     procedure Button_OBJ_LL_Export_CSVClick(Sender: TObject);
+    procedure Button_BMPmaskClick(Sender: TObject);
+    procedure Shape_PickMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     { Private declarations }
   public
@@ -915,9 +923,9 @@ begin
 //    writeln(GDALfile,'gdal_contour -i 100.0 %l_DEM% %l_SHP%');
     writeln(GDALfile,'call Generate_Contour.bat');
 
-    Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+    Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
     Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-    Tile_L_Long  := UTM_Right + 45 - CornerList[1].TileUTMRight;
+    Tile_L_Long  := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
     Tile_R_Long  := Tile_L_Long + 23040 * TileColumnCount;
 
     writeln(GDALfile,'rem convert bitmap to tiff and add geo data');
@@ -1001,9 +1009,9 @@ begin
     writeln(GDALfile,'set l_SHP=U_D_Folder');
     writeln(GDALfile,'gdal_contour -i 100.0 %l_DEM% %l_SHP%');
 
-    Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - 45;
+    Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
     Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
-    Tile_L_Long  := UTM_Right + 45 - CornerList[1].TileUTMRight;
+    Tile_L_Long  := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
     Tile_R_Long  := Tile_L_Long + 23040 * TileColumnCount;
 
     writeln(GDALfile,'rem convert bitmap to tiff and add geo data');
@@ -1340,6 +1348,9 @@ begin
       ExportCSV_LL_ObjectFile;
 //      Condor_Navicon_Close;
       MessageShow('File exported to Working folder');
+
+List_OBJ_File_Object_Details(Initial_Folder,LandscapeName);
+
     end else begin
       MessageShow('File '+lObjectFileName+' not found');
       Beep;
@@ -1407,6 +1418,9 @@ begin
       ReadAirportFile;
       ExportCSV_AirportFile;
       MessageShow('File exported to Working folder');
+
+List_APT_File_Object_Details(Initial_Folder,LandscapeName);
+
     end else begin
       MessageShow('File '+lAirportFileName+' not found');
       Beep;
@@ -1453,6 +1467,44 @@ begin
                                 File_Folder+'\..\WaterMaps\'+File_Name,
                                 File_Folder+'\'+File_Name_NoExt+'.tif'
                                );
+        ProgressBar_Status.StepIt;
+        Application.ProcessMessages;
+      end;
+    end;
+    ProgressBar_Status.Position := 0;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_BMPmaskClick(Sender: TObject);
+var
+  FullFilename : String;
+  File_Folder : String;
+  File_Name : String;
+  File_Name_NoExt : String;
+  i : integer;
+
+begin
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder;
+  OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    with OpenDialog1.Files do begin
+      for i := 0 to Count - 1 do begin
+        ProgressBar_Status.Max := Count;
+        FullFileName := Strings[i];
+        File_Folder := ExtractFileDir(FullFileName);
+        File_Name := ExtractFileName(FullFileName);
+        File_Name_NoExt := copy(File_Name,1,pos('.bmp',File_Name)-1);
+
+        u_BMP.Memo_Message := Memo_Message;
+        u_BMP.ProgressBar_Status := ProgressBar_Status;
+        Bitmap_24_To_Masked_24(FullFileName,
+                                     File_Folder+'\..\WaterMaps\'+File_Name,
+                                     Shape_pick.Brush.Color
+                                    );
+
         ProgressBar_Status.StepIt;
         Application.ProcessMessages;
       end;
@@ -2472,8 +2524,8 @@ begin
             // convert to relative UTM
             LatLongToUTM(Latitude,Longitude,UTM_Zone,UTM_ZoneNS);
             // make relative to scenery bottom-right
-            coEasting   := (UTM_Right+45) - uEasting;
-            coNorthing  := uNorthing - (UTM_Bottom-45);
+            coEasting   := (UTM_Right + Legacy_Offset) - uEasting;
+            coNorthing  := uNorthing - (UTM_Bottom - Legacy_Offset);
             coElevation := 0.0;
             coScale     := 1.0;
             // adjust by 90 degrees
@@ -2541,6 +2593,14 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Shape_PickMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  ColorDialog1.Color := Shape_pick.Brush.Color;
+  if (ColorDialog1.Execute) then begin
+    Shape_pick.Brush.Color := ColorDialog1.Color;
+  end;
+end;
 
 //-------------------------------------------------------------------------------------
 end.

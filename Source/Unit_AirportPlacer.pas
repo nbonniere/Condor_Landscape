@@ -117,6 +117,7 @@ type
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure RadioButton_DDSMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure Image_TileClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -136,7 +137,9 @@ implementation
 
 {$R *.DFM}
 
-uses u_Airport, Unit_Graphics, Unit_Main, u_TileList, u_UTM,
+uses
+  ClipBrd,
+  u_Terrain, u_Airport, Unit_Graphics, Unit_Main, u_TileList, u_UTM,
   u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT;
 
 var
@@ -168,6 +171,7 @@ var
   i : integer;
 
 begin
+  // load list box
   ListBox_ObjectList.clear;
   for i := 0 to Airport_Count-1 do begin
     ListBox_ObjectList.Items.Append(Airport_List[i].apName);
@@ -527,10 +531,10 @@ begin
         // convert airport lat long to UTM absolute
         LatLongToUTM(apLatitude,apLongitude,UTM_Zone,UTM_ZoneNS);
         // make relative to scenery bottom right
-//        AirportEasting := (UTM_Right{+45}) - uEasting;       // unfortunately reference offset - how to fix ???
-        AirportEasting := (UTM_Right+45) - uEasting;
-//        AirportNorthing := uNorthing - (UTM_Bottom{-45});
-        AirportNorthing := uNorthing - (UTM_Bottom-45);        // unfortunately reference offset - how to fix ???
+//        AirportEasting := (UTM_Right{+Legacy_Offset}) - uEasting;
+        AirportEasting := (UTM_Right+Legacy_Offset) - uEasting;          // unfortunately reference offset - how to fix ???
+//        AirportNorthing := uNorthing - (UTM_Bottom{-Legacy_Offset});
+        AirportNorthing := uNorthing - (UTM_Bottom-Legacy_Offset);       // unfortunately reference offset - how to fix ???
         //Apply calibration scales
         AirportEasting :=  AirportEasting  * cResolution/-cDeltaX;
         AirportNorthing := AirportNorthing * cResolution/cDeltaY;
@@ -620,16 +624,13 @@ begin
             BitmapAvail := true;
             ZoomRestore(Sender); // after load/reload of tile
             CentreAirport;
-//            DrawRunway(AirportTileIndex);
             DrawRunway(0);
           end else begin
-//            BitmapAvail := false;
             // blank image
             Image_Tile_Clear;
           end;
         end;
       end else begin
-//        BitmapAvail := false;
         // blank image
         Image_Tile_Clear;
       end;
@@ -976,33 +977,6 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.UpDown_LatitudeMouseUp(Sender: TObject;
-  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-var
-  Delta : double;
-begin
-  if ((ItemIndex <> -1) AND (BitmapAvail)) then begin
-    if (ssShift in Shift) then begin
-      Delta := 10;
-    end else begin
-      Delta := 1;
-    end;
-    if (ssCtrl in Shift) then begin
-      Delta := Delta * 10;
-    end;
-    if (Y < UpDown_Latitude.Height div 2) then begin // Move Up
-    end else begin // Move Down
-      Delta := - Delta;
-    end;
-    with Airport_List[ItemIndex] do begin
-      apLatitude := apLatitude + Delta * LatDegPerM;
-    end;
-    AirportsChanged := true;
-    ShowItem(Sender);
-  end;
-end;
-
-//---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.UpDown_LongitudeMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
@@ -1023,6 +997,33 @@ begin
     end;
     with Airport_List[ItemIndex] do begin
       apLongitude := apLongitude + Delta * LongDegPerM;
+    end;
+    AirportsChanged := true;
+    ShowItem(Sender);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.UpDown_LatitudeMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  Delta : double;
+begin
+  if ((ItemIndex <> -1) AND (BitmapAvail)) then begin
+    if (ssShift in Shift) then begin
+      Delta := 10;
+    end else begin
+      Delta := 1;
+    end;
+    if (ssCtrl in Shift) then begin
+      Delta := Delta * 10;
+    end;
+    if (Y < UpDown_Latitude.Height div 2) then begin // Move Up
+    end else begin // Move Down
+      Delta := - Delta;
+    end;
+    with Airport_List[ItemIndex] do begin
+      apLatitude := apLatitude + Delta * LatDegPerM;
     end;
     AirportsChanged := true;
     ShowItem(Sender);
@@ -1090,6 +1091,20 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_ZoomResetClick(Sender: TObject);
+begin
+  if (BitmapAvail) then begin
+    apZoomScale := 1.0;
+    Image_Tile.Width := Image_Tile.Picture.Width;
+    Image_Tile.Height := Image_Tile.Picture.Width;
+    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
+    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
+    // now refresh
+    CentreAirport;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.ZoomRestore(Sender: TObject);
 begin
   if (BitmapAvail) then begin
@@ -1106,17 +1121,9 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.Button_ZoomResetClick(Sender: TObject);
+procedure TForm_AirportPlacer.Image_TileClick(Sender: TObject);
 begin
-  if (BitmapAvail) then begin
-    apZoomScale := 1.0;
-    Image_Tile.Width := Image_Tile.Picture.Width;
-    Image_Tile.Height := Image_Tile.Picture.Width;
-    ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
-    ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
-    // now refresh
-    CentreAirport;
-  end;
+  Clipboard.AsText := Label_Coords.Caption;
 end;
 
 //---------------------------------------------------------------------------

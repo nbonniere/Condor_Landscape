@@ -466,8 +466,10 @@ begin
             end;
           end;
           // assume corner and calc centre - possible problem here
-          UTM_Right := tRightMapEasting - round(tResolution/2);     //90m tile centre
-          UTM_Bottom := tBottomMapNorthing + round(tResolution/2);  //90m tile centre
+//          UTM_Right := tRightMapEasting - round(tResolution/2);     //90m tile centre
+          UTM_Right := tRightMapEasting - Legacy_Offset;     //90m tile centre
+//          UTM_Bottom := tBottomMapNorthing + round(tResolution/2);  //90m tile centre
+          UTM_Bottom := tBottomMapNorthing + Legacy_Offset;  //90m tile centre
           UTM_Left := UTM_Right - tWidth * tResolution;
           UTM_Top := UTM_Bottom + tHeight * tResolution;
           RowCount := tHeight;
@@ -502,7 +504,8 @@ begin
       TileOpen := false;
       u_TileList.ProgressBar_Status := ProgressBar_Status;
       // extend form centre of tile to corner
-      MakeTileList(UTM_Right+Resolution/2, UTM_Bottom-Resolution/2);
+//      MakeTileList(UTM_Right+Resolution/2, UTM_Bottom-Resolution/2);
+      MakeTileList(UTM_Right+Legacy_Offset, UTM_Bottom-Legacy_Offset);
 
       // add blank for 'all'
       ComboBox_Single.Items.append('');
@@ -1673,6 +1676,11 @@ var
   Desktop:   TRect;
 
 begin
+  // problem with decimal separator ',' in Europe
+  // try to force it to '.' or this program
+  Force_DecimalSeparator;
+    Memo_Info.Lines.Add('Decimal separator: ' + DecimalSeparator);
+
 //  ProgramPathName := getCurrentDir;
 // it seems that if you use a file dialog, the current directory is changed to
 // where the folder is for the selected file

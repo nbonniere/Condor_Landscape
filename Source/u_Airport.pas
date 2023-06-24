@@ -92,6 +92,7 @@ procedure ImportCSV_AirportFile;
 procedure Append_APT_File(UTM_Limits : Extents;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
+procedure List_APT_File_Object_Details(FilePath,Filename : string);
 
 //===========================================================================
 IMPLEMENTATION
@@ -173,6 +174,7 @@ begin
   Reset(CSV_File);
 
   Airport_Count := 0;
+  SetLength(Airport_List,Airport_Count); // in case file is empty
   While NOT EOF(CSV_File) do begin
     SetLength(Airport_List,Airport_Count+1);
     with Airport_list[Airport_Count] do begin
@@ -331,6 +333,65 @@ begin
       end;
     end;
     CloseFile(APT_File_a);
+  end;
+  CloseFile(APT_File);
+end;
+
+{----------------------------------------------------------------------------}
+procedure List_APT_File_Object_Details(FilePath,FileName : string);
+var
+  APT_File : File of CondorAirport;
+  aptFileName : string;
+  ObjectFileName : string;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+Procedure Extract_Details;
+var
+  i : integer;
+begin
+  Append_C3D_Details(aptFileName,FilePath+'\Working\'+'Airport_Object_Details.csv');
+end;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+begin
+  SetLength(Airport_List,1); // only need space for one at a time
+
+  AssignFile(APT_File,FilePath+'\'+Filename+'.apt');
+  if (NOT FileExists(FilePath+'\'+Filename+'.apt')) then begin
+//    MessageShow('Warning: '+Filename+'.apt file not found');
+    Beep;
+    Exit;
+  end else begin
+    // new CSV file
+    if (NOT DirectoryExists(FilePath+'\Working')) then begin
+      ForceDirectories(FilePath+'\Working');
+    end;
+    DeleteFile(FilePath+'\Working\'+'Airport_Object_Details.csv');
+
+    Reset(APT_File);
+    While not EOF(APT_File) do begin
+      Read(APT_File,Airport_list[0]);
+
+      // read G and O files and extract details
+      with Airport_list[0] do begin
+
+        // look for G file
+	aptFileName := apName+'G.c3d';
+        ObjectFileName := FilePath+'\Airports\'+aptFileName;
+        if (FileExists(ObjectFileName)) then begin
+          ReadCondorC3Dfile(ObjectFileName);
+          Extract_Details();
+        end;
+
+        // look for O file
+	aptFileName := apName+'O.c3d';
+        ObjectFileName := FilePath+'\Airports\'+aptFileName;
+        if (FileExists(ObjectFileName)) then begin
+          ReadCondorC3Dfile(ObjectFileName);
+	  Extract_Details();
+        end;
+      end;
+    end;
   end;
   CloseFile(APT_File);
 end;
