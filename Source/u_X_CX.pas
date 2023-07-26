@@ -160,6 +160,7 @@ type
   pFrame = ^tFrame;
   tFrame = record
     tName: string;
+//    tFTMindex: integer;
   end;
 
   pObjectItem = ^tObjectItem;
@@ -236,7 +237,14 @@ var
 
   SavedMeshData : pMesh;
 
-AA, BB : integer;
+  AA, BB : integer;
+
+  InjectFTM : Boolean;
+  FTM : array[0..16-1] of single =
+  (1.0,0.0,0.0,0.0,
+   0.0,1.0,0.0,0.0,
+   0.0,0.0,1.0,0.0,
+   0.0,0.0,0.0,1.0);
 
 Procedure X_To_Normal(var S: string);
 Procedure Normal_To_X(var S: string);
@@ -266,7 +274,7 @@ Procedure ConvertBackToForward(var S : string);
 Procedure xLoadBMPfileFixAndSaveAsBMP(FileIn, FileOut : string);
 Function LoadBMPfileFixAndSaveAsBMP(FileIn, FileOut : string) : Boolean;
 
-Procedure ReadCondorC3Dfile(FileName : string);
+Procedure ReadCondorC3Dfile(FileName : string; Append : boolean);
 procedure Append_C3D_Details(c3dName, FileName : string);
 Procedure WriteCondorC3Dfile(FileName : string);
 //Procedure C3D_PlotIt(count : integer; aData : pFloatArray);
@@ -284,6 +292,11 @@ procedure CopyObjectTextures (NewLandscapePath,NewLandscapeName,
 function readXplaneOBJ8file(FileName : string) : boolean;
 function GetXplaneOBJ8texture : string;
 procedure AdjustXplaneOBJ8texture(FileName : string);
+
+Procedure Reset_FTM_Unity;
+Procedure UpdateFTM(FTMname : string ; FTM : Array of single);
+Procedure UpdateTC(TCname : string; TC : Array of single);
+Procedure UpdateTF(TFname : string; F : string);
 
 //===========================================================================
 IMPLEMENTATION
@@ -1151,7 +1164,7 @@ end;
 Procedure ParseFTM(FrameNode : TTreenode);
 var
   parseState : integer;
-//  fTreeNode : TTreeNode;
+  fTreeNode : TTreeNode;
   FTMname : string;
 
 begin
@@ -1166,7 +1179,8 @@ begin
           New(pFTMdata); //allocate space for data
           pFTMdata^.tName := FTMname;
           pObjectData^.oPointer := pFTMdata;
-          {fTreeNode :=} oTreeView.Items.AddChildObject(FrameNode, 'FTM '+FTMname,pObjectData);
+          fTreeNode := oTreeView.Items.AddChildObject(FrameNode, 'FTM '+FTMname,pObjectData);
+//       pframe(pObjectItem(oTreeview.Items[fTreeNode.AbsoluteIndex-1].data)^.oPointer)^.tFTMindex := fTreeNode.AbsoluteIndex;
           parseState := 1;
           ReadToken;
         end else begin
@@ -1180,7 +1194,8 @@ begin
           ReadToken;
           exit;
         end else begin
-          ParseFloatArray(16,@pFTMdata.ftmArray,[',']);
+//          ParseFloatArray(16,@pFTMdata.ftmArray,[',']);
+          ParseFloatArray(16,@pFTMdata^.ftmArray,[',']);   // seems to be same as without ^
           ParseDelimiter([';']);
         end;
       end;
@@ -1193,23 +1208,27 @@ Procedure ParseFrame(fNode : TTreenode);
 var
   parseState : integer;
   fTreeNode : TTreeNode;
+  FrameName : string;
 
 begin
+  FrameName := '';
   parseState := 0;
   while (NOT EOF(X_File)) do begin
     case parseState of
       0: begin
         if (InputString = '{') then begin
-          parseState := 1;
-          ReadToken;
-        end else begin
-          //must be frame name
           New(pObjectData); //allocate space for an object data
           pObjectData^.oType := oFrame;
           New(pFrameData); //allocate space for a frame data
           pObjectData^.oPointer := pFrameData;
-          pFrameData^.tName := InputString;
-          fTreeNode := oTreeView.Items.AddChildObject(fNode, 'Frame '+InputString,pObjectData);
+          pFrameData^.tName := FrameName;
+//          pFrameData^.tFTMindex := -1;
+          fTreeNode := oTreeView.Items.AddChildObject(fNode, 'Frame '+FrameName,pObjectData);
+          parseState := 1;
+          ReadToken;
+        end else begin
+          //must be frame name
+          FrameName := InputString;
           ReadToken;
         end;
       end;
@@ -1671,7 +1690,7 @@ begin
         // for using with Sample.exe - can only load bitmaps with correct format
         ConvertForwardToBack(FileName);
 //        FileSubstitute := WorkingFolder+'\Temp\'+ChangeFileExt(ExtractFileName(FileName),'.bmp');
-        FileSubstitute := ApplicationPathName+'\Temp\'+ChangeFileExt(ExtractFileName(FileName),'.bmp');
+        FileSubstitute := ApplicationPath+'\Temp\'+ChangeFileExt(ExtractFileName(FileName),'.bmp');
         if ( NOT(pos(FileName,':') <> 0) AND
              NOT(ExtractFilePath(FileName) = '') ) then begin
           FileName := Path+'\'+FileName;
@@ -1952,7 +1971,8 @@ begin
         end;
         oFTM: begin
           // WriteFTM; // not used by Condor, remove it
-          INC(NodeIndex);
+          // INC(NodeIndex);
+          WriteFTM; // still used by .px -> apply for .X and .CX ???
         end;
         oMesh: begin
           WriteMesh;
@@ -2615,25 +2635,27 @@ var
 //  p3DfileNameData : p3DfileName;
 
 //----------------------------------------------------------------------------
-procedure CondorC3Dfile_CreateTreeViewVersion;
+procedure CondorC3Dfile_CreateTreeViewVersion(Append : Boolean);
 var
-  i,j : integer;
+  i, j : integer;
   fTreeNode, fTreeNode2 : TTreeNode;
 
 begin
-  ClearTreeView(oTreeView);
+  if (Not Append) then begin
+    ClearTreeView(oTreeView);
 
-  New(pObjectData); //allocate space for an object data
-  pObjectData^.oType := o3Dmagic;
-  New(p3DmagicData); //allocate space for data
-  pObjectData^.oPointer := p3DmagicData;
-  oTreeView.Items.AddChildObject(nil, C3D_Magic, pObjectData);
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := o3Dmagic;
+    New(p3DmagicData); //allocate space for data
+    pObjectData^.oPointer := p3DmagicData;
+    oTreeView.Items.AddChildObject(nil, C3D_Magic, pObjectData);
 
-  New(pObjectData); //allocate space for an object data
-  pObjectData^.oType := o3Dheader;
-  New(p3DheaderData); //allocate space for data
-  pObjectData^.oPointer := p3DheaderData;
-  oTreeView.Items.AddChildObject(nil, 'Header', pObjectData);
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := o3Dheader;
+    New(p3DheaderData); //allocate space for data
+    pObjectData^.oPointer := p3DheaderData;
+    oTreeView.Items.AddChildObject(nil, 'Header', pObjectData);
+  end;
 
   for i := 0 to Headers_C3D.Number_Objects-1 do begin
     New(pObjectData); //allocate space for an object data
@@ -2642,6 +2664,22 @@ begin
     pObjectData^.oPointer := pFrameData;
     pFrameData^.tName := 'f_'+Objects_C3D[i].name;
     fTreeNode := oTreeView.Items.AddChildObject(nil, 'Frame '+pFrameData^.tName, pObjectData);
+
+    if (InjectFTM) then begin
+      // FTM
+      New(pObjectData); //allocate space for an object data
+      pObjectData^.oType := oFTM;
+      New(pFTMdata); //allocate space for data
+      pFTMdata^.tName := '';
+      pObjectData^.oPointer := pFTMdata;
+      {fTreeNode :=} oTreeView.Items.AddChildObject(fTreeNode, 'FTM '+pFTMdata^.tName, pObjectData);
+//  ParseFloatArray(16,@pFTMdata.ftmArray,[',']);
+//  SetLength(pFloatArray(pFTMdata.ftmArray)^,16);
+      SetLength(tFloatArray(pFTMdata^.ftmArray),16);
+      for j := 0 to 16-1 do begin
+        tFloatArray(pFTMdata^.ftmArray)[j] := FTM[j];
+      end;
+    end;
 
     // mesh
     New(pObjectData); //allocate space for an object data
@@ -2797,7 +2835,7 @@ begin
 end;
 
 //----------------------------------------------------------------------------
-procedure readCondorC3Dfile(FileName : string);
+procedure readCondorC3Dfile(FileName : string; Append : Boolean);
 var
   i : integer;
 
@@ -2856,7 +2894,32 @@ Objects_C3D[i].name := StringReplace(Objects_C3D[i].name, ' ', '_', [rfReplaceAl
   end;
 
   if (NOT FileError) then begin
-    CondorC3Dfile_CreateTreeViewVersion;
+    CondorC3Dfile_CreateTreeViewVersion(Append);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function FindNodeByName(NodeName : string; nType : oObjType) : integer;
+var
+  i : integer;
+
+begin
+  result := -1; // assume not found at first
+  //search tree for material with matching name
+  with oTreeView do begin
+    i := 0;
+    while  (i <= Items.Count-1) do begin
+      if (Items[i].data <> nil) then begin
+        if (pObjectItem(Items[i].data)^.oType = nType) then begin
+          // use pMaterial convert to use tName even if not pMaterial for now
+          if (pMaterial(pObjectItem(Items[i].data)^.oPointer)^.tName = NodeName) then begin
+            result := i;
+            break;
+          end;
+        end;
+      end;
+      INC(i);
+    end;
   end;
 end;
 
@@ -2891,6 +2954,80 @@ begin
         INC(i);
       end;
     end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function FindFTMbyName(FTMname : string) : integer;
+var
+  i : integer;
+
+begin
+  result := -1; // assume not found at first
+  //search tree for material with matching name
+  with oTreeView do begin
+    i := 0;
+    while  (i <= Items.Count-1) do begin
+      if (Items[i].data <> nil) then begin
+        case pObjectItem(Items[i].data)^.oType of
+          oFTM: begin
+            with pMaterial(pObjectItem(Items[i].data)^.oPointer)^ do begin
+              if (tName = FTMName) then begin
+                result := i;
+                break;
+              end else begin // skip
+                INC(i);
+              end;
+            end;
+          end;
+          else begin // skip
+            INC(i);
+          end;
+        end;
+      end else begin // skip
+        INC(i);
+      end;
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+Procedure UpdateFTM(FTMname : string; FTM : Array of single);
+var
+  i : integer;
+  Index : integer;
+begin
+//  Index := FindFTMbyName(FTMname);
+  Index := FindNodeByName(FTMname, oFTM);
+  if (Index <> -1) then begin
+    for i := 0 to 16-1 do begin
+      pFTM(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^.ftmArray[i] := FTM[i];
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+Procedure UpdateTC(TCname : string; TC : Array of single);
+var
+  i : integer;
+  Index : integer;
+begin
+//  Index := FindTCbyName(TCname);
+  Index := FindNodeByName(TCname, oMeshTextureCoord);
+  if (Index <> -1) then begin
+    pMeshTcoord(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^.tArray.aArray[0][1] := TC[0];
+    pMeshTcoord(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^.tArray.aArray[1][1] := TC[1];
+  end;
+end;
+
+//---------------------------------------------------------------------------
+Procedure UpdateTF(TFname : string; F : string);
+var
+  Index : integer;
+begin
+  Index := FindNodeByName(TFname, oFileName);
+  if (Index <> -1) then begin
+    pFileName(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^.tqName := F;
   end;
 end;
 
@@ -4012,6 +4149,22 @@ procedure AdjustXplaneOBJ8texture(FileName : string);
 begin
   TextureFilename.tFileName := FileName;
   XplaneOBJ8file_CreateTreeViewVersion;
+end;
+
+//----------------------------------------------------------------------------
+Procedure Reset_FTM_Unity;
+var
+  i, j : Integer;
+begin
+  for i := 0 to 4-1 do begin
+    for j := 0 to 4-1 do begin
+      if (i = j) then begin
+        FTM[i*4+j] := 1.0;
+      end else begin
+        FTM[i*4+j] := 0.0;
+      end;
+    end;
+  end;
 end;
 
 {----------------------------------------------------------------------------}

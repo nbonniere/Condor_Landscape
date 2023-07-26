@@ -49,7 +49,7 @@ type
     Edit_QuarterTile: TEdit;
     Edit_VFR_Date: TEdit;
     Label11: TLabel;
-    Button_DXT3_5toDXT1: TButton;
+    Button_DXT3_5_to_DXT1: TButton;
     Label12: TLabel;
     Label13: TLabel;
     Label15: TLabel;
@@ -90,6 +90,11 @@ type
     Button_BMPmask: TButton;
     Shape_Pick: TShape;
     ColorDialog1: TColorDialog;
+    Label27: TLabel;
+    Label28: TLabel;
+    Button_DDS_BMP: TButton;
+    CheckBox_DDS_Color: TCheckBox;
+    CheckBox_DDS_Transparent: TCheckBox;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -99,7 +104,7 @@ type
     procedure Button_VFRmapClick(Sender: TObject);
     procedure Button_ContourClick(Sender: TObject);
     procedure Button_QuarterTileClick(Sender: TObject);
-    procedure Button_DXT3t_5oDXT1Click(Sender: TObject);
+    procedure Button_DXT3_5_to_DXT1Click(Sender: TObject);
     procedure Button_OBJ_Import_CSVClick(Sender: TObject);
     procedure Button_OBJ_Export_CSVClick(Sender: TObject);
     procedure Button_APT_Import_CSVClick(Sender: TObject);
@@ -117,6 +122,8 @@ type
     procedure Button_BMPmaskClick(Sender: TObject);
     procedure Shape_PickMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure Button_DDS_BMPClick(Sender: TObject);
+    procedure V2_FOR_BMP(Sender: TObject);
   private
     { Private declarations }
   public
@@ -145,6 +152,7 @@ var
   File_Name : string;   // external name for file
   DXT_Type : string;
   ObjectPlacement_Count : Longint;
+  opVersion : string;
 
 //===========================================================================
 IMPLEMENTATION
@@ -155,7 +163,7 @@ uses
   FileCtrl, IniFiles,
   u_BMP, u_Thermal, u_Forest, u_Terrain, u_Polar, u_Convolve, u_MakeGDAL,
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
-  u_GMIDlog, u_DXT, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
+  u_GMIDlog, u_DXT, DXTC, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
   u_Condor_NaviconDLL;
 
 const
@@ -190,15 +198,20 @@ begin
   OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
-    with OpenDialog1.Files do begin
-      for i := 0 to Count - 1 do begin
-        FileName := Strings[i];
-//        File_Folder := ExtractFileDir(FileName);
-        // convert
-        u_BMP.Memo_Message := Memo_Message;
-        u_BMP.ProgressBar_Status := ProgressBar_Status;
-        Bitmap_24_To_Bitmap_32(FileName,FileName+'-32.bmp');
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      with OpenDialog1.Files do begin
+        for i := 0 to Count - 1 do begin
+          FileName := Strings[i];
+//          File_Folder := ExtractFileDir(FileName);
+          // convert
+          u_BMP.Memo_Message := Memo_Message;
+          u_BMP.ProgressBar_Status := ProgressBar_Status;
+          Bitmap_24_To_Bitmap_32(FileName,FileName+'-32.bmp');
+        end;
       end;
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
     end;
   end;
 end;
@@ -214,12 +227,17 @@ begin
   OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
-    FileName := OpenDialog1.FileName;
-//    File_Folder := ExtractFileDir(OpenDialog1.FileName);
-    // convert
-    u_Thermal.Memo_Message := Memo_Message;
-    u_Thermal.ProgressBar_Status := ProgressBar_Status;
-    Greyscale_Bitmap_To_TDM(FileName,FileName+'-tdm.tdm');
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      FileName := OpenDialog1.FileName;
+//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
+      // convert
+      u_Thermal.Memo_Message := Memo_Message;
+      u_Thermal.ProgressBar_Status := ProgressBar_Status;
+      Greyscale_Bitmap_To_TDM(FileName,FileName+'-tdm.tdm');
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
   end;
 end;
 
@@ -234,12 +252,70 @@ begin
   OpenDialog1.Filter := 'TDM files (*.TDM)|*.TDM|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
-    FileName := OpenDialog1.FileName;
-//    File_Folder := ExtractFileDir(OpenDialog1.FileName);
-    // convert
-    u_Thermal.Memo_Message := Memo_Message;
-    u_Thermal.ProgressBar_Status := ProgressBar_Status;
-    TDM_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      FileName := OpenDialog1.FileName;
+//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
+      // convert
+      u_Thermal.Memo_Message := Memo_Message;
+      u_Thermal.ProgressBar_Status := ProgressBar_Status;
+      TDM_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.V2_FOR_BMP(Sender: TObject);
+var
+  Filename : String;
+  File_Folder : String;
+  File_Name : String;
+  File_Name_NoExt : String;
+  Dest_File_Path : String;
+  i : integer;
+
+begin
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder+'\ForestMaps';
+  OpenDialog1.Filter := 'FOR files (*.FOR)|*.FOR|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    with OpenDialog1.Files do begin
+      try
+        ProgressBar_Status.Max := Count * 3;  // 3 files exported
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
+
+        for i := 0 to Count - 1 do begin
+          FileName := Strings[i];
+          File_Folder := ExtractFileDir(FileName);
+          File_Name := ExtractFileName(FileName);
+          File_Name_NoExt := copy(File_Name,1,pos('.for',File_Name)-1);
+//          Dest_File_Path := File_Folder+'\..\Working\ForestMaps';
+          Dest_File_Path := File_Folder+'\..\Working\ForestMaps_Export';
+          ForceDirectories(Dest_File_Path);
+          // convert
+          V2_FOR_To_ForestGrid(FileName);
+//          V2_2Color_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+//          V2_2Color_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+//          V2_GreyScale_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+//          V2_GreyScale_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+          ProgressBar_Status.StepIt; Application.ProcessMessages;
+          V2_24bit_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
+          ProgressBar_Status.StepIt; Application.ProcessMessages;
+          V2_24bit_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
+          // also show a combined version
+//          V2_4Color_Both_WriteBitmapForestTile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+          ProgressBar_Status.StepIt; Application.ProcessMessages;
+          V2_16Color_Both_WriteBitmapForestTile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+        end;
+      finally
+        Screen.Cursor := crDefault;  // no longer busy
+        ProgressBar_Status.Position := 0;
+        MessageShow('Conversion done.');
+      end;
+    end;
   end;
 end;
 
@@ -254,24 +330,31 @@ begin
     MessageShow('Need Header file first');
     Beep;
   end else begin
-    Screen.Cursor := crHourGlass;  // Let user know we're busy...
+    u_Forest.Memo_Message := Memo_Message;
     u_Forest.ProgressBar_Status := ProgressBar_Status;
 
-    SetLength(OverallForestDeciduous, ColumnCount*2*RowCount*2);
-    SetLength(OverallForestConiferous,ColumnCount*2*RowCount*2);
-    FileName := Initial_Folder+'\'+LandscapeName+'.for';
-    FOR_To_OverallForest(FileName);
-    Byte_To_Greyscale_Bitmap(OverallForestDeciduous, FileName+'.d.for.BMP');
-    Byte_To_Greyscale_Bitmap(OverallForestConiferous,FileName+'.c.for.BMP');
+    if (opVersion = 'V1') then begin
+      try
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
+        SetLength(OverallForestDeciduous, ColumnCount*2*RowCount*2);
+        SetLength(OverallForestConiferous,ColumnCount*2*RowCount*2);
+        FileName := Initial_Folder+'\'+LandscapeName+'.for';
+        FOR_To_OverallForest(FileName);
+        Byte_To_Greyscale_Bitmap(OverallForestDeciduous, FileName+'.d.for.BMP');
+        Byte_To_Greyscale_Bitmap(OverallForestConiferous,FileName+'.c.for.BMP');
 
 // for testing re-convert
-{    OverallForest_To_FOR(FileName+'.FOR');
-    FOR_To_OverallForest(FileName+'.FOR');
-    Byte_To_Greyscale_Bitmap(OverallForestDeciduous, FileName+'.FOR.d.for.BMP');
-    Byte_To_Greyscale_Bitmap(OverallForestConiferous,FileName+'.FOR.c.for.BMP');
-}
+//        OverallForest_To_FOR(FileName+'.FOR');
+//        FOR_To_OverallForest(FileName+'.FOR');
+//        Byte_To_Greyscale_Bitmap(OverallForestDeciduous, FileName+'.FOR.d.for.BMP');
+//        Byte_To_Greyscale_Bitmap(OverallForestConiferous,FileName+'.FOR.c.for.BMP');
 
-    Screen.Cursor := crDefault;  // no longer busy
+      finally
+        Screen.Cursor := crDefault;  // no longer busy
+      end;
+    end else begin // must be V2
+      V2_FOR_BMP(Sender);
+    end;
   end;
 end;
 
@@ -286,12 +369,17 @@ begin
   OpenDialog1.Filter := 'TRN files (*.TRN)|*.TRN|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
-    FileName := OpenDialog1.FileName;
-//    File_Folder := ExtractFileDir(OpenDialog1.FileName);
-    // read terrain header
-    u_Terrain.Memo_Message := Memo_Message;
-    u_Terrain.ProgressBar_Status := ProgressBar_Status;
-    ReadTerrainHeader(Filename);
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      FileName := OpenDialog1.FileName;
+//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
+      // read terrain header
+      u_Terrain.Memo_Message := Memo_Message;
+      u_Terrain.ProgressBar_Status := ProgressBar_Status;
+      ReadTerrainHeader(Filename);
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
   end;
 end;
 
@@ -306,12 +394,16 @@ begin
   OpenDialog1.Filter := 'Terrain files (*.TRN;*.TR3;*.RAW)|*.TRN;*.TR3;*.RAW|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
-    FileName := OpenDialog1.FileName;
-//    File_Folder := ExtractFileDir(OpenDialog1.FileName);
-    // read terrain header
-    u_Terrain.Memo_Message := Memo_Message;
-    u_Terrain.ProgressBar_Status := ProgressBar_Status;
-    TRN_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+    try
+      FileName := OpenDialog1.FileName;
+//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
+      // read terrain header
+      u_Terrain.Memo_Message := Memo_Message;
+      u_Terrain.ProgressBar_Status := ProgressBar_Status;
+      TRN_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
   end;
 end;
 
@@ -1228,12 +1320,41 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
-procedure TForm_Utilities.Button_DXT3t_5oDXT1Click(Sender: TObject);
+{Procedure Test_int64;
+var
+  Alpha  : int64;
+  Bravo  : int64;
+  Charlie : int64;
+  Delta   : Integer;
+  aIndex : Integer;
+  i : Integer;
+  s : string;
+begin
+  Alpha := $500F000000F00000;
+  aIndex := 0;
+  for i := 0 to 16-1 do begin
+    Bravo := Alpha SHR (aIndex * 4);
+    Charlie := (Alpha SHR (aIndex * 4)) AND $000000000000000F;
+    if ((Alpha SHR (aIndex * 4)) AND $000000000000000F) = $0F then begin
+      Delta := 1;
+    end else begin
+      Delta := 0;
+    end;
+    INC(aIndex);
+    s := format('%8x %8x %8x %d',[Alpha, Bravo, Charlie, Delta]);
+    MessageShow(s);
+  end;
+end;
+}
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_DXT3_5_to_DXT1Click(Sender: TObject);
 var
   Filename : String;
   i : integer;
 
 begin
+{  Test_int64;
+}
   OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
   OpenDialog1.InitialDir := Initial_Folder;
   OpenDialog1.Filter := 'DDS files (*.DDS)|*.DDS|All files (*.*)|*.*';
@@ -1453,14 +1574,23 @@ begin
         File_Folder := ExtractFileDir(FullFileName);
         File_Name := ExtractFileName(FullFileName);
         File_Name_NoExt := copy(File_Name,1,pos('.bmp',File_Name)-1);
-{
+
+// compressonator doesn't do alpha on bitmaps - problem for water-tiles
+// GDAL_translate doesn't support 32 bit bitmaps !
         u_BMP.Memo_Message := Memo_Message;
         u_BMP.ProgressBar_Status := ProgressBar_Status;
-        Bitmap_24_To_Bitmap_32_Alpha(FullFileName,
+        ForceDirectories(File_Folder+'\Saved');
+        RenameFile(FullFileName,File_Folder+'\Saved\'+File_Name);
+//        Bitmap_24_To_Bitmap_32_Alpha(FullFileName,
+//                                     File_Folder+'\..\WaterMaps\'+File_Name,
+//                                     File_Folder+'\'+File_Name_NoExt+'-32.bmp'
+        Bitmap_24_To_Bitmap_32_Alpha(File_Folder+'\Saved\'+File_Name,
                                      File_Folder+'\..\WaterMaps\'+File_Name,
-                                     File_Folder+'\'+File_Name_NoExt+'-32.bmp'
+                                     FullFileName
                                     );
-}
+
+// compressonator uses pre-multiplied alpha with TIF - problem for water-tiles
+// nvDXT uses pre-multiplied alpha with TIF - problem for water-tiles
         u_TIFF.Memo_Message := Memo_Message;
         u_TIFF.ProgressBar_Status := ProgressBar_Status;
         BMP_24_To_TIF_32_WithAlpha(FullFileName,
@@ -2603,6 +2733,82 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
-end.
+procedure TForm_Utilities.Button_DDS_BMPClick(Sender: TObject);
+var
+  FilePicture: TPicture; // to load DDS tiles
+//  tBufr : TBitmap; // temporary bitmap
+  Filename : String;
+  File_Folder : String;
+  File_Name : String;
+  File_Name_NoExt : String;
+  Dest_File_Path : String;
+  i : integer;
 
+begin
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder+'\Textures';
+  OpenDialog1.Filter := 'DDS files (*.DDS)|*.DDS|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    with OpenDialog1.Files do begin
+      try
+        ProgressBar_Status.Max := Count;
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
+        FilePicture := TPicture.Create;
+//        tBufr := TBitmap.Create;
+    Canvas.Brush.Style := bsSolid;
+    Canvas.Brush.Color := clBtnFace;
+    FilePicture.Bitmap.Canvas.fillrect(rect(0,0,FilePicture.Width,FilePicture.Height));
+
+        for i := 0 to Count - 1 do begin
+    Canvas.Brush.Style := bsSolid;
+    Canvas.Brush.Color := clBtnFace;
+    FilePicture.Bitmap.Canvas.fillrect(rect(0,0,FilePicture.Width,FilePicture.Height));
+          FileName := Strings[i];
+          File_Folder := ExtractFileDir(FileName);
+          File_Name := ExtractFileName(FileName);
+          File_Name_NoExt := copy(File_Name,1,pos('.dds',File_Name)-1);
+//          Dest_File_Path := File_Folder+'\..\Working\Textures';
+          Dest_File_Path := File_Folder+'\..\Working\Textures_Export';
+          ForceDirectories(Dest_File_Path);
+          // determine Options
+          dxtOptions := 0;
+          if (CheckBox_DDS_Color.Checked) then begin
+            dxtOptions := dxtOptions OR dxt_Color;
+          end;
+          if (CheckBox_DDS_Transparent.Checked) then begin
+            dxtOptions := dxtOptions OR dxt_Transparent;
+          end;
+          // convert DDS to Bitmap
+          FilePicture.LoadFromFile(FileName);
+          if ((dxtOptions AND dxt_Transparent) = dxt_Transparent) then begin
+            // don't convert to pf24bit
+          end else begin
+// the following works to convert 32 bit to 24, but
+// if there is transparency, the pixels will not be 'drawn' onto the default-white bitmap
+// which could lead to errors if this bitmap is re-used without clearing!
+// but very useful if that is what you want !
+//            BMP_CopyMe(tBufr,FilePicture.bitmap);
+//            WriteBitMapToFile(tBufr,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+      //   tried to convert 32 to 24 in modified WriteBitMapToFile while writing -> too slow
+            FilePicture.Bitmap.PixelFormat := pf24bit;  // force 24 bit this way -> fastest
+          end;
+          WriteBitMapToFile(FilePicture.bitmap,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+           ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+
+      finally
+//        tBufr.Free;
+        FilePicture.Free;
+        Screen.Cursor := crDefault;  // no longer busy
+        ProgressBar_Status.Position := 0;
+      end;
+      MessageShow('Conversion done.');
+    end;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
+end.
 

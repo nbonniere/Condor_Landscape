@@ -52,7 +52,8 @@ Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
 //----------------------------------------------------------------------------
 implementation
 
-uses Graphics, u_TileList, u_SceneryHDR, u_BMP, u_Util, u_UTM;
+uses Graphics,
+  u_Terrain, u_TileList, u_SceneryHDR, u_BMP, u_Util, u_UTM;
 
 type
   GeoFeature = record
@@ -434,7 +435,7 @@ var
   Tile_R_Long : double;
 
 begin
-  // check for folder
+{  // check for folder
   if (NOT DirectoryExists(GEOFolder)) then begin
     MessageShow('Destination Folder not found');
     exit;
@@ -451,7 +452,7 @@ begin
   end;
 
   MessageShow(FilePath +'\'+ FileName);
-
+}
   FilePath := GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName;
   //open the file
   FileName := 'GEO_'+TileList[TileIndex].TileName+'.bat';
@@ -473,9 +474,9 @@ begin
 //  writeln(GEOfile,'set image_height='+OutputTileSize);
   writeln(GEOfile,'set image_height=1024');
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
@@ -579,9 +580,9 @@ begin
   writeln(GEOfile,'set image_width='+V1_Forest_Size);
   writeln(GEOfile,'set image_height='+V1_Forest_Size);
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
@@ -691,9 +692,9 @@ begin
   writeln(GEOfile,'set image_width='+V2_Forest_Size);
   writeln(GEOfile,'set image_height='+V2_Forest_Size);
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
@@ -799,9 +800,9 @@ begin
   writeln(GEOfile,'set image_width='+V2_Forest_Size);
   writeln(GEOfile,'set image_height='+V2_Forest_Size);
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
@@ -913,9 +914,9 @@ begin
   writeln(GEOfile,'set image_width='+Thermal_Size);
   writeln(GEOfile,'set image_height='+Thermal_Size);
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
@@ -1067,16 +1068,18 @@ begin
   writeln(GEOfile,'echo ^!sourcevec^!');
   for i := 0 to FeatureCount_Water-1 do begin
     with FeatureList_Water[i] do begin
-      writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l '+fDesc + fSql + fOpt +' ^!sourcevec^! %destTiff%'); // half transparency
+//      writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l '+fDesc + fSql + fOpt +' ^!sourcevec^! %destTiff%'); // half transparency
+      writeln(GEOfile,'gdal_rasterize -b 1 -burn 0 -l '+fDesc + fSql + fOpt +' ^!sourcevec^! %destTiff%'); // half transparency
     end;
   end;
-//  writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l water_polygons ^!sourcevec^! %destTiff% --config OGR_ENABLE_PARTIAL_REPROJECTION TRUE');
+////  writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l water_polygons ^!sourcevec^! %destTiff% --config OGR_ENABLE_PARTIAL_REPROJECTION TRUE');
+//  writeln(GEOfile,'gdal_rasterize -b 1 -burn 0 -l water_polygons ^!sourcevec^! %destTiff% --config OGR_ENABLE_PARTIAL_REPROJECTION TRUE');
   writeln(GEOfile,')'); // end loop
 
   // now convert to UTM
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem convert to UTM coordinates');
@@ -1152,9 +1155,9 @@ begin
   writeln(GEOfile,'set image_width='+OutputTileSize);
   writeln(GEOfile,'set image_height='+OutputTileSize);
 
-  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - 45;
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
   Tile_T_Lat  := Tile_B_Lat + 23040;
-  Tile_L_Long  := UTM_Right +45 - TileList[TileIndex+1].TileUTMRight;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');

@@ -385,7 +385,7 @@ begin
 //  MessageShow(format('Heap: %s %d',[coName,HeapStat.TotalFree]));
   MessageShow(format('Object: %s',[coName]));
 
-              ReadCondorC3Dfile(ObjectFileName);
+              ReadCondorC3Dfile(ObjectFileName, false);
               // Need to copy textures for this object
               CopyObjectTextures(FilePath,Filename,
                                  FilePath_a,Filename_a,
@@ -466,14 +466,14 @@ begin
   if (FindFirst(FilePath+'\World\Objects\'+'\*.c3d', faDirectory {faAnyFile}, SearchRec)) = 0 then begin
     if ((SearchRec.Name <> '.') AND (SearchRec.Name <> '..')) then begin
       objFileName := SearchRec.Name;
-      ReadCondorC3Dfile(FilePath+'\World\Objects\'+objFileName);
+      ReadCondorC3Dfile(FilePath+'\World\Objects\'+objFileName, false);
       Extract_Details();
     end;
 
     while (FindNext(SearchRec) = 0) do begin
       if ((SearchRec.Name <> '.') AND (SearchRec.Name <> '..')) then begin
         objFileName := SearchRec.Name;
-        ReadCondorC3Dfile(FilePath+'\World\Objects\'+objFileName);
+        ReadCondorC3Dfile(FilePath+'\World\Objects\'+objFileName, false);
 	Extract_Details();
       end;
     end;

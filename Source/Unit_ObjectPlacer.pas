@@ -27,6 +27,18 @@ uses
   ExtCtrls, ComCtrls, StdCtrls;
 
 type
+  // Nick - add two events to track Scrollbar movements
+  TScrollBox=Class({VCL.}Forms.TScrollBox)
+    procedure WMHScroll(var Message: TWMHScroll); message WM_HSCROLL;
+    procedure WMVScroll(var Message: TWMVScroll); message WM_VSCROLL;
+  private
+    FOnScrollVert: TNotifyEvent;
+    FOnScrollHorz: TNotifyEvent;
+  public
+   Property OnScrollVert:TNotifyEvent read FOnScrollVert Write FonScrollVert;
+   Property OnScrollHorz:TNotifyEvent read FOnScrollHorz Write FonScrollHorz;
+  End;
+
   TForm_ObjectPlacer = class(TForm)
     GroupBox_ObjectPlace: TGroupBox;
     GroupBox_Object: TGroupBox;
@@ -93,9 +105,14 @@ type
     procedure RadioButton_TerragenMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Image_TileClick(Sender: TObject);
+    procedure ScrollBox_ImageResize(Sender: TObject);
+    procedure Image_TileMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
+    procedure MyScrollHorz(Sender: TObject);
+    procedure MyScrollVert(Sender: TObject);
   public
     { Public declarations }
     procedure Initialize(Sender: TObject);
@@ -105,6 +122,7 @@ var
   Form_ObjectPlacer : TForm_ObjectPlacer;
 
   CurrentLandscape : string;
+  opVersion : string;
 
 //---------------------------------------------------------------------------
 implementation
@@ -112,7 +130,7 @@ implementation
 {$R *.DFM}
 
 uses Unit_Main, Unit_Graphics, Unit_Coords,
-     u_TileList, u_Object, u_SceneryHDR, u_VectorXY;
+     u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
 
 var
   ItemIndex : integer;
@@ -120,7 +138,38 @@ var
   BitmapAvail : boolean;
   ObjectEasting, ObjectNorthing, ObjectRotation : double;
   BitMap_Save : TBitMap;
-  opX, opY, opZoomScale : double;
+  opX, opY :double;
+  opZoomScale, opRange : double;
+  cX, cY : double;
+
+// TScollBox addition
+//---------------------------------------------------------------------------
+procedure TScrollBox.WMHScroll(var Message: TWMHScroll);
+begin
+   inherited;
+   if Assigned(FOnScrollHorz) then  FOnScrollHorz(Self);
+end;
+
+//---------------------------------------------------------------------------
+procedure TScrollBox.WMVScroll(var Message: TWMVScroll);
+begin
+   inherited;
+   if Assigned(FOnScrollVert) then  FOnScrollVert(Self);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.MyScrollVert(Sender: TObject);
+begin
+  cY := (ScrollBox_Image.VertScrollBar.Position + (ScrollBox_Image.ClientHeight div 2))
+        / (ScrollBox_Image.VertScrollBar.Range);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.MyScrollHorz(Sender: TObject);
+begin
+  cX := (ScrollBox_Image.HorzScrollBar.Position + (ScrollBox_Image.ClientWidth div 2))
+        / (ScrollBox_Image.HorzScrollBar.Range);
+end;
 
 //---------------------------------------------------------------------------
 Procedure Image_Tile_Clear;
@@ -145,7 +194,9 @@ begin
     ListBox_ObjectList.Items.Append(Object_List[i].coName);
   end;
   Label_ObjectCount.Caption := IntToStr(Object_Count);
-  ItemIndex := ListBox_ObjectList.ItemIndex;
+//  ItemIndex := ListBox_ObjectList.ItemIndex;
+  ItemIndex := -1;
+  opZoomScale := 1.0;
   ObjectsChanged := false;
 
   // blank to start
@@ -168,11 +219,18 @@ var
   ScaleX , ScaleY : double;
 
 begin
-  Object_CoordXY.X := 23040 - (ObjectEasting - TileList[TileIndex].TileUTMRight);
-  Object_CoordXY.Y := 23040 - (ObjectNorthing - TileList[TileIndex].TileUTMBottom);
+//  Object_CoordXY.X := 23040 - (ObjectEasting - TileList[TileIndex].TileUTMRight);
+//  Object_CoordXY.Y := 23040 - (ObjectNorthing - TileList[TileIndex].TileUTMBottom);
+  // for drawing need reference to top left instead of bottom right
+  Object_CoordXY.X := opRange - xCoord;
+  Object_CoordXY.Y := opRange - yCoord;
 
-  ScaleX := Form_ObjectPlacer.Image_Tile.Width/23040 * opZoomScale;
-  ScaleY := Form_ObjectPlacer.Image_Tile.Height/23040 * opZoomScale;
+//  ScaleX := Form_ObjectPlacer.Image_Tile.Width/23040 * opZoomScale;
+//  ScaleY := Form_ObjectPlacer.Image_Tile.Height/23040 * opZoomScale;
+  with Form_ObjectPlacer do begin
+    ScaleX := Image_Tile.Width/opRange * opZoomScale;
+    ScaleY := Image_Tile.Height/opRange * opZoomScale;
+  end;
 
   setlength(ObjectCorners,4);
   Temp_CoordXY.X := -20; Temp_CoordXY.Y := -20;
@@ -232,26 +290,72 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-Procedure CentreObject;
+Procedure ReCentre;
 begin
   with Form_ObjectPlacer do begin
     with Object_List[ItemIndex] do begin
-//          ScrollBox_Image.HorzScrollBar.Position := trunc((1-(coEasting -
-//            TileList[TileIndex].TileUTMRight)/23040)*
-//            (ScrollBox_Image.HorzScrollBar.Range-ScrollBox_Image.ClientWidth));
-  //        ScrollBox_Image.HorzScrollBar.Position := trunc((1-(ObjectEasting{coEasting} -
-  //          TileList[TileIndex].TileUTMRight)/23040)*
-          ScrollBox_Image.HorzScrollBar.Position := trunc(opX *
+          ScrollBox_Image.HorzScrollBar.Position := trunc(cX *
             (ScrollBox_Image.HorzScrollBar.Range)-ScrollBox_Image.ClientWidth div 2);
-//          ScrollBox_Image.VertScrollBar.Position := trunc((1-(coNorthing -
-//            TileList[TileIndex].TileUTMBottom)/23040)*
-//            (ScrollBox_Image.VertScrollBar.Range-ScrollBox_Image.ClientHeight));
-  //        ScrollBox_Image.VertScrollBar.Position := trunc((1-(ObjectNorthing{coNorthing} -
-  //          TileList[TileIndex].TileUTMBottom)/23040)*
-          ScrollBox_Image.VertScrollBar.Position := trunc(opY *
+          ScrollBox_Image.VertScrollBar.Position := trunc(cY *
             (ScrollBox_Image.VertScrollBar.Range)-ScrollBox_Image.ClientHeight div 2);
     end;
   end;
+end;
+
+//---------------------------------------------------------------------------
+Procedure CentreObject;
+begin
+  cX := opX;
+  cY := opY;
+  ReCentre;
+end;
+
+// find group of 4 DDS tiles that surround the object coordinates
+//---------------------------------------------------------------------------
+Procedure Find_DDS_Tiles(Easting, Northing : double; var Col, Row : integer);
+const
+  QT_Range = Resolution * tColumns div 4;  // 23040 / 4 km
+//var
+//  Row, Col : integer;
+begin
+  // find half quarter tile to find nearest group of 4 tiles
+  Col := trunc(Easting /(QT_Range/2));
+  Row := trunc(Northing/(QT_Range/2));
+  // airport quarter tile DDS name
+  Form_ObjectPlacer.Label_Tile.Caption := format('(q)%2.2d%2.2d',[Col div 2, Row div 2]);
+  // find BR quarter tile
+  Col := trunc((Col+1)/2)-1;      // bottom right DDS tile
+  Row := trunc((Row+1)/2)-1;      // bottom right DDS tile
+  // range check
+  if (Col < 0) then begin
+    Col := 0;
+  end else begin
+//    if (Col > TileColumnCount*4-2) then begin
+//      Col := TileColumnCount*4-2;
+    // quarter tiles - not necessarily complete tiles (4 quarter tiles)
+    if (Col > ColumnCount div (tColumns div 4) -2) then begin
+      Col := ColumnCount div (tColumns div 4) -2;
+    end;
+  end;
+  if (Row < 0) then begin
+    Row := 0;
+  end else begin
+    if (Row > RowCount div (tRows div 4) -2) then begin
+      Row := RowCount div (tRows div 4) -2;
+    end;
+  end;
+
+  // 4 tiles BR to B+1,R+1
+
+  // object tile relative coords (relative to bottom right)
+  {Unit_Graphics.}xReference := (Col*QT_Range);
+  {Unit_Graphics.}yReference := (Row*QT_Range);
+  {Unit_Graphics.}xCoord := ObjectEasting -  xReference;
+  {Unit_Graphics.}yCoord := ObjectNorthing - yReference;
+  // Relative fractional position (relative to top left)
+  opRange := QT_Range*2; // metres, 2x2 quarter tiles
+  opX := 1 - ({Unit_Graphics.}xCoord/opRange);
+  opY := 1 - ({Unit_Graphics.}yCoord/opRange);
 end;
 
 //---------------------------------------------------------------------------
@@ -259,11 +363,20 @@ procedure TForm_ObjectPlacer.ShowItem(Sender: TObject);
 const
   T_Range = Resolution * tColumns; // 23040 km
 var
+  i, j : integer;
   TileIndex : integer;
   TileRow, TileColumn : integer;
 
+  DDS_Col, DDS_Row : integer;
+  FilePicture: TPicture; // to load DDS tiles
+  FileName : string;
+  Temp : longint;
+  DDS_Size : longint;
+
+
 begin
-  begin
+  if (ItemIndex <> -1) then begin
+    BitmapAvail := false; // assume for now
     with Object_List[ItemIndex] do begin
       Edit_FileName.Text := coName;
       Edit_Easting.Text := format('%1.5f',[coEasting]);
@@ -285,27 +398,97 @@ begin
       //    Message('Object beyond scenery extents');
           exit;
         end;
-        // Relative fractional position
-        opX := (1-(ObjectEasting - TileList[TileIndex].TileUTMRight)/T_Range);
-        opY := (1-(ObjectNorthing - TileList[TileIndex].TileUTMBottom)/T_Range);
-        // scenery relative coords
-        Unit_Graphics.xCoord := TileList[TileIndex].TileUTMRight;
-        Unit_Graphics.yCoord := TileList[TileIndex].TileUTMBottom;
-        // object relative coords
-//        xCoord := TileList[TileIndex].TileUTMRight - coEasting;
-//        yCoord := TileList[TileIndex].TileUTMBottom - coNorthing;
-//        TileName := format('%2.2d%2.2d',[trunc(coEasting/T_Range),trunc(coNorthing/T_Range)]);
-        Label_Tile.Caption := TileList[TileIndex].TileName;
-        if (LoadTileBitmap(TileList[TileIndex].TileName)) then begin
+
+        // if DDS textures available, use 4 closest, otherwise use terragen tile
+        if (RadioButton_DDS.Checked = true) then begin
+          Find_DDS_Tiles(ObjectEasting, ObjectNorthing, DDS_Col, DDS_Row);
+          // determine highest tile resolution
+          DDS_Size := 0;
+          for i := 0 to 2-1 do begin
+            for j := 0 to 2-1 do begin
+              FileName := format('%sTextures\t%2.2d%2.2d.dds',[lObjectFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+              Temp := DXT_ImageWidth(FileName);
+              if (Temp > DDS_Size) then begin
+                DDS_Size := temp;
+              end;
+            end;
+          end;
+          // load 4 dds tiles and draw onto Image_Tile
+          for i := 0 to 2-1 do begin
+            for j := 0 to 2-1 do begin
+              FileName := format('%sTextures\t%2.2d%2.2d.dds',[lObjectFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+              if (NOT FileExists(FileName)) then begin
+//              BitmapAvail := false;
+                // blank image
+                Image_Tile_Clear;
+                exit;
+              end;
+              FilePicture := TPicture.Create;
+              try
+                FilePicture.LoadFromFile(FileName);
+                if (opVersion = 'V1') then begin
+                  //rotate 180 deg
+                  Rotate_180(FilePicture.Bitmap);
+                end;
+                try
+                  with Image_Tile.Picture.Bitmap do begin
+                    if ((i = 0) AND (j=0)) then begin
+                      Image_Tile.Align := alClient;
+                      Image_Tile.AutoSize := true;
+//                      Width := FilePicture.Width * 2;
+                      Width := DDS_Size * 2;
+//                      Height := FilePicture.Width * 2;
+                      Height := DDS_Size * 2;
+                      Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+                    end;
+//                    Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
+//                      (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
+                    Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
+                      (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
+                  end;
+                finally
+                end;
+              finally
+                FilePicture.Free;
+              end;
+            end;
+          end;
+
           BitmapAvail := true;
           ZoomRestore(Sender); // after load/reload of tile
           CentreObject;
-          DrawObject(TileIndex);
-        end else begin
-          // blank image
-          Image_Tile_Clear;
+          //DrawObject(TileIndex);
+          DrawObject(0);
+        end else begin // try terragen tile        // Relative fractional position
+//          opX := (1-(ObjectEasting - TileList[TileIndex].TileUTMRight)/T_Range);
+//          opY := (1-(ObjectNorthing - TileList[TileIndex].TileUTMBottom)/T_Range);
+          // object relative coords
+//          xCoord := TileList[TileIndex].TileUTMRight - coEasting;
+//          yCoord := TileList[TileIndex].TileUTMBottom - coNorthing;
+          // scenery relative coords
+//          {Unit_Graphics.}xCoord := TileList[TileIndex].TileUTMRight;
+//          {Unit_Graphics.}yCoord := TileList[TileIndex].TileUTMBottom;
+          xReference := TileList[TileIndex].TileUTMRight;
+          yReference := TileList[TileIndex].TileUTMBottom;
+          xCoord := ObjectEasting - xReference;
+          yCoord := ObjectNorthing - yReference;
+          // Relative fractional position (relative to top left)
+          opX := 1 - ({Unit_Graphics.}xCoord/T_Range);
+          opY := 1 - ({Unit_Graphics.}yCoord/T_Range);
+          opRange := T_Range; // metres
+//          TileName := format('%2.2d%2.2d',[trunc(coEasting/T_Range),trunc(coNorthing/T_Range)]);
+          Label_Tile.Caption := TileList[TileIndex].TileName;
+          if (LoadTileBitmap(TileList[TileIndex].TileName)) then begin
+            BitmapAvail := true;
+            ZoomRestore(Sender); // after load/reload of tile
+            CentreObject;
+//            DrawObject(TileIndex);
+            DrawObject(0);
+          end else begin
+            // blank image
+            Image_Tile_Clear;
+          end;
         end;
-
       end else begin
         // blank image
         Image_Tile_Clear;
@@ -315,22 +498,58 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+var
+  FPanning: Boolean;
+  FMousePos: TPoint;
+
+// mouse move
+//---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.ShowCoord(Sender: TObject;
   Shift: TShiftState; X, Y: Integer);
 var
   Horiz, Vert : double;
 begin
+  if (FPanning) then begin
+    with ScrollBox_Image do
+    begin
+      HorzScrollBar.Position := HorzScrollBar.Position + (FMousePos.X - X);
+      MyScrollHorz(Sender);
+      VertScrollBar.Position := VertScrollBar.Position + (FMousePos.Y - Y);
+      MyScrollVert(Sender);
+    end;
+  end;
+
   if (BitmapAvail) then begin
-    Horiz := xCoord + Resolution*tColumns*
+    Horiz := xReference{xCoord} + opRange{Resolution*tColumns}*
 //      (Image_Tile.Picture.Width-1-X)/Image_Tile.Picture.Width;
       (Image_Tile.Width-1-X)/Image_Tile.Width;
-    Vert := yCoord + Resolution*tRows*
+    Vert := yReference{yCoord} + opRange{Resolution*tRows}*
 //      (Image_Tile.Picture.Height-1-Y)/Image_Tile.Picture.Height;
       (Image_Tile.Height-1-Y)/Image_Tile.Height;
     Label_Coords.Caption := format('%1.2f,%1.2f',[
       (Horiz),
       (Vert)
       ]);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Image_TileMouseDown(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  FPanning := True;
+  FMousePos.X := X;
+  FMousePos.Y := Y;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Image_TileMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  FPanning := False;
+
+  if (Button = mbRight) then begin
+    Form_Coords.ShowModal;
   end;
 end;
 
@@ -346,6 +565,13 @@ begin
     Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
 //    tFileName := Path+'\'+TileName+'.bmp';
     Image_Tile.Picture.LoadFromFile(tFileName);
+//    Image_Tile.Canvas.CopyMode := cmSrcCopy; // try to make sure colors are correct - no go
+// if 256 color bitmap, drawing on top of bitmap will use the 256 color palette !
+// any color will use the closest color in palette -> approx color
+// convert to pf24 bit for absolute color - works!
+    if (Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
+      Image_Tile.Picture.Bitmap.PixelFormat := pf24bit;
+    end;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
     result := true;
@@ -513,6 +739,10 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.FormCreate(Sender: TObject);
 begin
+  // added scrollbar events
+  ScrollBox_Image.OnScrollVert := MyScrollVert;
+  ScrollBox_Image.OnScrollHorz := MyScrollHorz;
+
   CurrentLandscape := '';
   BitMap_Save := TBitMap.Create;
 end;
@@ -521,15 +751,6 @@ end;
 procedure TForm_ObjectPlacer.FormDestroy(Sender: TObject);
 begin
   Bitmap_Save.Free;
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_ObjectPlacer.Image_TileMouseUp(Sender: TObject;
-  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-begin
-  if (Button = mbRight) then begin
-    Form_Coords.ShowModal;
-  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -590,6 +811,7 @@ end;
 procedure TForm_ObjectPlacer.RadioButton_DDSMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
+  opZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
   ShowItem(Sender);
 end;
 
@@ -597,6 +819,7 @@ end;
 procedure TForm_ObjectPlacer.RadioButton_TerragenMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
+  opZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
   ShowItem(Sender);
 end;
 
@@ -619,7 +842,8 @@ begin
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
     // now refresh
-    CentreObject;
+//    CentreObject;
+    ReCentre;
   end;
 end;
 
@@ -642,7 +866,8 @@ begin
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
     // now refresh
-    CentreObject;
+//    CentreObject;
+    ReCentre;
   end;
 end;
 
@@ -697,6 +922,12 @@ begin
 //      default coElevation ?
     end;
   end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.ScrollBox_ImageResize(Sender: TObject);
+begin
+  Recentre;  // on current centre cX, cY
 end;
 
 end.

@@ -192,6 +192,8 @@ var
 
   xCoord : double;
   yCoord : double;
+  xReference : double;
+  yReference : double;
 
 //Procedure ConvertForestMask;
 Procedure ConvertForestMask(hDeciduous,hConiferous,hDefault : byte);

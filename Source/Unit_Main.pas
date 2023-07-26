@@ -86,6 +86,7 @@ type
     ComboBox_MapType: TComboBox;
     GroupBox_MapID: TGroupBox;
     ComboBox_MapID: TComboBox;
+    Button_SimpleObjects: TButton;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -120,6 +121,7 @@ type
     procedure Button_DDSClick(Sender: TObject);
     procedure Button_MergeClick(Sender: TObject);
     procedure Button_DownloaderClick(Sender: TObject);
+    procedure Button_SimpleObjectsClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -138,7 +140,7 @@ IMPLEMENTATION
 uses
   FileCtrl, Dialogs,
   Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
-  Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects,
+  Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects, Unit_SimpleObjects,
   u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
   u_MakeForest, u_MakeThermal, u_MakeGradient,
   u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
@@ -1391,6 +1393,11 @@ begin
         Form_Graphic.Image_Tile.Stretch := false; // no stretch - 1:1 resolution
         // now load the picture bitmap
         Form_Graphic.Image_Tile.Picture.LoadFromFile(tFileName);
+        if (Form_Graphic.Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
+          //Form_Graphic.Image_Tile.Picture.Bitmap.PixelFormat := pf24bit; // force 24 bit color
+          Memo_Info.Lines.Add('Terragen Bitmap must be 24 bit color');
+          Beep; Exit;
+        end;
         u_ReduceColors.ColorsReduced := false;
         Form_Graphic.Image_PaletteClick(Sender);
         Form_Graphic.ScrollBox_Image.HorzScrollBar.Range := Form_Graphic.Image_Tile.Picture.Width;
@@ -1495,6 +1502,11 @@ begin
         Form_Graphic.Image_Tile.Stretch := false; // no stretch - 1:1 resolution
         // now load the picture bitmap
         Form_Graphic.Image_Tile.Picture.LoadFromFile(tFileName);
+        if (Form_Graphic.Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
+          //Form_Graphic.Image_Tile.Picture.Bitmap.PixelFormat := pf24bit; // force 24 bit color
+          Memo_Info.Lines.Add('Terragen Bitmap must be 24 bit color');
+          Beep; Exit;
+        end;
         u_ReduceColors.ColorsReduced := false;
         Form_Graphic.Image_PaletteClick(Sender);
         Form_Graphic.ScrollBox_Image.HorzScrollBar.Range := Form_Graphic.Image_Tile.Picture.Width;
@@ -1586,7 +1598,7 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_Main.Button_ObjectsClick(Sender: TObject);
 begin
-  Unit_Objects.ApplicationPathName := ApplicationPathName;
+  Unit_Objects.ApplicationPath := ApplicationPathName;
 //  oFolder := WorkingPathName;
   if (HeaderOpen) AND (TileOpen) then begin
     oFolder := CondorPathName+'\Landscapes\' + CondorLandscapeName;
@@ -1620,6 +1632,7 @@ begin
       ReadObjectFile;
       Form_ObjectPlacer.Initialize(Sender);
       Unit_ObjectPlacer.CurrentLandscape := CondorLandscapeName;
+      Unit_ObjectPlacer.opVersion:= ComboBox_Version.text;
     end else begin
     end;
     Form_ObjectPlacer.ShowModal;
@@ -1805,6 +1818,7 @@ begin
   u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
   u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
   u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
+  Unit_Utilities.opVersion:= ComboBox_Version.text;
 
   // offset to be able to see status and progressbar
 //  Form_Utilities.Position := poDefault;
@@ -1885,6 +1899,22 @@ begin
   Form_Merge.Top  := Self.Top + 0;
 
   Form_Merge.ShowModal;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_SimpleObjectsClick(Sender: TObject);
+begin
+  Unit_SimpleObjects.ApplicationPath := ApplicationPathName;
+//  soFolder := WorkingPathName;
+  if (HeaderOpen) AND (TileOpen) then begin
+    objFolder := CondorPathName+'\Landscapes\' + CondorLandscapeName;
+  end else begin
+    Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes';
+  end;
+  Unit_SimpleObjects.CondorFolder := CondorPathName;
+  Unit_SimpleObjects.WorkingFolder := WorkingPathName;
+  Unit_SimpleObjects.Memo_Message := Memo_Info;
+  form_SimpleObjects.ShowModal;
 end;
 
 //---------------------------------------------------------------------------

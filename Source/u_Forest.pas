@@ -85,6 +85,16 @@ Procedure Byte_To_Greyscale_Bitmap(var Data : array of byte; Greyscale_FileName 
 Procedure OverallForest_To_FOR(ForestFileName : string);
 Procedure Expand_x4_Save_V2(FOR_FilePath : string);
 
+// first step for V2 forest FOR to BMP
+Procedure V2_FOR_To_ForestGrid(ForestFileName : string);
+Procedure V2_2Color_WriteBitmapForestTile(Forest : ForestType;ForestFIleName : string);
+Procedure V2_16Color_Both_WriteBitmapForestTile(ForestFIleName : string);
+Procedure V2_GreyScale_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+Procedure V2_24bit_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+
+// not/no-longer supported by bitmap
+Procedure V2_4Color_Both_WriteBitmapForestTile(ForestFIleName : string);
+
 {============================================================================}
 IMPLEMENTATION
 
@@ -366,7 +376,61 @@ begin
       FileByte := FileByte SHL 1;
     end;
   end;
-  ByteToBit := FileByte XOR $FF;
+  ByteToBit := FileByte XOR $FF;  // why ?
+end;
+
+{----------------------------------------------------------------------------}
+Function ByteTo2bits(Grid:Array of byte; j:integer):byte;
+var
+  FileByte : byte;
+  k : integer;
+  BitMask : byte;
+
+begin
+  FileByte := 0;
+  BitMask := 3;
+  for k := 0 to 4-1 do begin
+    FileByte := FileByte SHL 2;
+    FileByte := FileByte OR (Grid[j+k] AND BitMask);
+  end;
+  ByteTo2bits := FileByte;
+end;
+
+{----------------------------------------------------------------------------}
+Function ByteTo4bits(Grid:Array of byte; j:integer):byte;
+var
+  FileByte : byte;
+  k : integer;
+  BitMask : byte;
+
+begin
+  FileByte := 0;
+  BitMask := 3;
+  for k := 0 to 2-1 do begin
+    FileByte := FileByte SHL 4;
+    FileByte := FileByte OR (Grid[j+k] AND BitMask);
+  end;
+  ByteTo4bits := FileByte;
+end;
+
+{----------------------------------------------------------------------------}
+Function ByteToGreyScale(Forest:ForestType;Grid: byte):byte;
+var
+  FileByte : byte;
+  k : integer;
+  BitMask : byte;
+
+begin
+  case Forest of
+    fDeciduous: BitMask := 1;
+    fConiferous: BitMask := 2;
+  end;
+
+  if (Grid AND BitMask = BitMask) then begin
+    ByteToGreyScale := 255; // white
+  end else begin
+    ByteToGreyScale := 0; // black
+  end;
 end;
 
 {----------------------------------------------------------------------------}
@@ -769,6 +833,273 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
+Procedure V2_FOR_To_ForestGrid(ForestFileName : string);
+var
+  x, y :integer;
+  P : PByteArray;
+
+begin
+  if (NOT FileExists(ForestFileName)) then begin
+    MessageShow('Forest file not found');
+  end else begin
+    ForestResolution := 8; // V2
+    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
+
+    AssignFile(Forest_File,ForestFileName);
+    Reset(Forest_File);
+      try
+        P := AllocMem(pColumns*ForestResolution); // one row of FOR at a time (one column of grid)
+//        ProgressBar_Status.Max := pRows*ForestResolution;
+
+        for y := 0 to (pRows*ForestResolution)-1 do begin
+          BlockRead(Forest_File,P^,pColumns*ForestResolution);
+          for x := 0 to (pColumns*ForestResolution)-1 do begin
+            ForestGrid[pColumns*ForestResolution-1-x,pColumns*ForestResolution-1-y] := P^[x];
+          end;
+
+//          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
+      end;
+//    ProgressBar_Status.Position := 0;
+    CloseFile(Forest_File);
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+var
+  i,j : integer;
+  FileIndex : longint;
+  FileByte : byte;
+
+  TileRow, TileColumn : integer;
+
+begin
+  AssignFile(Forest_File,ForestFileName);
+  Rewrite(Forest_File);
+  // create a header
+  with xBitmapHeader_1bitColor do begin
+    bDib.bWidth := pColumns*ForestResolution;
+    bDib.bHeight := pRows*ForestResolution;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor1Size div 8;
+    bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+  end;
+  BlockWrite(Forest_File,xBitmapHeader_1bitColor,
+    sizeof(xBitmapHeader_1bitColor));
+
+  //write 2 color palette
+  BlockWrite(Forest_File,xBMP_1bit_ForestColorTable,
+    sizeof(xBMP_1bit_ForestColorTable));
+
+  // do only one qTile for now
+  TileRow := 0; TileColumn := 0;
+  TileColumnCount := 1; TileRowCount := 1;
+
+//  FileIndex := BitmapHeader_1bitBW.BitmapBWPixelOffset +
+  FileIndex := xBitmapHeader_1bitColor.bH.bPixelArrayOffset +
+               xColor1Size * (TileRow*pRows*ForestResolution*((TileColumnCount*pColumns*ForestResolution) div 8) +
+                              (((TileColumnCount-1)-TileColumn)*pColumns*ForestResolution div 8)
+                             );
+  for i := pRows*ForestResolution-1 downto 0 do begin // rows from bottom
+    seek(Forest_File,FileIndex);
+    for j := 0 to (pColumns*ForestResolution div 8)-1 do begin // columns from left
+      //assemble 8 bits
+      FileByte := ByteToBit(Forest,ForestGrid[i],j*8);
+      // write each forest index, 2 color (BW)
+      write(Forest_File,FileByte);
+    end;
+    INC(FileIndex,(xColor1Size * (TileColumnCount*pColumns*ForestResolution) div 8));
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_2Color_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+const
+  pix = 8; // 8 pixels per byte
+var
+  i,j : integer;
+  FileByte : byte;
+
+begin
+  AssignFile(Forest_File,ForestFileName);
+  Rewrite(Forest_File);
+  // create a header - 2 color
+  with xBitmapHeader_1bitColor do begin
+    bDib.bWidth := pColumns*ForestResolution;
+    bDib.bHeight := pRows*ForestResolution;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor1Size div 8;
+    bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+  end;
+  BlockWrite(Forest_File,xBitmapHeader_1bitColor,
+    sizeof(xBitmapHeader_1bitColor));
+
+  //write 2 color palette
+  BlockWrite(Forest_File,xBMP_1bit_ForestColorTable,
+    sizeof(xBMP_1bit_ForestColorTable));
+
+  for i := 0 to pRows*ForestResolution-1 do begin
+    for j := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
+      //assemble 8 bits
+      FileByte := ByteToBit(Forest,ForestGrid[pRows*ForestResolution-1-i],j*pix); // from bottom
+      // write each forest index, 2 color
+      write(Forest_File,FileByte);
+    end;
+  end;
+end;
+
+// not/no-longer supported by bitmap
+{----------------------------------------------------------------------------}
+Procedure V2_4Color_Both_WriteBitmapForestTile(ForestFileName : string);
+const
+  pix = 4; // 4 pixels per byte
+var
+  i,j : integer;
+  FileByte : byte;
+
+begin
+  AssignFile(Forest_File,ForestFileName);
+  Rewrite(Forest_File);
+
+  // create a header - 4 color
+  with xBitmapHeader_2bitColor do begin
+    bDib.bWidth := pColumns*ForestResolution;
+    bDib.bHeight := pRows*ForestResolution;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor2Size div 8;
+    bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+  end;
+  BlockWrite(Forest_File,xBitmapHeader_2bitColor,
+    sizeof(xBitmapHeader_2bitColor));
+
+  //write 4 color palette
+  BlockWrite(Forest_File,xBMP_2bit_ForestColorTable,
+    sizeof(xBMP_2bit_ForestColorTable));
+
+  for i := 0 to pRows*ForestResolution-1 do begin
+    for j := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
+      //assemble 4 * 2 bits
+      FileByte := ByteTo2bits(ForestGrid[pRows*ForestResolution-1-i],j*pix); // from bottom
+      // write each forest index, 4 color
+      write(Forest_File,FileByte);
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_16Color_Both_WriteBitmapForestTile(ForestFileName : string);
+const
+  pix = 2; // 2 pixels per byte
+var
+  i,j : integer;
+  FileByte : byte;
+
+begin
+  AssignFile(Forest_File,ForestFileName);
+  Rewrite(Forest_File);
+
+  // create a header - 16 color
+  with xBitmapHeader_4bitColor do begin
+    bDib.bWidth := pColumns*ForestResolution;
+    bDib.bHeight := pRows*ForestResolution;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor4Size div 8;
+    bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+  end;
+  BlockWrite(Forest_File,xBitmapHeader_4bitColor,
+    sizeof(xBitmapHeader_4bitColor));
+
+  //write 16 color palette
+  BlockWrite(Forest_File,xBMP_4bit_ForestColorTable,
+    sizeof(xBMP_4bit_ForestColorTable));
+
+  for i := 0 to pRows*ForestResolution-1 do begin
+    for j := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
+      //assemble 2 * 4 bits
+      FileByte := ByteTo4bits(ForestGrid[pRows*ForestResolution-1-i],j*pix); // from bottom
+      // write each forest index, 4 color
+      write(Forest_File,FileByte);
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_GreyScale_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+var
+  i,j : integer;
+  FileByte : byte;
+  pColor : ColorConvert;
+
+begin
+  AssignFile(Forest_File,ForestFileName);
+  Rewrite(Forest_File);
+  // create a header 8 bit color
+  with BitmapHeader_8bitColor do begin
+    bDib.bPaletteColors := 256; // 8 bit color
+    bDib.bWidth := pColumns*ForestResolution;
+    bDib.bHeight := pRows*ForestResolution;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+    bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+    BlockWrite(Forest_File,BitmapHeader_8bitColor,
+      sizeof(BitmapHeader_8bitColor));
+  end;
+  //write 256 color palette
+  //seek(Forest_File,sizeof(BMP_Header) + sizeof(BMP_DIB_Header));
+  pColor.ByteValue[3]:=0;
+  for i := 0 to 256-1 do begin //grey scale
+//      Write(Forest_File,byte(i),byte(i),byte(i),ZeroByte);
+    pColor.ByteValue[0] := i;
+    pColor.ByteValue[1] := i;
+    pColor.ByteValue[2] := i;
+    BlockWrite(Forest_File,pColor.ColorValue,sizeof(pColor));
+  end;
+
+  for i := 0 to pRows*ForestResolution-1 do begin
+    for j := 0 to (pColumns*ForestResolution)-1 do begin // columns from left
+      // convert to BW
+      FileByte := ByteToGreyScale(Forest,ForestGrid[pRows*ForestResolution-1-i,j]); // from bottom
+      // write each forest index, GreyScale
+      write(Forest_File,FileByte);
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_24bit_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+var
+  i,j : integer;
+  FileByte : byte;
+  pColor : ColorConvert;
+
+begin
+  AssignFile(Forest_File,ForestFileName);
+  Rewrite(Forest_File);
+  // create a header
+  with xBitmapHeader_24bitColor do begin
+    bDib.bWidth := pColumns*ForestResolution;
+    bDib.bHeight := pRows*ForestResolution;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+    bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+  end;
+  BlockWrite(Forest_File,xBitmapHeader_24bitColor,
+    sizeof(xBitmapHeader_24bitColor));
+
+  pColor.ByteValue[3]:=0;
+  for i := 0 to pRows*ForestResolution-1 do begin
+    for j := 0 to (pColumns*ForestResolution)-1 do begin // columns from left
+      // convert to BW
+      FileByte := ByteToGreyScale(Forest,ForestGrid[pRows*ForestResolution-1-i,j]); // from bottom
+      // write each forest index, GreyScale
+//      Write(Forest_File,byte(i),byte(i),byte(i),ZeroByte);
+      pColor.ByteValue[0] := FileByte;
+      pColor.ByteValue[1] := FileByte;
+      pColor.ByteValue[2] := FileByte;
+      BlockWrite(Forest_File,pColor.cRGB,sizeof(pColor.cRGB));
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
 begin { Initialization }
   Memo_Message := nil;
 //testing
@@ -783,4 +1114,5 @@ begin { Initialization }
 end.
 
 {--- End of File ------------------------------------------------------------}
+
 

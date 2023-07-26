@@ -364,9 +364,10 @@ begin
       IFD_Tag := IFD_Tag_0152;      // extra component (alpha)
       IFD_Type := IFD_Type_Word;
       IFD_NumValues := 1;
-//      IFD_ValueOrOffset.LongValue := 1;
-//      IFD_ValueOrOffset.LongValue := 2;
-      IFD_ValueOrOffset := 2;
+//      IFD_ValueOrOffset.LongValue := 1;  // associated alpha (pre-multiplied color)
+//      IFD_ValueOrOffset.LongValue := 2;  // un-associated alpha
+//      IFD_ValueOrOffset := 2;
+      IFD_ValueOrOffset := 1;  // try for water maps 21 Jul 2023
     end;
   end;
 

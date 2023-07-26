@@ -81,6 +81,10 @@ type
 
 //  BMP_8bit_ColorTable = array[0..256-1] of Longword;
   BMP_8bit_ColorTable = array[0..256-1] of TRGBQuad;
+//  BMP_4bit_ColorTable = array[0..16-1] of Longword;
+  BMP_4bit_ColorTable = array[0..16-1] of TRGBQuad;
+//  BMP_2bit_ColorTable = array[0..4-1] of Longword;
+  BMP_2bit_ColorTable = array[0..4-1] of TRGBQuad;
 //  BMP_1bit_ColorTable = array[0..2-1] of Longword;
   BMP_1bit_ColorTable = array[0..2-1] of TRGBQuad;
 
@@ -245,7 +249,16 @@ const
   );
 
   xBMP_1bit_ForestColorTable : array[0..2-1] of Longword =
-    ($0000BE00, $00000000);
+    ($0000BE00, $00000000);  // why reversed ?
+
+  xBMP_2bit_ForestColorTable : array[0..4-1] of Longword =
+    ($00000000, $0000FF00, $004080FF, $00FF8040);
+
+  xBMP_4bit_ForestColorTable : array[0..16-1] of Longword =
+    ($00000000, $0000FF00, $004080FF, $00FF8040,
+     $00000000, $00000000, $00000000, $00000000,
+     $00000000, $00000000, $00000000, $00000000,
+     $00000000, $00000000, $00000000, $00000000);
 
   xColor1Size = 1; // bits
   xBitmapHeader_1bitColor : BMP_V1_Header = (
@@ -267,6 +280,53 @@ const
       bHoriz_Ppm: 0;
       bVert_Ppm:  0;
       bPaletteColors: 2;  // can also be 0 -> default 2^1 entries
+      bImportantColors: 0 );
+  );
+
+  // no-longer/not-ever supported ?
+  xColor2Size = 2; // bits
+  xBitmapHeader_2bitColor : BMP_V1_Header = (
+    bH:(
+      bSignature: $4D42{BitmapSignature};
+      bFileByteSize: 256*256*xColor2Size div 8 + sizeof(BMP_2bit_ColorTable) +
+        sizeof(BMP_Header) + sizeof(BMP_DIB_Header);
+      bReserved: 0;
+      bPixelArrayOffset: sizeof(BMP_2bit_ColorTable) +
+        sizeof(BMP_Header) + sizeof(BMP_DIB_Header) );
+    bDIB:(
+      bHeaderSize: sizeof(BMP_DIB_Header);
+      bWidth:  256;
+      bHeight: 256;
+      bPlanes: 1;
+      bColorBits: xColor2Size;
+      bComp_biField: 0;
+      bImageByteSize: 256*256*xColor2Size div 8;
+      bHoriz_Ppm: 0;
+      bVert_Ppm:  0;
+      bPaletteColors: 4; // can also be 0 -> default 2^8 entries
+      bImportantColors: 0 );
+  );
+
+  xColor4Size = 4; // bits
+  xBitmapHeader_4bitColor : BMP_V1_Header = (
+    bH:(
+      bSignature: $4D42{BitmapSignature};
+      bFileByteSize: 256*256*xColor4Size div 8 + sizeof(BMP_4bit_ColorTable) +
+        sizeof(BMP_Header) + sizeof(BMP_DIB_Header);
+      bReserved: 0;
+      bPixelArrayOffset: sizeof(BMP_4bit_ColorTable) +
+        sizeof(BMP_Header) + sizeof(BMP_DIB_Header) );
+    bDIB:(
+      bHeaderSize: sizeof(BMP_DIB_Header);
+      bWidth:  256;
+      bHeight: 256;
+      bPlanes: 1;
+      bColorBits: xColor4Size;
+      bComp_biField: 0;
+      bImageByteSize: 256*256*xColor4Size div 8;
+      bHoriz_Ppm: 0;
+      bVert_Ppm:  0;
+      bPaletteColors: 16; // can also be 0 -> default 2^8 entries
       bImportantColors: 0 );
   );
 
@@ -348,6 +408,8 @@ procedure BMP_CopyMe(tobmp: TBitmap; frbmp : TBitmap);
 Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,Bitmap_32_FileName : string);
 procedure Rotate_180(Tile : Tbitmap);
 Procedure Bitmap_24_To_Bitmap_32_Alpha(Bitmap_24_FileName,Bitmap_8_FileName,Bitmap_32_FileName : string);
+Procedure Bitmap_24_To_Masked_24(Bitmap_24_FileName,Bitmap_8_FileName:string;maskColor:Tcolor);
+{procedure DDS_TO_BMP(aBmp : TBitmap);}
 
 procedure WriteBMP24Header(FileName : String);
 Procedure ForceBMP24size(FileName : string);
@@ -616,7 +678,6 @@ begin
     Rewrite(BMP_File);
     // create a header
     case mBitmap.PixelFormat of
-//      pf24bit, pf32bit : begin
       pf24bit : begin
         for i := 0 to 54-1 do begin
           Write(BMP_File,BitmapHeader_24bitColor.Bitmap24[i]);
@@ -653,6 +714,74 @@ begin
       P := mBitmap.Scanline[i];
         case mBitmap.PixelFormat of
           pf24bit: begin
+            BlockWrite(BMP_File, P^, {sizeof(P^)}mBitmap.Width*3);
+          end;
+          pf32bit: begin
+            BlockWrite(BMP_File, P^, {sizeof(P)}mBitmap.Width*4);
+          end;
+        end;
+    end;
+    Close(BMP_File);
+end;
+
+{24 and 32 bit bitmaps ------------------------------------------------------}
+// modified for writing 24 instead of 32
+{----------------------------------------------------------------------------}
+procedure xWriteBitMapToFile(mBitmap : TBitmap;FileName : string);
+var
+  i, j : integer;
+  BMP_File : File of byte;
+  FileByte : byte;
+  P : PByteArray;
+  LIC : LongIntConvert;
+
+const
+  ZeroByte : byte = 0;
+
+begin
+    AssignFile(BMP_File,{FilePath+'\'+}FileName);
+    Rewrite(BMP_File);
+    // create a header
+    case mBitmap.PixelFormat of
+//      pf24bit, pf32bit : begin
+      pf24bit : begin
+        for i := 0 to 54-1 do begin
+          Write(BMP_File,BitmapHeader_24bitColor.Bitmap24[i]);
+        end;
+        seek(BMP_File,BitmapHeader.BitmapImageByteSizeOffset);
+        LIC.LongValue := mBitmap.Width*mBitmap.Height*Color24Size; // 3 for 24 bit color
+        Write(BMP_File,LIC.ByteValue[0],LIC.ByteValue[1],LIC.ByteValue[2],LIC.ByteValue[3]);
+        seek(BMP_File,BitmapHeader.BitmapFileByteSizeOffset);
+        LIC.LongValue := LIC.LongValue+54;
+        Write(BMP_File,LIC.ByteValue[0],LIC.ByteValue[1],LIC.ByteValue[2],LIC.ByteValue[3]);
+      end;
+      pf32bit: begin // use 24bits and store 3 of 4 bytes instead
+        for i := 0 to 54-1 do begin
+//          Write(BMP_File,BitmapHeader_32bitColor.Bitmap32[i]);
+          Write(BMP_File,BitmapHeader_24bitColor.Bitmap24[i]); // force 24 bit and write 3 of 4
+        end;
+        seek(BMP_File,BitmapHeader.BitmapImageByteSizeOffset);
+//        LIC.LongValue := mBitmap.Width*mBitmap.Height*Color32Size; // 4 for 32 bit color
+        LIC.LongValue := mBitmap.Width*mBitmap.Height*Color24Size; // 3 for 24 bit color
+        Write(BMP_File,LIC.ByteValue[0],LIC.ByteValue[1],LIC.ByteValue[2],LIC.ByteValue[3]);
+        seek(BMP_File,BitmapHeader.BitmapFileByteSizeOffset);
+        LIC.LongValue := LIC.LongValue+54;
+        Write(BMP_File,LIC.ByteValue[0],LIC.ByteValue[1],LIC.ByteValue[2],LIC.ByteValue[3]);
+      end;
+    end;
+    seek(BMP_File,BitmapHeader.BitmapWidthOffset);
+    LIC.LongValue := mBitmap.Width;
+    Write(BMP_File,LIC.ByteValue[0],LIC.ByteValue[1],LIC.ByteValue[2],LIC.ByteValue[3]);
+    seek(BMP_File,BitmapHeader.BitmapHeightOffset);
+    LIC.LongValue := mBitmap.Height;
+    Write(BMP_File,LIC.ByteValue[0],LIC.ByteValue[1],LIC.ByteValue[2],LIC.ByteValue[3]);
+    //write pixel data
+    seek(BMP_File,BitmapHeader_24bitColor.Bitmap24PixelOffset);
+    //for i := 0 to integer(mBitmap.Height-1) do begin //reverse vertical
+    for i := mBitmap.Height-1 downto 0 do begin
+      P := mBitmap.Scanline[i];
+        case mBitmap.PixelFormat of
+          pf24bit: begin
 //            for j := 0 to mBitmap.Width-1 do begin
 //              Write(BMP_File,P^[j*3],P^[j*3+1],P^[j*3+2]);
 //            end;
@@ -663,9 +792,15 @@ begin
 //              Write(BMP_File,P^[j*4],P^[j*4+1],P^[j*4+2]);
 //            end;
   //          BlockWrite(BMP_File, P^, {sizeof(P)}mBitmap.Width*4);
-            for j := 0 to mBitmap.Width-1 do begin
-              BlockWrite(BMP_File, P^[j*4], 3);
-            end;
+     //          for j := 0 to mBitmap.Width-1 do begin
+     //            BlockWrite(BMP_File, P^[j*4], 3);    // way too slow !
+     //          end;
+        for j := 0 to mBitmap.Width-1 do begin
+          P^[j*3] := P^[j*4];
+          P^[j*3+1] := P^[j*4+1];
+          P^[j*3+2] := P^[j*4+2];
+        end;
+        BlockWrite(BMP_File, P^, {sizeof(P)}mBitmap.Width*3);
           end;
         end;
     end;
@@ -868,6 +1003,128 @@ begin
     Close(Bitmap_24_File);
     Close(Bitmap_8_File);
     MessageShow('Alpha added to bitmap.');
+    ProgressBar_Status.Position := 0;
+  end;
+end;
+
+// use an 8 bit mask file to force a given color when mask is not 255
+{----------------------------------------------------------------------------}
+Procedure Bitmap_24_To_Masked_24(Bitmap_24_FileName,Bitmap_8_FileName:string;maskColor:Tcolor);
+const
+  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+  pColor : ColorConvert;
+  Bitmap_24_File : File of byte;
+  Bitmap_24_Masked_File : File of byte;
+  Bitmap_8_File : File of byte;
+  Bitmap_Hdr_8 : BMP_V1_Header;
+  Bitmap_Hdr : BMP_V1_Header;
+//  ByteCount : longint;
+  P8  : pAlphaArray;
+  P24 : pRGBArray;
+  Palette_8 : BMP_8bit_ColorTable;
+  Bitmap_Mask_FileName : string;
+
+begin
+  Bitmap_Mask_FileName := copy(Bitmap_24_FileName,1,pos('.bmp',Bitmap_24_FileName)-1)+'_orig.bmp';
+  pColor.ColorValue := ByteSwapColor(maskColor); // need to convert
+  if (NOT FileExists(Bitmap_24_FileName)) then begin
+    MessageShow('Bitmap file not found');
+    Exit;
+  end else begin
+    // save original
+//    if (NOT FileExists(Bitmap_Mask_FileName)) then begin
+//      CopyFile(PChar(Bitmap_24_FileName),PChar(Bitmap_Mask_FileName),false); // no overwrite
+//    end;
+    CopyFile(PChar(Bitmap_24_FileName),PChar(Bitmap_Mask_FileName),true); // overwrite
+  end;
+  if ((Bitmap_8_FileName <> '') AND (NOT FileExists(Bitmap_8_FileName))) then begin
+    MessageShow('Mask Bitmap file not found');
+    Exit;
+  end;
+  begin
+    AssignFile(Bitmap_8_File,Bitmap_8_FileName);
+    Reset(Bitmap_8_File);
+//    seek(Bitmap_8_File,0);
+    BlockRead(Bitmap_8_File,Bitmap_Hdr_8,sizeof(Bitmap_Hdr));
+    with Bitmap_Hdr_8 do begin
+      // first confirm it is bmp and 8 bit color
+      if ((bH.bSignature <> $4D42) OR              // BitmapSignature
+          (bDib.bColorBits <> 8)) then begin // 8 bit color
+        MessageShow('Error: Not 8 bit color bitmap');
+        Close(Bitmap_8_File);
+        Exit;
+      end;
+    end;
+
+    MessageShow('Masking 24 bit bitmap with 8 bitmap...');
+//    AssignFile(Bitmap_24_File,Bitmap_24_FileName);
+    AssignFile(Bitmap_24_File,Bitmap_Mask_FileName);
+    Reset(Bitmap_24_File);
+//    seek(Bitmap_24_File,0);
+    BlockRead(Bitmap_24_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+//    AssignFile(Bitmap_24_Masked_File,Bitmap_Mask_FileName);
+    AssignFile(Bitmap_24_Masked_File,Bitmap_24_FileName);
+    Rewrite(Bitmap_24_Masked_File);
+    with Bitmap_Hdr do begin
+      // first confirm it is bmp and 24 bit color
+      if ((bH.bSignature <> $4D42) OR              // BitmapSignature
+          (bDib.bColorBits <> 24)) then begin // 24 bit color
+        MessageShow('Error: Not 24 bit color bitmap');
+      end else begin
+        if (Bitmap_Hdr_8.bDib.bWidth <> bDib.bWidth) then begin
+          MessageShow('Error: bitmap size mismatch');
+          exit;
+        end;
+        // copy the header as is
+        BlockWrite(Bitmap_24_Masked_File,Bitmap_Hdr,
+          sizeof(Bitmap_Hdr));
+
+        // read the palette for the 8 bit file to access colors
+        BlockRead(Bitmap_8_File,Palette_8,sizeof(BMP_8bit_ColorTable));
+        // seek(Bitmap_8_File,Bitmap_Hdr_8.bH.bPixelArrayOffset); // need to skip over color table
+
+        // now read 24 bit pixels, and alpha and write 32 bit pixels
+        try
+          P8  := AllocMem(bDib.bWidth * Color8Size);  // one row at a time
+          P24 := AllocMem(bDib.bWidth * Color24Size); // one row at a time
+          ProgressBar_Status.Max := bDib.bHeight;
+          for i := 0 to bDib.bHeight-1 do begin
+            BlockRead(Bitmap_8_File,P8^,bDib.bWidth * sizeof(Byte));
+            BlockRead(Bitmap_24_File,P24^,bDib.bWidth * sizeof(TRGBTriple));
+            for j := 0 to bDib.bWidth-1 do begin
+              //pColor.cRGB := P24^[j];
+              //pColor.cAlpha := P8^[j]; // read 8 bit palette entry instead ?
+              //pColor.cAlpha := Palette_8[P8^[j]].rgbRed; // read 8 bit palette entry instead ?
+//              if (pColor.ColorValue <> 0) then begin
+//                pColor.cAlpha := 255; // create mask if color not black
+//              end else begin // dummy background color with alpha=0
+////                pColor.ColorValue := $00385840;  // Alpha, B, G, R  (for darker drevesa.dds)
+//              end;
+              if (Palette_8[P8^[j]].rgbRed <> 255) then begin
+                P24^[j] := pColor.cRGB;
+              end;
+            end;
+            BlockWrite(Bitmap_24_Masked_File,P24^,bDib.bWidth * sizeof(TRGBTriple));
+
+            ProgressBar_Status.StepIt;
+//            Application.ProcessMessages;
+          end;
+        finally
+          freemem(P24);
+          freemem(P8);
+        end;
+
+      end;
+    end;
+
+    Close(Bitmap_24_Masked_File);
+    Close(Bitmap_24_File);
+    Close(Bitmap_8_File);
+    MessageShow('Bitmap masked.');
     ProgressBar_Status.Position := 0;
   end;
 end;
@@ -1187,6 +1444,20 @@ begin
   end;
 end;
 
+{
+//---------------------------------------------------------------------------
+procedure DDS_TO_BMP(aBmp : TBitmap);
+var
+  tBufr : TBitmap; // temp bitmap
+begin
+  tBufr := TBitmap.Create;
+  BMP_CopyMe(tBufr,aBmp);
+
+  WriteBitMapToFile(tBufr,'TEST.BMP');
+
+  tBufr.Free;
+end;
+}
 {----------------------------------------------------------------------------}
 begin { Initialization }
   BitmapSuccess := false;

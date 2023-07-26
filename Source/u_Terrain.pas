@@ -72,6 +72,10 @@ type
 
 const
   TerrainSize = 2; // size of value in file in bytes -> integer 0..65535
+  // height data reference is at centre of 90m tile
+//  Legacy_Offset = 45;
+  // using an offset created a major headache - remove
+  Legacy_Offset = 0;
 
 var
   Memo_Message : TMemo;              // external TMemo for messages
@@ -583,8 +587,8 @@ begin
       tDeltaX := -90.0;        // 90m
       tDeltaY :=  90.0;        // 90m
       //extend by 1/2 of 90m all around
-      tRightMapEasting :=  UTM_Right +45.0;
-      tBottomMapNorthing := UTM_Bottom -45.0;
+      tRightMapEasting :=  UTM_Right + Legacy_Offset;
+      tBottomMapNorthing := UTM_Bottom - Legacy_Offset;
     end;
     seek(Terrain_File,0);
     BlockWrite(Terrain_File,TerrainHeader,sizeof(CondorTerrainHeader));

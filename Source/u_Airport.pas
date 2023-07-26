@@ -305,7 +305,7 @@ begin
           CopyFile(pchar(ObjectFileName_a),
             pchar(ObjectFileName),false);
 
-          ReadCondorC3Dfile(ObjectFileName);
+          ReadCondorC3Dfile(ObjectFileName, false);
           // Need to copy textures for this object
           CopyObjectTextures(FilePath,Filename,
                              FilePath_a,Filename_a,
@@ -322,7 +322,7 @@ begin
           CopyFile(pchar(ObjectFileName_a),
             pchar(ObjectFileName),false);
 
-          ReadCondorC3Dfile(ObjectFileName);
+          ReadCondorC3Dfile(ObjectFileName, false);
           // Need to copy textures for this object
           CopyObjectTextures(FilePath,Filename,
                              FilePath_a,FileName_a,
@@ -379,7 +379,7 @@ begin
 	aptFileName := apName+'G.c3d';
         ObjectFileName := FilePath+'\Airports\'+aptFileName;
         if (FileExists(ObjectFileName)) then begin
-          ReadCondorC3Dfile(ObjectFileName);
+          ReadCondorC3Dfile(ObjectFileName, false);
           Extract_Details();
         end;
 
@@ -387,7 +387,7 @@ begin
 	aptFileName := apName+'O.c3d';
         ObjectFileName := FilePath+'\Airports\'+aptFileName;
         if (FileExists(ObjectFileName)) then begin
-          ReadCondorC3Dfile(ObjectFileName);
+          ReadCondorC3Dfile(ObjectFileName, false);
 	  Extract_Details();
         end;
       end;

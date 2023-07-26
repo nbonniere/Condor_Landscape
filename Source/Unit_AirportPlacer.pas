@@ -27,6 +27,18 @@ uses
   ExtCtrls, ComCtrls, StdCtrls;
 
 type
+  // Nick - add two events to track Scrollbar movements
+  TScrollBox=Class({VCL.}Forms.TScrollBox)
+    procedure WMHScroll(var Message: TWMHScroll); message WM_HSCROLL;
+    procedure WMVScroll(var Message: TWMVScroll); message WM_VSCROLL;
+  private
+    FOnScrollVert: TNotifyEvent;
+    FOnScrollHorz: TNotifyEvent;
+  public
+   Property OnScrollVert:TNotifyEvent read FOnScrollVert Write FonScrollVert;
+   Property OnScrollHorz:TNotifyEvent read FOnScrollHorz Write FonScrollHorz;
+  End;
+
   TForm_AirportPlacer = class(TForm)
     GroupBox_AirportPlace: TGroupBox;
     GroupBox_Airport: TGroupBox;
@@ -77,6 +89,9 @@ type
     RadioButton_APT: TRadioButton;
     RadioButton_G_File: TRadioButton;
     Label_UTM: TLabel;
+    Label_AirportCount: TLabel;
+    Label_H_pos: TLabel;
+    RadioButton_Elev: TRadioButton;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -118,9 +133,20 @@ type
     procedure RadioButton_DDSMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure Image_TileClick(Sender: TObject);
+    procedure ScrollBox_ImageResize(Sender: TObject);
+    procedure RadioButton_APTMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure RadioButton_ElevMouseUp(Sender: TObject;
+      Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure Image_TileMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure Image_TileMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
+    procedure MyScrollHorz(Sender: TObject);
+    procedure MyScrollVert(Sender: TObject);
   public
     { Public declarations }
     procedure Initialize(Sender: TObject);
@@ -149,10 +175,43 @@ var
   AirportTileIndex : integer;
   AirportEasting, AirportNorthing, AirportDirection : double;
   AirportLength, AirportWidth : double;
+  Airport_Primary_Reversed : Boolean;
   Airport_Tow_Primary_Left : Boolean;
+  Airport_Tow_Secondary_Left : Boolean;
   LatDegPerM, LongDegPerM : double;
-  apX, apY, apZoomScale, apRange : double;
+  apX, apY : double;  // airport centre relative
+  apZoomScale, apRange : double;
+  cX, cY : double;  // current centre relative
 //  DDS_Bitmap : TBitMap;
+
+// TScollBox addition
+//---------------------------------------------------------------------------
+procedure TScrollBox.WMHScroll(var Message: TWMHScroll);
+begin
+   inherited;
+   if Assigned(FOnScrollHorz) then  FOnScrollHorz(Self);
+end;
+
+//---------------------------------------------------------------------------
+procedure TScrollBox.WMVScroll(var Message: TWMVScroll);
+begin
+   inherited;
+   if Assigned(FOnScrollVert) then  FOnScrollVert(Self);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.MyScrollVert(Sender: TObject);
+begin
+  cY := (ScrollBox_Image.VertScrollBar.Position + (ScrollBox_Image.ClientHeight div 2))
+        / (ScrollBox_Image.VertScrollBar.Range);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.MyScrollHorz(Sender: TObject);
+begin
+  cX := (ScrollBox_Image.HorzScrollBar.Position + (ScrollBox_Image.ClientWidth div 2))
+        / (ScrollBox_Image.HorzScrollBar.Range);
+end;
 
 //---------------------------------------------------------------------------
 Procedure Image_Tile_Clear;
@@ -176,6 +235,9 @@ begin
   for i := 0 to Airport_Count-1 do begin
     ListBox_ObjectList.Items.Append(Airport_List[i].apName);
   end;
+  Label_AirportCount.Caption := IntToStr(Airport_Count);
+  ItemIndex := -1;
+  apZoomScale := 1.0;
   AirportsChanged := false;
 
   // blank to start
@@ -191,7 +253,6 @@ var
   TowPlaneTrack : CoordXY_Array;
   GliderTrack : CoordXY_Array;
   WindSock : CoordXY_Array;    // V1
-  TowLeft : double;
 
   TP_CR : CoordXY;
   TP_TD : CoordXY;
@@ -248,6 +309,108 @@ var
   Airport_CoordXY : CoordXY;
   ScaleX , ScaleY : double;
 
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure  DrawPaths(Tow_Primary, Tow_Left : boolean; useColor : TColor);
+var
+  i : integer;
+  Tow_Side, Tow_End : double;
+  End_Rotation : double;
+
+begin
+  Tow_End := -1; // condor Y reversed for Airports
+  with Form_AirportPlacer.Image_Tile do begin
+    if (Tow_Primary) then begin
+//      Tow_End := -1;
+      End_Rotation := 0;
+      Canvas.Pen.Color := useColor;
+    end else begin
+//      Tow_End := 1;
+      End_Rotation := -180;
+      Canvas.Pen.Color := useColor;
+    end;
+  end;
+  if (Tow_Left) then begin
+    Tow_Side := 1;
+  end else begin
+    Tow_Side := -1;
+  end;
+
+  setlength(GliderTrack,2);
+  Temp_CoordXY.X := GL_TO.X *Tow_Side; Temp_CoordXY.Y := (GL_TO.Y) *Tow_end;
+  GliderTrack[0] := Temp_CoordXY;
+  Temp_CoordXY.X := GL_TO.X *Tow_Side; Temp_CoordXY.Y := (GL_TO.Y+250) *Tow_end; // show 250m take-off
+  GliderTrack[1] := Temp_CoordXY;
+
+  Rotate_Array(GliderTrack, AirportDirection-End_Rotation);
+
+  Offset_Array(GliderTrack, Airport_CoordXY);
+
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Style := psSolid;
+//    Canvas.Pen.Width := 1;
+//    Canvas.Pen.Color := clBlue;
+    Canvas.MoveTo(round(GliderTrack[0].X * ScaleX), Round(GliderTrack[0].Y * ScaleY));
+    Canvas.LineTo(round(GliderTrack[1].X * ScaleX), Round(GliderTrack[1].Y * ScaleY));
+  end;
+
+  setlength(TowPlaneTrack,5);
+  Temp_CoordXY.X := (TP_TD.X) *Tow_Side; Temp_CoordXY.Y := (TP_TD.Y) *Tow_end;
+  TowPlaneTrack[0] := Temp_CoordXY;
+  Temp_CoordXY.X := (TP_TD.X) *Tow_Side; Temp_CoordXY.Y := (TP_CR.Y) *Tow_end;
+  TowPlaneTrack[1] := Temp_CoordXY;
+  Temp_CoordXY.X := (TP_CR.X) *Tow_Side; Temp_CoordXY.Y := (TP_CR.Y) *Tow_end;
+  TowPlaneTrack[2] := Temp_CoordXY;
+  Temp_CoordXY.X := (TP_CR.X) *Tow_Side; Temp_CoordXY.Y := (TP_PK.Y) *Tow_end;
+  TowPlaneTrack[3] := Temp_CoordXY;
+  Temp_CoordXY.X := (TP_PK.X) *Tow_Side; Temp_CoordXY.Y := (TP_PK.Y) *Tow_end;
+  TowPlaneTrack[4] := Temp_CoordXY;
+
+  Rotate_Array(TowPlaneTrack, AirportDirection-End_Rotation);
+
+  Offset_Array(TowPlaneTrack,Airport_CoordXY);
+
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Style := psSolid;
+//    Canvas.Pen.Width := 1;
+//    Canvas.Pen.Color := clBlack;
+    Canvas.MoveTo(round(TowPlaneTrack[0].X * ScaleX), Round(TowPlaneTrack[0].Y * ScaleY));
+    for i := 1 to 4 do begin
+      Canvas.LineTo(round(TowPlaneTrack[i].X * ScaleX), Round(TowPlaneTrack[i].Y * ScaleY));
+    end;
+  end;
+
+  if (apVersion = 'V1') then begin
+    setlength(WindSock,4);
+    Temp_CoordXY.X := (-10 + (30 +AirportWidth/2)) *Tow_Side; Temp_CoordXY.Y := -10 + (+320 -AirportLength/2) *Tow_end;
+    WindSock[0] := Temp_CoordXY;
+    Temp_CoordXY.X := (-10 + (30 +AirportWidth/2)) *Tow_Side; Temp_CoordXY.Y :=  10 + (+320 -AirportLength/2) *Tow_end;
+    WindSock[1] := Temp_CoordXY;
+    Temp_CoordXY.X := ( 10 + (30 +AirportWidth/2)) *Tow_Side; Temp_CoordXY.Y :=  10 + (+320 -AirportLength/2) *Tow_end;
+    WindSock[2] := Temp_CoordXY;
+    Temp_CoordXY.X := ( 10 + (30 +AirportWidth/2)) *Tow_Side; Temp_CoordXY.Y := -10 + (+320 -AirportLength/2) *Tow_end;
+    WindSock[3] := Temp_CoordXY;
+
+    Rotate_Array(WindSock, AirportDirection-End_Rotation);
+
+    Offset_Array(WindSock,Airport_CoordXY);
+
+    with Form_AirportPlacer.Image_Tile do begin
+//      Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//      Canvas.Pen.Style := psSolid;
+//      Canvas.Pen.Width := 1;
+//      Canvas.Pen.Color := clRed;
+      Canvas.MoveTo(round(WindSock[3].X * ScaleX), Round(WindSock[3].Y * ScaleY));
+      for i := 0 to 3 do begin
+        Canvas.LineTo(round(WindSock[i].X * ScaleX), Round(WindSock[i].Y * ScaleY));
+      end;
+    end;
+  end;
+
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
   // Basic positions
   Init_Positions;
@@ -273,9 +436,6 @@ begin
 
   Rotate_Array(AirportCorners, AirportDirection);
 
-//  for i := 0 to 3 do begin
-//    Offset(AirportCorners[i],Airport_CoordXY);
-//  end;
   Offset_Array(AirportCorners,Airport_CoordXY);
 
   with Form_AirportPlacer.Image_Tile do begin
@@ -314,85 +474,89 @@ begin
     Canvas.LineTo(round(CentreMark[3].X * ScaleX), Round(CentreMark[3].Y * ScaleY));
   end;
 
-  if (Airport_Tow_Primary_Left) then begin
-    TowLeft := 1;
-  end else begin
-    TowLeft := -1;
-  end;
+  // draw primary direction
+  DrawPaths(NOT Airport_Primary_Reversed,
+//            (Airport_Tow_Primary_Left) XOR (Airport_Primary_Reversed),
+            Airport_Tow_Primary_Left,
+            clBlue);
 
-  setlength(GliderTrack,2);
-  Temp_CoordXY.X := GL_TO.X *TowLeft; Temp_CoordXY.Y := (GL_TO.Y) * (-1);
-  GliderTrack[0] := Temp_CoordXY;
-  Temp_CoordXY.X := GL_TO.X *TowLeft; Temp_CoordXY.Y := (GL_TO.Y+250) * (-1); // show 250m take-off
-  GliderTrack[1] := Temp_CoordXY;
+  // draw secondary direction
+  DrawPaths(Airport_Primary_Reversed,
+//            (NOT Airport_Tow_Secondary_Left) XOR (Airport_Primary_Reversed),
+            Airport_Tow_Secondary_Left,
+            clYellow);
+end;
 
-  Rotate_Array(GliderTrack, AirportDirection);
+//---------------------------------------------------------------------------
+procedure DrawElevation(TileIndex : integer);
+var
+  ScaleX , ScaleY : double;  // same for drawrunway -> move out ?
+  Steps : integer;
+  Increment : double;
+  i, j : integer;
+  x, y : integer;
 
-  Offset_Array(GliderTrack, Airport_CoordXY);
+  xLeft, xRight : integer;
+  xTop, xBottom : integer;
 
-  with Form_AirportPlacer.Image_Tile do begin
-//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
-//    Canvas.Pen.Style := psSolid;
-//    Canvas.Pen.Width := 1;
-    Canvas.Pen.Color := clBlue;
-    Canvas.MoveTo(round(GliderTrack[0].X * ScaleX), Round(GliderTrack[0].Y * ScaleY));
-    Canvas.LineTo(round(GliderTrack[1].X * ScaleX), Round(GliderTrack[1].Y * ScaleY));
-  end;
+begin
+  with Form_AirportPlacer do begin
+    Steps := trunc(apRange / 30); // 23040m or 11520m / 30m for V2
+    Increment := Image_Tile.Width / Steps;
 
-  setlength(TowPlaneTrack,5);
-  Temp_CoordXY.X := (TP_TD.X) *TowLeft; Temp_CoordXY.Y := (TP_TD.Y) *(-1);
-  TowPlaneTrack[0] := Temp_CoordXY;
-  Temp_CoordXY.X := (TP_TD.X) *TowLeft; Temp_CoordXY.Y := (TP_CR.Y) *(-1);
-  TowPlaneTrack[1] := Temp_CoordXY;
-  Temp_CoordXY.X := (TP_CR.X) *TowLeft; Temp_CoordXY.Y := (TP_CR.Y) *(-1);
-  TowPlaneTrack[2] := Temp_CoordXY;
-  Temp_CoordXY.X := (TP_CR.X) *TowLeft; Temp_CoordXY.Y := (TP_PK.Y) *(-1);
-  TowPlaneTrack[3] := Temp_CoordXY;
-  Temp_CoordXY.X := (TP_PK.X) *TowLeft; Temp_CoordXY.Y := (TP_PK.Y) *(-1);
-  TowPlaneTrack[4] := Temp_CoordXY;
+    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+    ScaleY := Image_Tile.Height/apRange * apZoomScale;
 
-  Rotate_Array(TowPlaneTrack, AirportDirection);
+    //draw dots only in visible range
+    // first find visible range
+//    xLeft   :=
+//    xRight  :=
+//    xTop    :=
+//    xBottom :=
 
-  Offset_Array(TowPlaneTrack,Airport_CoordXY);
-
-  with Form_AirportPlacer.Image_Tile do begin
-//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
-//    Canvas.Pen.Style := psSolid;
-//    Canvas.Pen.Width := 1;
-//    Canvas.Pen.Color := clBlack;
-    Canvas.MoveTo(round(TowPlaneTrack[0].X * ScaleX), Round(TowPlaneTrack[0].Y * ScaleY));
-    for i := 1 to 4 do begin
-      Canvas.LineTo(round(TowPlaneTrack[i].X * ScaleX), Round(TowPlaneTrack[i].Y * ScaleY));
-    end;
-  end;
-
-  if (apVersion = 'V1') then begin
-    setlength(WindSock,4);
-    Temp_CoordXY.X := (-10 + (30 +AirportWidth/2)) *TowLeft; Temp_CoordXY.Y := -10 + (+320 -AirportLength/2) *(-1);
-    WindSock[0] := Temp_CoordXY;
-    Temp_CoordXY.X := (-10 + (30 +AirportWidth/2)) *TowLeft; Temp_CoordXY.Y :=  10 + (+320 -AirportLength/2) *(-1);
-    WindSock[1] := Temp_CoordXY;
-    Temp_CoordXY.X := ( 10 + (30 +AirportWidth/2)) *TowLeft; Temp_CoordXY.Y :=  10 + (+320 -AirportLength/2) *(-1);
-    WindSock[2] := Temp_CoordXY;
-    Temp_CoordXY.X := ( 10 + (30 +AirportWidth/2)) *TowLeft; Temp_CoordXY.Y := -10 + (+320 -AirportLength/2) *(-1);
-    WindSock[3] := Temp_CoordXY;
-
-    Rotate_Array(WindSock, AirportDirection);
-
-    Offset_Array(WindSock,Airport_CoordXY);
-
+    // for now, draw all
     with Form_AirportPlacer.Image_Tile do begin
-//      Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
-//      Canvas.Pen.Style := psSolid;
-//      Canvas.Pen.Width := 1;
-//      Canvas.Pen.Color := clRed;
-      Canvas.MoveTo(round(WindSock[3].X * ScaleX), Round(WindSock[3].Y * ScaleY));
-      for i := 0 to 3 do begin
-        Canvas.LineTo(round(WindSock[i].X * ScaleX), Round(WindSock[i].Y * ScaleY));
+      Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+      Canvas.Pen.Style := psSolid;
+      Canvas.Pen.Width := 1;
+      Canvas.Pen.Color := clRed;
+      Canvas.Brush.Color := clRed; // rectangle fill color
+      for i := 0 to Steps-1 do begin
+        y := trunc(Increment/2 + i*Increment);
+        for j := 0 to Steps-1 do begin
+          x := trunc(Increment/2 + j*Increment);
+          if (Increment < 3.0) then begin
+            Canvas.Pixels[x,y] := Canvas.Pen.Color; // 1 pixel
+          end else begin
+//            Canvas.Rectangle(x-1,y-1,x+2,y+2); // 3 pixels
+            Canvas.FrameRect(rect(x-1,y-1,x+2,y+2)); // 3 pixels
+          end;
+        end;
+      end;
+
+    end;
+
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure DrawObjects(TileIndex : integer);
+begin
+  Screen.Cursor := crHourGlass;  // Let user know we're busy...
+  try
+    with Form_AirportPlacer do begin
+      if (RadioButton_APT.Checked) then begin
+        DrawRunway(TileIndex);
+      end else begin
+        if (RadioButton_Elev.Checked) then begin
+          DrawElevation(TileIndex);
+        end else begin
+        end;
       end;
     end;
-  end;
-
+  finally
+    Screen.Cursor := crDefault;  // no longer busy
+ end;
 end;
 
 //---------------------------------------------------------------------------
@@ -427,14 +591,22 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-Procedure CentreAirport;
+Procedure ReCentre;
 begin
   with Form_AirportPlacer do begin
-    ScrollBox_Image.HorzScrollBar.Position := trunc(apX *
+    ScrollBox_Image.HorzScrollBar.Position := trunc(cX *
       (ScrollBox_Image.HorzScrollBar.Range)-(ScrollBox_Image.ClientWidth div 2));
-    ScrollBox_Image.VertScrollBar.Position := trunc(apY *
+    ScrollBox_Image.VertScrollBar.Position := trunc(cY *
       (ScrollBox_Image.VertScrollBar.Range)-ScrollBox_Image.ClientHeight div 2);
   end;
+end;
+
+//---------------------------------------------------------------------------
+Procedure CentreAirport;
+begin
+  cX := apX;
+  cY := apY;
+  ReCentre;
 end;
 
 // find group of 4 DDS tiles that surround the airport coordinates
@@ -527,7 +699,9 @@ begin
         AirportDirection := apAirportDecimal;
         AirportLength := apLength;
         AirportWidth := apWidth;
+        Airport_Primary_Reversed := CheckBox_Primary_Reverse.checked;
         Airport_Tow_Primary_Left := CheckBox_Tow_Primary_Left.checked;
+        Airport_Tow_Secondary_Left := CheckBox_Tow_Secondary_Left.checked;
         // convert airport lat long to UTM absolute
         LatLongToUTM(apLatitude,apLongitude,UTM_Zone,UTM_ZoneNS);
         // make relative to scenery bottom right
@@ -593,6 +767,7 @@ begin
                       Height := DDS_Size * 2;
                       Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
                     end;
+//                    Image_Tile.Canvas.CopyMode := cmSrcCopy;
 //                    Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
 //                      (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
                     Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
@@ -610,7 +785,8 @@ begin
           ZoomRestore(Sender); // after load/reload of tile
           CentreAirport;
 //          DrawRunway(AirportTileIndex);
-          DrawRunway(0);
+//          DrawRunway(0);
+          DrawObjects(0);
         end else begin // try terragen tile
           // airport tile relative coords (relative to bottom right)
           {Unit_Graphics.}xCoord := AirportEasting -  TileList[AirportTileIndex].TileUTMRight;
@@ -624,7 +800,8 @@ begin
             BitmapAvail := true;
             ZoomRestore(Sender); // after load/reload of tile
             CentreAirport;
-            DrawRunway(0);
+//            DrawRunway(0);
+            DrawObjects(0);
           end else begin
             // blank image
             Image_Tile_Clear;
@@ -639,12 +816,28 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+var
+  FPanning: Boolean;
+  FMousePos: TPoint;
+
+// mouse move
+//---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.ShowCoord(Sender: TObject;
   Shift: TShiftState; X, Y: Integer);
 var
   Horiz, Vert : double;
   cCOS, cSIN : double;
 begin
+  if (FPanning) then begin
+    with ScrollBox_Image do
+    begin
+      HorzScrollBar.Position := HorzScrollBar.Position + (FMousePos.X - X);
+      MyScrollHorz(Sender);
+      VertScrollBar.Position := VertScrollBar.Position + (FMousePos.Y - Y);
+      MyScrollVert(Sender);
+    end;
+  end;
+
   if (BitmapAvail) then begin
     cSIN := sin(-AirportDirection/180*PI);
     cCOS := cos(-AirportDirection/180*PI);
@@ -656,7 +849,39 @@ begin
       (Horiz * cCOS + Vert * -cSIN),
       (Horiz * cSIN + Vert *  cCOS)
       ]);
+    Horiz := trunc(apRange/30*
+      (Image_Tile.Width-1-X)/Image_Tile.Width);
+    Vert := trunc(apRange/30*
+      (Image_Tile.Height-1-Y)/Image_Tile.Height);
+
+ Horiz := ScrollBox_Image.HorzScrollBar.Position;
+ Vert  := ScrollBox_Image.VertScrollBar.Position;
+
+{
+    Label_H_Pos.Caption := format('%1.0f,%1.0f',[
+      Horiz, Vert
+      ]);
+}
+    Label_H_Pos.Caption := format('%d,%d,%d,%d',[X,Y,
+      ScrollBox_Image.HorzScrollBar.Position,
+      ScrollBox_Image.VertScrollBar.Position]);
   end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Image_TileMouseDown(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  FPanning := True;
+  FMousePos.X := X;
+  FMousePos.Y := Y;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Image_TileMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  FPanning := False;
 end;
 
 //---------------------------------------------------------------------------
@@ -671,6 +896,13 @@ begin
     Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
 //    tFileName := Path+'\'+TileName+'.bmp';
     Image_Tile.Picture.LoadFromFile(tFileName);
+//    Image_Tile.Canvas.CopyMode := cmSrcCopy; // try to make sure colors are correct - no go
+// if 256 color bitmap, drawing on top of bitmap will use the 256 color palette !
+// any color will use the closest color in palette -> approx color
+// convert to pf24 bit for absolute color - works!
+    if (Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
+      Image_Tile.Picture.Bitmap.PixelFormat := pf24bit;
+    end;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
     result := true;
@@ -697,7 +929,7 @@ begin
     Mask := Airport_List[ItemIndex].apName + 'O.*';
     if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
       if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
-        ReadCondorC3Dfile(Path+SearchRec.Name);
+        ReadCondorC3Dfile(Path+SearchRec.Name, false);
       end else begin
         ReadCondorXfile(Path+SearchRec.Name, false);
       end;
@@ -959,6 +1191,10 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.FormCreate(Sender: TObject);
 begin
+  // added scrollbar events
+  ScrollBox_Image.OnScrollVert := MyScrollVert;
+  ScrollBox_Image.OnScrollHorz := MyScrollHorz;
+
   CurrentLandscape := '';
 //  DDS_Bitmap := TBitmap.Create;
 //  with DDS_Bitmap do begin
@@ -1034,6 +1270,7 @@ end;
 procedure TForm_AirportPlacer.RadioButton_TerragenMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
+  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
   ShowItem(Sender);
 end;
 
@@ -1041,6 +1278,23 @@ end;
 procedure TForm_AirportPlacer.RadioButton_DDSMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
+  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+  ShowItem(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.RadioButton_APTMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+  ShowItem(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.RadioButton_ElevMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
   ShowItem(Sender);
 end;
 
@@ -1063,7 +1317,8 @@ begin
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
     // now refresh
-    CentreAirport;
+//    CentreAirport;
+    ReCentre;
   end;
 end;
 
@@ -1086,7 +1341,8 @@ begin
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
     // now refresh
-    CentreAirport;
+//    CentreAirport;
+    ReCentre;
   end;
 end;
 
@@ -1127,7 +1383,13 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.ScrollBox_ImageResize(Sender: TObject);
 begin
+  Recentre;  // on current centre cX, cY
+end;
+
+//---------------------------------------------------------------------------
+
 end.
 
 {--- End of File ------------------------------------------------------------}
