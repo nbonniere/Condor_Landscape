@@ -22,6 +22,11 @@ interface
 uses
    SysUtils{, VectorGeometry};
 
+const
+  dxt_Color = 1;
+  dxt_Transparent = 2;
+  dxtOptions : Integer = dxt_Color + dxt_Transparent;
+
 procedure DecodeDXT1toBitmap32(
    encData, decData : PByteArray;
    w,h : Integer; var trans : Boolean);
@@ -79,7 +84,7 @@ begin
          colors[1][2]:=b1 shl 3;
          colors[1][3]:=$FF;
 
-         if col0>col1 then begin
+         if col0>col1 then begin // opaque, 4 colors
             colors[2][0]:=(2*colors[0][0]+colors[1][0]+1) div 3;
             colors[2][1]:=(2*colors[0][1]+colors[1][1]+1) div 3;
             colors[2][2]:=(2*colors[0][2]+colors[1][2]+1) div 3;
@@ -88,22 +93,27 @@ begin
             colors[3][1]:=(colors[0][1]+2*colors[1][1]+1) div 3;
             colors[3][2]:=(colors[0][2]+2*colors[1][2]+1) div 3;
             colors[3][3]:=$FF;
-         end else begin
+         end else begin // transparent, 3 colors
             trans:=True;
             colors[2][0]:=(colors[0][0]+colors[1][0]) div 2;
             colors[2][1]:=(colors[0][1]+colors[1][1]) div 2;
             colors[2][2]:=(colors[0][2]+colors[1][2]) div 2;
             colors[2][3]:=$FF;
-{            colors[3][0]:=(colors[0][0]+2*colors[1][0]+1) div 3;
-            colors[3][1]:=(colors[0][1]+2*colors[1][1]+1) div 3;
-            colors[3][2]:=(colors[0][2]+2*colors[1][2]+1) div 3;
-            colors[3][3]:=0; }
-            //
-// Nick Modification to show black for transparent
-            colors[3][0]:=0;
-            colors[3][1]:=0;
-            colors[3][2]:=0;
-            colors[3][3]:=0;
+// Nick Modification option to show black for transparent
+            if ((dxtOptions AND dxt_Color) = dxt_Color) then begin
+              colors[3][0]:=(colors[0][0]+2*colors[1][0]+1) div 3;
+              colors[3][1]:=(colors[0][1]+2*colors[1][1]+1) div 3;
+              colors[3][2]:=(colors[0][2]+2*colors[1][2]+1) div 3;
+            end else begin
+              colors[3][0] := 0;
+              colors[3][1] := 0;
+              colors[3][2] := 0;
+            end;
+            if ((dxtOptions AND dxt_Transparent) = dxt_Transparent) then begin
+              colors[3][3] := 0;
+            end else begin
+              colors[3][3]:= $FF;
+           end;
          end;
 
          k:=0;
@@ -174,36 +184,46 @@ begin
                Inc(k);
             end;
          end;
-{
-         for j:=0 to 3 do begin
-            wrd:=alpha[j];
-            for i:=0 to 3 do begin
-               if (((4*x+i)<w) and ((4*y+j)<h)) then begin
-                  offset:=((4*y+j)*w+(4*x+i))*4+3;
-                  decData[offset]:=wrd and $0F;
-                  decData[offset]:=decData[offset] or (decData[offset] shl 4);
-               end;
-               wrd:=wrd shr 4;
-            end;
-         end;
-}
-// Nick Modification to show black for transparent
-         for j:=0 to 3 do begin
-            wrd:=alpha[j];
-            for i:=0 to 3 do begin
-               if (((4*x+i)<w) and ((4*y+j)<h)) then begin
-                  offset:=((4*y+j)*w+(4*x+i))*4+3;
-                  decData[offset]:=0;
-                  if ((wrd and $0F) <> $0F) then begin
-                    decData[offset-1]:= 0;
-                    decData[offset-2]:= 0;
-                    decData[offset-3]:= 0;
-                  end;
-               end;
-               wrd:=wrd shr 4;
-            end;
-         end;
 
+// Nick Modification option to show black for transparent
+         if ((dxtOptions AND dxt_Color) = dxt_Color) then begin
+           for j:=0 to 3 do begin
+              wrd:=alpha[j];
+              for i:=0 to 3 do begin
+                 if (((4*x+i)<w) and ((4*y+j)<h)) then begin
+                    offset:=((4*y+j)*w+(4*x+i))*4+3;
+                    if ((dxtOptions AND dxt_Transparent) = dxt_Transparent) then begin
+                      decData[offset]:=wrd and $0F;
+                      decData[offset]:=decData[offset] or (decData[offset] shl 4);
+                    end else begin
+                      decData[offset]:= $FF;
+                    end;
+                 end;
+                 wrd:=wrd shr 4;
+              end;
+           end;
+         end else begin
+           for j:=0 to 3 do begin
+              wrd:=alpha[j];
+              for i:=0 to 3 do begin
+                 if (((4*x+i)<w) and ((4*y+j)<h)) then begin
+                    offset:=((4*y+j)*w+(4*x+i))*4+3;
+                    if ((dxtOptions AND dxt_Transparent) = dxt_Transparent) then begin
+                      decData[offset]:=wrd and $0F;
+                      decData[offset]:=decData[offset] or (decData[offset] shl 4);
+                    end else begin
+                      decData[offset]:= $FF;
+                    end;
+                    if ((wrd and $0F) <> $0F) then begin
+                      decData[offset-1] := 0;
+                      decData[offset-2] := 0;
+                      decData[offset-3] := 0;
+                    end;
+                 end;
+                 wrd:=wrd shr 4;
+              end;
+           end;
+         end;
       end;
    end;
 end;
@@ -283,13 +303,19 @@ begin
             for i:=0 to 3 do begin
                if (((4*x+i)<w) and ((4*y+j)<h)) then begin
                   offset:=((4*y+j)*w+(4*x+i))*4+3;
-//                  decData[Offset]:=alphas[bits and 7];
-// Nick Modification to show black for transparent
-                  decData[offset]:=0;
+                  decData[Offset]:=alphas[bits and 7];
+// Nick Modification option to show black for transparent
                   if ((alphas[bits and 7]) <> 255) then begin
-                    decData[offset-1]:= 0;
-                    decData[offset-2]:= 0;
-                    decData[offset-3]:= 0;
+                    if ((dxtOptions AND dxt_Color) = dxt_Color) then begin
+                    end else begin
+                      decData[offset-1]:= 0;
+                      decData[offset-2]:= 0;
+                      decData[offset-3]:= 0;
+                    end;
+                    if ((dxtOptions AND dxt_Transparent) = dxt_Transparent) then begin
+                    end else begin
+                      decData[offset]:=$FF; // opaque
+                    end;
                   end;
                end;
                bits:=bits shr 3;
@@ -302,13 +328,19 @@ begin
             for i:=0 to 3 do begin
                if (((4*x+i)<w) and ((4*y+j)<h)) then begin
                   offset:=((4*y+j)*w+(4*x+i))*4+3;
-//                  decData[offset]:=alphas[bits and 7];
-// Nick Modification to show black for transparent
-                  decData[offset]:=0;
+                  decData[offset]:=alphas[bits and 7];
+// Nick Modification option to show black for transparent
                   if ((alphas[bits and 7]) <> 255) then begin
-                    decData[offset-1]:= 0;
-                    decData[offset-2]:= 0;
-                    decData[offset-3]:= 0;
+                    if ((dxtOptions AND dxt_Color) = dxt_Color) then begin
+                    end else begin
+                      decData[offset-1]:= 0;
+                      decData[offset-2]:= 0;
+                      decData[offset-3]:= 0;
+                    end;
+                    if ((dxtOptions AND dxt_Transparent) = dxt_Transparent) then begin
+                    end else begin
+                      decData[offset]:=$FF; // opaque
+                    end;
                   end;
                end;
                bits:=bits shr 3;
