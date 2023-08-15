@@ -91,6 +91,10 @@ type
     procedure Image_TextureMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure ComboBox_SizeChange(Sender: TObject);
+    procedure Edit_TextureFileNameDblClick(Sender: TObject);
+    procedure StringGrid_CompositeDblClick(Sender: TObject);
+    procedure StringGrid_CompositeMouseMove(Sender: TObject;
+      Shift: TShiftState; X, Y: Integer);
   private
     { Private declarations }
     procedure InitDetailGrid;
@@ -237,11 +241,15 @@ begin
   Bitmap_Texture.Free;
 end;
 
+// NOTE: currentdir is changed because 'ofNoChangeDir' is not selected
+// this means current path is now where object was just opened, and
+// file is now relative to this path, and extra filepath not needed
 //---------------------------------------------------------------------------
 function OpenDialog() : boolean;
 begin
   result := false;
   With Form_SimpleObjects do begin
+//    OpenDialog_FileName.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
     OpenDialog_FileName.Filter := imFileFilterString;
     OpenDialog_FileName.FileName := imFileName;
     OpenDialog_FileName.InitialDir := imInitialDir;
@@ -252,11 +260,15 @@ begin
   end;
 end;
 
+// NOTE: currentdir is changed because 'ofNoChangeDir' is not selected
+// this means current path is now where object was just saved, and
+// file is now relative to this path, and extra filepath not needed
 //---------------------------------------------------------------------------
 function SaveDialog() : boolean;
 begin
   result := false;
   With Form_SimpleObjects do begin
+//    SaveDialog_FileName.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
     SaveDialog_FileName.Filter := exFileFilterString;
     SaveDialog_FileName.FileName := exFileName;
     SaveDialog_FileName.InitialDir := exInitialDir;
@@ -286,20 +298,22 @@ type
   end;
 
   oObject_t = record
-    oFile     : array[0..7-1] of string;
-    oButtons  : array[0..7-1] of byte; // byte -> 8 bit mask
-    oDefaults : array[0..7-1] of oDefaults_t;
+    oFile     : array[0..9-1] of string;
+    oButtons  : array[0..9-1] of byte; // byte -> 8 bit mask
+    oDefaults : array[0..9-1] of oDefaults_t;
   end;
 const
     oObject : oObject_t =
       (oFile : ('Building_FlatRoof.px', 'Building_PeakRoof.px','Building_Domed.px',
-                'pole.px', 'windsock.px', 'asphalt.px', 'grass.px');
-       oButtons  : ($17, $1F, $17, $15, $06, $03, $03);
+                'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px', 'asphalt.px', 'grass.px');
+       oButtons  : ($17, $1F, $17, $15, $06, $06, $06, $13, $13);
        oDefaults : (
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'Textures/H_PK_S_Red.bmp' ),
-        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'Textures/H_Dome_Blue.bmp' ),
+        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'Textures/H_PK_Blue.bmp' ),
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'Textures/H_Dome_Blue.bmp' ),
         ( od_Width : ' 0.1'; od_Length : '  0.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : 'Textures/Mast.dds' ),
+        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : ('') ),
+        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : ('') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : ('') ),
         ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('') ),
         ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('') )
@@ -337,6 +351,22 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.Edit_TextureFileNameDblClick(
+  Sender: TObject);
+begin
+  // dialog to select input file - must be .BMP or .DDS extension
+  // could also be .PNG .TGA ...
+  imFileFilterString := 'Texture files (*.BMP *.DDS)|*.BMP;*.DDS|All files (*.*)|*.*';
+  imFileName := '';
+  imInitialDir := objFolder+'\Textures';
+  if OpenDialog then begin
+//    // assume a Textures folder - let user fix it if not correct
+//    Edit_TextureFileName.Text := 'Textures\'+ExtractFileName(imFileName);
+    Edit_TextureFileName.Text := ExtractRelativePath(objFolder+'\', imFileName)
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_SimpleObjects.Button_OpenClick(Sender: TObject);
 var
   SO_File : TextFile;
@@ -347,6 +377,9 @@ begin
   imFileName := soFileName;
   imInitialDir := objFolder;
   if OpenDialog then begin
+    if (uppercase(ExtractFileExt(imFileName)) <> '.SO') then begin
+      exit; // must be .co
+    end;
     soFileName := imFileName;
     Label_FileName.Caption := ExtractFileName(imFileName);
     ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
@@ -385,10 +418,13 @@ var
 begin
   // dialog to select output file - must be .SO or C3D extension
   exFileFilterString := 'Object files (*.SO *.C3D)|*.SO;*.C3D|All files (*.*)|*.*';
+  if (soFileName = '') then begin
+    soFileName := ComboBox_Type.text+'_1.so';
+  end;
   exFileName := soFileName;
   imInitialDir := objFolder;
   if (SaveDialog) then begin
-    imFileName := exFileName;
+    soFileName := exFileName;
     Label_FileName.Caption := ExtractFileName(exFileName);
     ObjectFolder := ExtractFileDir(exFileName);  // not including trailing '\'
     //remember folder for this session
@@ -478,31 +514,53 @@ begin
               // default triangle is 1m, i.e. radius=0.01
               FTM[ 0] := L;
               FTM[ 5] := L;
-              FTM[10] := 0.0;
+              //FTM[10] := 0.0;
               FTM[11] := H;
               UpdateFTM('FTM_0',FTM);
             end;
-            5: begin // asphalt
+            5: begin // windsock2
+              // calc triangle corners, and set height
+              // windsock length is 100x the radius of the equilateral triangle
+              // default triangle is 1m, i.e. radius=0.01
+              FTM[ 0] := L;
+              FTM[ 5] := L;
+              //FTM[10] := 0.0;
+              FTM[11] := H;
+              UpdateFTM('FTM_0',FTM);
+            end;
+            6: begin // windsock3
+              // calc triangle corners, and set height
+              // windsock length is 100x the radius of the equilateral triangle
+              // default triangle is 1m, i.e. radius=0.01
+              FTM[ 0] := L;
+              FTM[ 5] := L;
+              //FTM[10] := 0.0;
+              FTM[11] := H;
+              UpdateFTM('FTM_0',FTM);
+            end;
+            7: begin // asphalt
               FTM[ 0] := W;
               FTM[ 5] := L;
-              FTM[10] := 0.0;
+              //FTM[10] := 0.0;
               //FTM[11] := 0.0;
               UpdateFTM('FTM_0',FTM);
               // adjust texture coord ratio !
               TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
               TC[1] := TC[0];
               UpdateTC('tc_Asphalt', TC);
+              UpdateTF('TF_0',Edit_TextureFileName.Text);
             end;
-            6: begin // grass
+            8: begin // grass
               FTM[ 0] := W;
               FTM[ 5] := L;
-              FTM[10] := 0.0;
+              //FTM[10] := 0.0;
               //FTM[11] := 0.0;
               UpdateFTM('FTM_0',FTM);
               // adjust texture coord ratio !
               TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
               TC[1] := TC[0];
               UpdateTC('tc_Grass', TC);
+              UpdateTF('TF_0',Edit_TextureFileName.Text);
             end;
             else begin
               // MessageShow('Invalid Object type'');
@@ -721,6 +779,9 @@ var
 begin
   // dialog to select output file - must be .BMP extension
   exFileFilterString := 'Object files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  if (stFileName = '') then begin
+    stFileName := 'Texture_1.bmp';
+  end;
   exFileName := stFileName;
   imInitialDir := objFolder;
   if (SaveDialog) then begin
@@ -843,6 +904,45 @@ begin
   Close;
 end;
 
+var
+  sg_Shift: TShiftState;
+  sg_X, sg_Y: Integer;
+
+//---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.StringGrid_CompositeMouseMove(
+  Sender: TObject; Shift: TShiftState; X, Y: Integer);
+begin
+  sg_Shift := Shift;
+  sg_X := X;
+  sg_Y := Y;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.StringGrid_CompositeDblClick(
+  Sender: TObject);
+var
+  sg_Row, sg_Col : Longint;
+  str_pos : integer;
+begin
+  // find where clicked and action if needed
+  StringGrid_Composite.MouseToCell(sg_X, sg_Y, sg_Col, sg_Row);
+  if (sg_Col = 1) then begin
+    // dialog to select input file - must be .C3D extension
+    imFileFilterString := 'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
+    imFileName := '';
+    imInitialDir := objFolder;
+    if OpenDialog then begin
+//      str_pos := pos(objFolder,imFileName);
+//      if (str_pos <> 0) then begin
+//        StringGrid_Composite.Cells[sg_Col, sg_Row] := copy(imFileName,1+length(objFolder)+1,length(imFileName));
+//      end else begin
+//        StringGrid_Composite.Cells[sg_Col, sg_Row] := imFileName;
+//      end;
+      StringGrid_Composite.Cells[sg_Col, sg_Row] := ExtractRelativePath(objFolder+'\', imFileName)
+    end;
+  end;
+end;
+
 //---------------------------------------------------------------------------
 procedure TForm_SimpleObjects.Button_C_OpenClick(Sender: TObject);
 var
@@ -854,6 +954,9 @@ begin
   imFileName := coFileName;
   imInitialDir := objFolder;
   if OpenDialog then begin
+    if (uppercase(ExtractFileExt(imFileName)) <> '.CO') then begin
+      exit; // must be .co
+    end;
     coFileName := imFileName;
     Label_CompositeFileName.Caption := ExtractFileName(imFileName);
     ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
@@ -899,6 +1002,9 @@ var
 begin
   // dialog to select output file - must be .CO or C3D extension
   exFileFilterString := 'Object files (*.CO *.C3D)|*.CO;*.C3D|All files (*.*)|*.*';
+  if (coFileName = '') then begin
+    coFileName := 'C_Object_1.co';
+  end;
   exFileName := coFileName;
   imInitialDir := objFolder;
   if (SaveDialog) then begin

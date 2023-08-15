@@ -292,6 +292,12 @@ v0.8.18 - Jul 2023
   - DDS DXT3/5->DXT1 color swap bug fix	
   - DDS to BMP - options to change to black, keep transparency in 32 bit bitmaap
 
+v0.8.19 - Aug 2023
+  - simple Object creation
+    - allow for setting textures filename for grass and asphalt (i.e. support for transparent.dds)
+	- support winsack 1,2,3
+  - bug fix - ApplyFTM must also be done to normals, not just vectors
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

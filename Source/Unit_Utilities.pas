@@ -1575,6 +1575,15 @@ begin
         File_Name := ExtractFileName(FullFileName);
         File_Name_NoExt := copy(File_Name,1,pos('.bmp',File_Name)-1);
 
+// compressonator uses pre-multiplied alpha with TIF - problem for water-tiles
+// nvDXT uses pre-multiplied alpha with TIF - problem for water-tiles
+        u_TIFF.Memo_Message := Memo_Message;
+        u_TIFF.ProgressBar_Status := ProgressBar_Status;
+        BMP_24_To_TIF_32_WithAlpha(FullFileName,
+                                File_Folder+'\..\WaterMaps\'+File_Name,
+                                File_Folder+'\'+File_Name_NoExt+'.tif'
+                               );
+
 // compressonator doesn't do alpha on bitmaps - problem for water-tiles
 // GDAL_translate doesn't support 32 bit bitmaps !
         u_BMP.Memo_Message := Memo_Message;
@@ -1589,14 +1598,6 @@ begin
                                      FullFileName
                                     );
 
-// compressonator uses pre-multiplied alpha with TIF - problem for water-tiles
-// nvDXT uses pre-multiplied alpha with TIF - problem for water-tiles
-        u_TIFF.Memo_Message := Memo_Message;
-        u_TIFF.ProgressBar_Status := ProgressBar_Status;
-        BMP_24_To_TIF_32_WithAlpha(FullFileName,
-                                File_Folder+'\..\WaterMaps\'+File_Name,
-                                File_Folder+'\'+File_Name_NoExt+'.tif'
-                               );
         ProgressBar_Status.StepIt;
         Application.ProcessMessages;
       end;

@@ -621,7 +621,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure ApplyFTM(Matrix : tFloatArray; Vector : tFloatArray; var Result : tFloatArray);
+Procedure ApplyFTMtoVectors(Matrix : tFloatArray; Vector : tFloatArray; var Result : tFloatArray);
 const
   mSize = 4;
 var
@@ -635,6 +635,30 @@ begin
                  Matrix[i*mSize+3] ;                // vector[3] = 1
     // result[3] := 1
   end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ApplyFTMtoNormals(Matrix : tFloatArray; Vector : tFloatArray; var Result : tFloatArray);
+const
+  mSize = 4;
+var
+  i : integer;
+  UnScale : single;
+begin
+  for i := 0 to (4-1)-1 do begin
+    Result[i] := Matrix[i*mSize+0] * Vector[0] +
+                 Matrix[i*mSize+1] * Vector[1] +
+                 Matrix[i*mSize+2] * Vector[2] +
+//                 Matrix[i*mSize+3] * Vector[3] ;
+//                 Matrix[i*mSize+3] ;                // vector[3] = 1
+                 0 ;  // no translation
+    // result[3] := 1
+  end;
+  // now re-normalize in case of scaling
+  UnScale := 1.0/(sqrt(sqr(Result[0])+sqr(Result[1])+sqr(Result[2])));
+  Result[0] := Result[0] * UnScale;
+  Result[1] := Result[1] * UnScale;
+  Result[2] := Result[2] * UnScale;
 end;
 
 {----------------------------------------------------------------------------}
@@ -3182,11 +3206,11 @@ begin
       Objects_C3D[i].Indexes.Vertex_Offset := OverallNumVertices;
       Objects_C3D[i].Indexes.NumVertices := tArray.aCount;
       setlength(Meshes_C3D, OverallNumVertices + Objects_C3D[i].Indexes.NumVertices);
-      // Apply rotation, translation if FTM Matrix present
+      // Apply scale, rotation, translation if FTM Matrix present
       if (FTMnodeIndex <> -1) then begin
         with pFTM(pObjectItem(oTreeView.Items[FTMnodeIndex].data)^.oPointer)^ do begin // pFTM
           for j := 0 to Objects_C3D[i].Indexes.NumVertices-1 do begin
-            ApplyFTM(ftmArray,tArray.aArray[j],rArray);
+            ApplyFTMtoVectors(ftmArray,tArray.aArray[j],rArray);
             Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].X := rArray[0];
             Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].Y := rArray[1];
             Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].Z := rArray[2];
@@ -3235,10 +3259,22 @@ begin
         oMeshNormals: begin
           with pMeshNormals(pObjectItem(oTreeView.Items[NodeIndex].data)^.oPointer)^ do begin // pMeshNormalsData
             //Objects_C3D[i].Indexes.NumVertices := tArray.aCount; // done already with mesh vertices
-            for j := 0 to Objects_C3D[i].Indexes.NumVertices-1 do begin
-              Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalX := tArray.aArray[j][0];
-              Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalY := tArray.aArray[j][1];
-              Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalZ := tArray.aArray[j][2];
+            // Apply scale, rotation, translation if FTM Matrix present
+            if (FTMnodeIndex <> -1) then begin
+              with pFTM(pObjectItem(oTreeView.Items[FTMnodeIndex].data)^.oPointer)^ do begin // pFTM
+                for j := 0 to Objects_C3D[i].Indexes.NumVertices-1 do begin
+                  ApplyFTMtoNormals(ftmArray,tArray.aArray[j],rArray);
+                  Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalX := rArray[0];
+                  Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalY := rArray[1];
+                  Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalZ := rArray[2];
+                end;
+              end;
+            end else begin
+              for j := 0 to Objects_C3D[i].Indexes.NumVertices-1 do begin
+                Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalX := tArray.aArray[j][0];
+                Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalY := tArray.aArray[j][1];
+                Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset + j].NormalZ := tArray.aArray[j][2];
+              end;
             end;
           end;
           INC(NodeIndex);
