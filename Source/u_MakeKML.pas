@@ -54,7 +54,8 @@ Procedure MakeKML_QuarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Colu
 implementation
 
 uses SysUtils,
-  u_UTM, u_TileList, Unit_Main, u_LandsatMet, u_SceneryHDR, u_Terrain; //??? to much cross-coupling!
+  {u_UTM,} u_TileList, Unit_Main, u_LandsatMet, {u_SceneryHDR, u_Terrain,}
+  u_QuarterTile; //??? to much cross-coupling!
 
 const
   earthRadius = 6371.0;
@@ -443,7 +444,7 @@ var
   FileName : string;
   FilePath : string;
 //  CurrentColumn, CurrentRow : integer;
-  Easting, Northing : double;
+//  Easting, Northing : double;
   hMargin, vMargin : double;
   TileIndex : integer;
 
@@ -485,35 +486,14 @@ begin
 
   MakeKMLheader;
 
-//  Easting := UTM_Right+Resolution/2;    // extra 1/2 of 90 metres all sides
-  Easting := UTM_Right+Legacy_Offset;    // extra 1/2 of 90 metres all sides
-//  Northing := UTM_Bottom-Resolution/2;  // i.e. from tile centre
-  Northing := UTM_Bottom-Legacy_Offset;  // i.e. from tile centre
-
-  // tile corners
-  UTMtoLatLong(Northing+CurrentRow*Resolution*tRows + offset_Row*Resolution*tRows/4,
-    Easting-CurrentColumn*Resolution*tRows - offset_Column*Resolution*tColumns/4,
-    UTM_Zone,UTM_ZoneNS);
-  Tile_RB_Lat  := uLatitude;
-  Tile_RB_Long := uLongitude;
-
-  UTMtoLatLong(Northing+CurrentRow*Resolution*tRows + offset_Row*Resolution*tRows/4,
-    Easting-CurrentColumn*Resolution*tRows - (offset_Column+1)*Resolution*tColumns/4,
-    UTM_Zone,UTM_ZoneNS);
-  Tile_LB_Lat  := uLatitude;
-  Tile_LB_Long := uLongitude;
-
-  UTMtoLatLong(Northing+CurrentRow*Resolution*tRows + (offset_Row+1)*Resolution*tRows/4,
-    Easting-CurrentColumn*Resolution*tRows - offset_Column*Resolution*tColumns/4,
-    UTM_Zone,UTM_ZoneNS);
-  Tile_RT_Lat  := uLatitude;
-  Tile_RT_Long := uLongitude;
-
-  UTMtoLatLong(Northing+CurrentRow*Resolution*tRows + (offset_Row+1)*Resolution*tRows/4,
-    Easting-CurrentColumn*Resolution*tRows - (offset_Column+1)*Resolution*tColumns/4,
-    UTM_Zone,UTM_ZoneNS);
-  Tile_LT_Lat  := uLatitude;
-  Tile_LT_Long := uLongitude;
+  Tile_RB_Lat  := Tile_RB_Lat_save;
+  Tile_RB_Long := Tile_RB_Long_save;
+  Tile_LB_Lat  := Tile_LB_Lat_save;
+  Tile_LB_Long := Tile_LB_Long_save;
+  Tile_RT_Lat  := Tile_RT_Lat_save;
+  Tile_RT_Long := Tile_RT_Long_save;
+  Tile_LT_Lat  := Tile_LT_Lat_save;
+  Tile_LT_Long := Tile_LT_Long_save;
 
   MakeKMLtile('6f00ffff', false);  // translucent yellow
 

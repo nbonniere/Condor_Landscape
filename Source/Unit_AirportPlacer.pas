@@ -62,7 +62,6 @@ type
     Edit_Width: TEdit;
     Label4: TLabel;
     RadioGroup_Surface: TRadioGroup;
-    RadioButton_Paved: TRadioButton;
     RadioButton_Grass: TRadioButton;
     Label8: TLabel;
     Edit_Frequency: TEdit;
@@ -92,6 +91,7 @@ type
     Label_AirportCount: TLabel;
     Label_H_pos: TLabel;
     RadioButton_Elev: TRadioButton;
+    RadioButton_Paved: TRadioButton;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -142,11 +142,17 @@ type
       Shift: TShiftState; X, Y: Integer);
     procedure Image_TileMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure Button_DeleteClick(Sender: TObject);
+    procedure ListBox_ObjectListKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure FormKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
     procedure MyScrollHorz(Sender: TObject);
     procedure MyScrollVert(Sender: TObject);
+    procedure Search_Airport_Details;
   public
     { Public declarations }
     procedure Initialize(Sender: TObject);
@@ -673,6 +679,11 @@ var
 
 begin
   if (ItemIndex <> -1) then begin
+    if (Airport_Count > 1) then begin
+      Button_Delete.Enabled := true;
+    end else begin
+      Button_Delete.Enabled := false;
+    end;
     BitmapAvail := false; // assume for now
     with Airport_List[ItemIndex] do begin
       Edit_AirportName.Text := apName;
@@ -910,17 +921,11 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.ListBox_ObjectListMouseUp(Sender: TObject;
-  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure TForm_AirportPlacer.Search_Airport_Details;
 var
   SearchRec: TSearchRec;
   path, mask : string;
 begin
-  ItemIndex := ListBox_ObjectList.ItemAtPos(point(X,Y), true);
-  if (ItemIndex <> -1) then begin
-    apZoomScale := 1.0;
-    ShowItem(Sender);
-
     // also show objects
     u_X_CX.oTreeView := TreeView_Object;
 
@@ -939,6 +944,18 @@ begin
       ClearTreeView(TreeView_Object);
     end;
     FindClose(SearchRec);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.ListBox_ObjectListMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  ItemIndex := ListBox_ObjectList.ItemAtPos(point(X,Y), true);
+  if (ItemIndex <> -1) then begin
+    apZoomScale := 1.0;
+    ShowItem(Sender);
+    // also show objects
+    Search_Airport_Details;
   end;
 end;
 
@@ -955,6 +972,36 @@ begin
   ItemIndex := ListBox_ObjectList.ItemIndex;
   apZoomScale := 1.0;
   ShowItem(Sender);
+  // search for airport details
+  Search_Airport_Details;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_DeleteClick(Sender: TObject);
+var
+  i : integer;
+begin
+  if ((ItemIndex <> -1) AND (Airport_Count > 1) ) then begin
+    if MessageDlg('Are you sure you want to delete '+Airport_List[ItemIndex].apName+' ?', mtConfirmation,
+        [mbYes, mbNo], 0) = mrYes then begin
+      // remove from list
+      ListBox_ObjectList.Items.Delete(ItemIndex);
+      // remove from airport list
+      for i := ItemIndex to Airport_Count-1-1 do begin
+        Airport_list[i] := Airport_list[i+1];
+      end;
+      if (ItemIndex = Airport_Count-1) then begin
+        DEC(ItemIndex);
+        ListBox_ObjectList.ItemIndex := ItemIndex;
+      end;
+      DEC(Airport_Count);
+      AirportsChanged := true;
+      SetLength(Airport_List,Airport_Count);
+      ShowItem(Sender);
+      // search for airport details
+      Search_Airport_Details;
+    end;
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -966,7 +1013,7 @@ begin
         [mbYes, mbNo], 0) = mrNo then begin
       CanClose := False;
     end;
-    CurrentLandscape := ''; // force a reload
+    CurrentLandscape := ''; // force a reload on re-entry
   end;
 end;
 
@@ -994,6 +1041,8 @@ begin
       with Airport_List[ItemIndex] do begin
         apName := Edit_AirportName.Text;
       end;
+      // search for airport details
+
       AirportsChanged := true;
     end;
   end;
@@ -1389,7 +1438,42 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.ListBox_ObjectListKeyUp(Sender: TObject;
+  var Key: Word; Shift: TShiftState);
+begin
+  case Key of
+    VK_RETURN: begin
+      ItemIndex := ListBox_ObjectList.ItemIndex;
+      if (ItemIndex <> -1) then begin
+        apZoomScale := 1.0;
+        ShowItem(Sender);
+        // also show objects
+        Search_Airport_Details;
+      end;
+    end;
+    else begin
+    end;
+  end;
+end;
 
+// form Keypreview must true
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.FormKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    ord('S'), ord('s'): begin
+      if (ssCtrl in Shift) then begin
+        Button_SaveClick(Sender);
+//        key := #0; // so that other components won't see this keypress
+      end;
+    end;
+    else begin
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 end.
 
 {--- End of File ------------------------------------------------------------}

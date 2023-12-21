@@ -161,10 +161,11 @@ IMPLEMENTATION
 
 uses
   FileCtrl, IniFiles,
+  Unit_AirportPlacer,
   u_BMP, u_Thermal, u_Forest, u_Terrain, u_Polar, u_Convolve, u_MakeGDAL,
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
   u_GMIDlog, u_DXT, DXTC, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
-  u_Condor_NaviconDLL;
+  u_QuarterTile, u_Condor_NaviconDLL;
 
 const
   faNormalFile = 0; // for use with FindFirst FindNext
@@ -1234,10 +1235,12 @@ var
 
 begin
   // need tile list
-  if (HeaderOpen) AND (TileOpen) then begin
-
+  if NOT ((HeaderOpen) AND (TileOpen)) then begin
+    MessageShow('Need Header file first');
+    Beep;
+  end else begin
+    // get desired tile
     TileName := Edit_QuarterTile.Text;
-
     if (length(TileName) <> 4) then begin
        Memo_Message.Lines.Add('Select a tile name first');
        Beep;
@@ -1245,27 +1248,30 @@ begin
     end else begin // tiles
       Val(copy(TileName,1,2),qColumn,ErrorCode);
       Val(copy(TileName,3,2),qRow,ErrorCode);
-  // if errorcode or not in range -> error
+      // if errorcode or not in range -> error
     end;
 
-    //find main tile
+    // find main tile and offset
     column        := qColumn div 4;
     offset_Column := qColumn mod 4;
     row           := qRow div 4;
     offset_Row    := qRow mod 4;
+
+    // need to calculate the tile corners
+    u_QuarterTile.CalcCorners(row, column, offset_Row, offset_Column);
 
     // prepare for KML
     //need a folder
     u_MakeKML.KMLfolder := Working_Folder;
     u_MakeKML.Memo_Message := Memo_Message;
 
-    // now make KML
+    // now make KML - needs corners - global vars
     MakeKML_QuarterTile(row, column, offset_Row, offset_Column);
 
     MessageShow('KML file done.');
 
-    // prepare for GMID
-    //need a folder
+    // prepare for GMID & GDAL
+    // need a folder
     u_MakeGMID.GMIDfolder := Working_Folder;
     u_MakeGMID.Memo_Message := Memo_Message;
     u_MakeGMID.ZoomLevel := ZoomLevel;                  // need extra box to select instead ???
@@ -1273,14 +1279,14 @@ begin
 //    u_MakeGDAL.OutputTileSize := OutputTileSize;        // need extra box to select instead ???
     u_MakeGDAL.OutputTileSize := IntToStr(StrToInt(OutputTileSize) div 4);  // need extra box to select instead ???
 
-    // now make GMID - do after MakeKML !
+    // now make GMID
     MakeGMIDquarterTile(false, row, column, offset_Row, offset_Column,
-      Tile_LT_Lat, Tile_LT_Long, Tile_RB_Lat, Tile_RB_Long);
+      Tile_LT_Lat_save, Tile_LT_Long_save, Tile_RB_Lat_save, Tile_RB_Long_save);
     MakeGMIDquarterTile(true, row, column, offset_Row, offset_Column,
-      Tile_LT_Lat, Tile_LT_Long, Tile_RB_Lat, Tile_RB_Long);  // geid version as well
+      Tile_LT_Lat_save, Tile_LT_Long_save, Tile_RB_Lat_save, Tile_RB_Long_save);  // geid version as well
 
-    // now prepare for GDAL - do after MakeKML !
-    // need lat, long, and size of source
+    // now prepare for GDAL - do after MakeKML ! - nneeds global vars
+    // need lat, long, and size of source, and extent values, not true values
     SourceLeftLongitude  := Tile_LT_Long;
     SourceTopLatitude    := Tile_LT_Lat;
     SourceRightLongitude := Tile_RB_Long;
@@ -1297,25 +1303,23 @@ begin
     // to be manually entered based on screen capture
 //    u_MakeGDAL.OutputTileSize := '0';
 
-    // now make GDAL
-    MakeGDALquarterTile(row, column, offset_Row, offset_Column);
-    MakeAutoGDALquarterTile(4326, row, column, offset_Row, offset_Column); // for geid
-    MakeAutoGDALquarterTile(3857, row, column, offset_Row, offset_Column); // for gmid
+    // now make manual screen capture GDAL - needs source lat/long extents
+    MakeGDALquarterTile_MC(row, column, offset_Row, offset_Column);
 //    MessageShow('Need to manually set source image size in GDAL');
 //    MessageShow('Need to manually set final image size in GDAL');
+
+    // also make standard GDAL
+    MakeAutoGDALquarterTile(4326, row, column, offset_Row, offset_Column); // for geid
+    MakeAutoGDALquarterTile(3857, row, column, offset_Row, offset_Column); // for gmid
 
     // now make DDS
     u_MakeDDS.DDSfolder := Working_Folder;
     u_MakeDDS.Memo_Message := Memo_Message;
     u_MakeDDS.CompressorFolder := Compressor_Folder;
-  //  u_MakeGDAL.DXT_Type := DXT_Type;
+    // u_MakeGDAL.DXT_Type := DXT_Type;
     u_MakeDDS.DXT_Type := DXT_Type;
     MakeDDSquarterTile(row, column, offset_Row, offset_Column);
-//    MessageShow('Need to manually set nmips=1+log2(ImageSize)');
-
-  end else begin
-    MessageShow('Need Header file first');
-    Beep;
+    // MessageShow('Need to manually set nmips=1+log2(ImageSize)');
   end;
 end;
 
@@ -1518,6 +1522,7 @@ begin
     if (FileExists(lAirportFolderName+'Working\'+lAirportFileName+'.csv')) then begin
       ImportCSV_AirportFile;
       MessageShow('File imported from Working folder');
+      Unit_AirportPlacer.CurrentLandscape := ''; // flag for reload
     end else begin
       MessageShow('File '+'Working\'+lAirportFileName+'.csv'+' not found');
       Beep;

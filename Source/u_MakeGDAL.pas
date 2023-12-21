@@ -71,11 +71,12 @@ Procedure MakeGDALoverallTiffBatchFile(Name : string);  // based on GEOtiff
 
 Procedure MakeLandsatGDALbatchFile(TileIndex : integer);
 
-Procedure MakeGDALquarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+Procedure MakeGDALquarterTile_MC(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 Procedure MakeAutoGDALquarterTile(epsg : Integer; CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 //Procedure MakeDDSquarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 
-Procedure MakeGDAL_All_BatchFile(DetectTree : boolean; TIFF : boolean);
+//Procedure MakeGDAL_All_BatchFile(DetectTree : boolean; TIFF : boolean);
+Procedure MakeGDAL_All_BatchFile(DetectTree, TIFF : boolean; epsg : integer);
 Procedure Make_DetectTree_to_ForestMaps_BatchFile;
 //Procedure MakeDDS_All_BatchFile;
 
@@ -364,8 +365,8 @@ begin
     Zoom_Suffix := '';
     writeln(GDALfile,'set sourcebmp='+TileName+'_combined\'+TileName+'.bmp');
     writeln(GDALfile,'set FileName='+TileName+'.gmid');
+    writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.umd');
   end;
-  writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.umd');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_left=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_top=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Right_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_right=%%a');
@@ -553,9 +554,9 @@ begin
   MessageShow(FileName+' done.');
 end;
 
-// 4326
+// 4326 google-earth manual screen captur
 //-------------------------------------------------------------------------------------
-Procedure MakeGDALquarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+Procedure MakeGDALquarterTile_MC(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 
 var
 //  i : integer;
@@ -580,7 +581,7 @@ begin
   TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
   TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
   //open the file
-  FileName := 'GDAL_'+TileName+'.bat';
+  FileName := 'GDAL_'+TileName+'_MC.bat';
   AssignFile(GDALfile, FilePath +'\'+ FileName);
   Rewrite(GDALfile);
 
@@ -703,6 +704,7 @@ begin
     Zoom_Suffix := '';
     writeln(GDALfile,'set sourcebmp='+TileName+'_combined\'+TileName+'.bmp');
     writeln(GDALfile,'set FileName='+TileName+'.gmid');
+    writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.umd');
   end;
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_left=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_top=%%a');
@@ -715,6 +717,7 @@ begin
 //  writeln(GDALfile,'set real_bottom=%real_bottom: =%');
 
   writeln(GDALfile,'set destinationtiff='+'bigmap.tif');
+  writeln(GDALfile,'if exist %destinationTIFF% del %destinationTIFF%'); // if already present
 
   if (epsg = 4326) then begin
     writeln(GDALfile,'gdal_translate -of Gtiff -a_ullr %real_left% %real_top% %real_right% %real_bottom% -a_srs EPSG:4326 %sourcebmp% %destinationtiff%');
@@ -734,6 +737,7 @@ begin
     writeln(GDALfile,'    set "var!VarList!=%%B"');
     writeln(GDALfile,')');
 
+    writeln(GDALfile,'if exist %destinationTIFF% del %destinationTIFF%'); // if already present
     writeln(GDALfile,'gdal_translate -of Gtiff -a_ullr %var1% %var2% %var3% %var4% -a_srs EPSG:3857 %sourcebmp% %destinationtiff%');
   end;
   writeln(GDALfile,'rem del %sourcebmp%');
@@ -1219,6 +1223,8 @@ begin
 //  writeln(GDALfile,format('set real_bottom=%1.8f',[SourceBottomLatitude]));
 
   writeln(GDALfile,'set FileName='+Name+'.umd');
+  writeln(GDALfile,'if NOT exist %FileName% set FileName='+Name+'.gmid');
+
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download=" %FileName%'') do set real_left=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download=" %FileName%'') do set real_top=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Right_Longitude_download=" %FileName%'') do set real_right=%%a');
@@ -1548,7 +1554,7 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
-Procedure MakeGDAL_All_BatchFile(DetectTree : boolean; TIFF : boolean);
+Procedure MakeGDAL_All_BatchFile(DetectTree, TIFF : boolean; epsg : integer);
 var
   i,j : integer;
   FileName : string;
@@ -1569,6 +1575,9 @@ begin
   end;
   if (TIFF) then begin
     Ext_Name := Ext_Name + '_TIFF';
+  end;
+  if (epsg = 4326) then begin
+    Ext_Name := Ext_Name + '_4326';
   end;
   FileName := 'GDAL_ALL'+Ext_Name+'.bat';
   AssignFile(GDALfile, FilePath +'\'+ FileName);

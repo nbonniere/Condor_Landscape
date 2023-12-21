@@ -854,6 +854,15 @@ begin
         for y := 0 to (pRows*ForestResolution)-1 do begin
           BlockRead(Forest_File,P^,pColumns*ForestResolution);
           for x := 0 to (pColumns*ForestResolution)-1 do begin
+            // lsb is coniferous in V2, i.e. reverse
+            case P^[x] of
+              1: begin
+                P^[x] := 2;
+              end;
+              2: begin
+                P^[x] := 1;
+              end;
+            end;
             ForestGrid[pColumns*ForestResolution-1-x,pColumns*ForestResolution-1-y] := P^[x];
           end;
 

@@ -90,7 +90,7 @@ Procedure MakeGMID_All_BatchFile;
 Procedure MakeGMIDprojectFile(geid : boolean; TileIndex : integer);
 Procedure MakeGMIDoverallProjectFile;
 Procedure MakeGMIDquarterTile(geid : boolean; CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer;
-      Tile_Top_Lat, Tile_Left_Long, Tile_Bottom_Lat, Tile_Right_Long : double);
+      Tile_Top_Lat, Tile_Left_Long, Tile_Bottom_Lat, Tile_Right_Long : double );
 
 // a few extra functions for when you need separate processing
 Procedure MakeGMID_All_Combine_BatchFile;
@@ -105,7 +105,8 @@ Procedure MakeWGET_All_BatchFile;
 //----------------------------------------------------------------------------
 implementation
 
-uses u_Util, u_TileList, u_UTM;
+uses
+  u_Util, u_TileList, u_UTM, u_QuarterTile;
 
 var
   GMIDfile : TextFile;
@@ -221,6 +222,23 @@ begin
   // close the file
   Close(GMIDfile);
   MessageShow(FileName+' done.');
+end;
+
+ // make clean.bat file in case you want to re-download
+//-------------------------------------------------------------------------------------
+Procedure Make_Clean(FilePath : string);
+begin
+  //open the file
+  AssignFile(GMIDfile, FilePath +'\Clean.bat');
+  Rewrite(GMIDfile);
+
+  writeln(GMIDfile,'del *list1.txt');
+  writeln(GMIDfile,'del *log.txt');
+  writeln(GMIDfile,'del *status*.dat');
+  writeln(GMIDfile,'del *datever.dat');
+
+  // close the file
+  Close(GMIDfile);
 end;
 
 //-------------------------------------------------------------------------------------
@@ -344,17 +362,26 @@ begin
                                Tile_Bottom_Lat - Ysize
                               );
   end;
+
+  // make clean.bat file in case you want to re-download
+  Make_Clean(FilePath);
 end;
 
 //-------------------------------------------------------------------------------------
 Procedure MakeGMIDquarterTile(geid : boolean; CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer;
-      Tile_Top_Lat, Tile_Left_Long, Tile_Bottom_Lat, Tile_Right_Long : double);
+          Tile_Top_Lat, Tile_Left_Long, Tile_Bottom_Lat, Tile_Right_Long : double);
+
+const
+//  ExtraDist = 0.100;  // extra 100 metres on each edge
+  ExtraDist = 0.025;  // extra 25 metres on each edge
 
 var
   i : integer;
+  TileName : string;
   FileName : string;
   FilePath : string;
   TileIndex : integer;
+  Xsize,Ysize : real;
 {
   Tile_Top_Lat  : real;
   Tile_Left_Long : real;
@@ -362,6 +389,22 @@ var
   Tile_Right_Long : real;
 }
 begin
+  // extra margin to make sure all area is included
+  Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
+  Xsize := Ysize*cos(Tile_RB_Lat_save*Pi/180);
+
+  // tile corners
+  Tile_Bottom_Lat := f_Minimum(Tile_RB_Lat_save,
+    Tile_LB_Lat_save);
+
+  Tile_Top_Lat := f_Maximum(Tile_RT_Lat_save,
+    Tile_LT_Lat_save);
+
+  Tile_Left_Long := f_Minimum(Tile_LB_Long_save,
+    Tile_LT_Long_save);
+
+  Tile_Right_Long := f_Maximum(Tile_RT_Long_save,
+    Tile_RB_Long_save);
 {
   // check for folder
   if (NOT DirectoryExists(GMIDFolder)) then begin
@@ -386,20 +429,20 @@ begin
   ForceDirectories(FilePath);
 
   //open the file
-  FileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
+  TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
   if (geid) then begin
-    FileName := Filename +'_initial.geid';
+    FileName := Tilename +'_initial.geid';
   end else begin
-    FileName := Filename +'_initial.gmid';
+    FileName := Tilename +'_initial.gmid';
   end;
   AssignFile(GMIDfile, FilePath +'\'+ FileName);
   Rewrite(GMIDfile);
 
   writeln(GMIDfile,'[AREA]');
-  writeln(GMIDfile,'LeftLongitude='+format('%1.8f',[Tile_Left_Long]));
-  writeln(GMIDfile,'RightLongitude='+format('%1.8f',[Tile_Right_Long]));
-  writeln(GMIDfile,'TopLatitude='+format('%1.8f',[Tile_Top_Lat]));
-  writeln(GMIDfile,'BottomLatitude='+format('%1.8f',[Tile_Bottom_Lat]));
+  writeln(GMIDfile,'LeftLongitude='+format('%1.8f',[Tile_Left_Long - Xsize]));
+  writeln(GMIDfile,'RightLongitude='+format('%1.8f',[Tile_Right_Long + Xsize]));
+  writeln(GMIDfile,'TopLatitude='+format('%1.8f',[Tile_Top_Lat + Ysize]));
+  writeln(GMIDfile,'BottomLatitude='+format('%1.8f',[Tile_Bottom_Lat - Ysize]));
   writeln(GMIDfile);
   // assume done manually to exact values based on rectangle drawn on Google-earth
   writeln(GMIDfile,'Left_Longitude_download='+format('%1.8f',[Tile_Left_Long]));
@@ -427,6 +470,31 @@ begin
   Close(GMIDfile);
 
   MessageShow(FileName+' done.');
+
+  begin
+    // now make a batch Download only file
+    FileName := 'Batch_Download_'+TileName+'.bat';
+    Make_Batch_DownloadCombine(td_D, TileName, GMIDMapID, GMIDMapType,
+                               FilePath, FileName,
+                               ZoomLevel,
+                               Tile_Left_Long - Xsize,
+                               Tile_Right_Long + Xsize,
+                               Tile_Top_Lat + Ysize,
+                               Tile_Bottom_Lat - Ysize
+                              );
+
+    // now make a batch combine only file
+    FileName := 'Batch_Combine_'+TileName+'.bat';
+    Make_Batch_DownloadCombine(td_C, TileName, GMIDMapID, GMIDMapType,
+                               FilePath, FileName,
+                               ZoomLevel,
+                               Tile_Left_Long - Xsize,
+                               Tile_Right_Long + Xsize,
+                               Tile_Top_Lat + Ysize,
+                               Tile_Bottom_Lat - Ysize
+                              );
+  end;
+
 end;
 
 //-------------------------------------------------------------------------------------
@@ -504,6 +572,10 @@ begin
                              Tile_Top_Lat + Ysize,
                              Tile_Bottom_Lat - Ysize
                             );
+
+  // make clean.bat file in case you want to re-download
+  Make_Clean(FilePath);
+
 end;
 
 //-------------------------------------------------------------------------------------

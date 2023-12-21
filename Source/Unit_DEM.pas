@@ -837,6 +837,15 @@ begin
     writeln(DEM_file,'@echo off');
     writeln(DEM_file,'setlocal');
     writeln(DEM_file,'set PATH=%PATH%;c:\programs\wget');
+
+    writeln(DEM_file,'rem make sure needed programs exist');
+    writeln(DEM_file,'where wget');
+    writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
+    writeln(DEM_file,'   echo ERROR: c:\Programs\wget\wget.exe not found');
+    writeln(DEM_file,'   pause');
+    writeln(DEM_file,'   exit /b 9');
+    writeln(DEM_file,')');
+
     writeln(DEM_file,'rem goto directory where batch file is');
     writeln(DEM_file,'cd /d %~dp0');
 //    writeln(DEM_file, 'wget --http-user=uuuu --http-password=pppp -i URLs.txt');
@@ -868,7 +877,17 @@ begin
     writeln(DEM_file,'@echo off');
     writeln(DEM_file,'setlocal');
     writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
-    writeln(DEM_file,'rem set PATH=%PATH%;"'+ProgramsFolder+'\geotiff"');
+    writeln(DEM_file,'set PATH=%PATH%;c:\Program Files\7-zip');
+    writeln(DEM_file,'set PATH=%PATH%;'+ProgramsFolder+'\geotiff');
+
+    writeln(DEM_file,'rem make sure needed programs exist');
+    writeln(DEM_file,'where 7z');
+    writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
+    writeln(DEM_file,'   echo ERROR: c:\Program Files\7-zip\7z.exe not found');
+    writeln(DEM_file,'   pause');
+    writeln(DEM_file,'   exit /b 9');
+    writeln(DEM_file,')');
+
     writeln(DEM_file,'rem goto directory where batch file is');
     writeln(DEM_file,'cd /d %~dp0');
 
@@ -1030,6 +1049,19 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure Make_Hashes;
+var
+  DEM_File : TextFile;
+
+begin
+  AssignFile(DEM_file, File_folder+'\..\Make_Hash.bat');
+  Rewrite(DEM_file);
+  writeln(DEM_file,'C:\Condor2\CondorSceneryToolkit\LandscapeEditor.exe -hash '+ CurrentLandscape);
+  // close the file
+  CloseFile(DEM_file);
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_DEM.Button_Make_TR3Click(Sender: TObject);
 var
   Columns, Rows : integer;
@@ -1054,6 +1086,9 @@ begin
   u_Terrain.Memo_Message := Memo_Message;
   u_Terrain.ProgressBar_Status := ProgressBar_Status;
   RAW_To_TR3(File_folder+'\UTM_cropped.RAW', File_folder+'\..\..\HeightMaps');
+
+  // now make a batch file to create the hash files
+  Make_Hashes;
 end;
 
 //---------------------------------------------------------------------------

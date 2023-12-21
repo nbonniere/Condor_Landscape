@@ -424,8 +424,8 @@ begin
     ce := oe;
   end;
 
-  Columns := trunc((ce.xMax - ce.xMin) / -u_Terrain.TerrainHeader.tDeltaX) DIV (256 DIV 4);
-  Rows    := trunc((ce.yMax - ce.yMin) /  u_Terrain.TerrainHeader.tDeltaY) DIV (256 DIV 4);
+  Columns := round((ce.xMax - ce.xMin) / -u_Terrain.TerrainHeader.tDeltaX) DIV (256 DIV 4);
+  Rows    := round((ce.yMax - ce.yMin) /  u_Terrain.TerrainHeader.tDeltaY) DIV (256 DIV 4);
   if ( Columns > (99+1))
    OR ( Rows > (99+1)) then begin
     MessageShow('WARNING: X, Y index > 25');
@@ -449,8 +449,8 @@ begin
   with u_Terrain.TerrainHeader do begin
     tRightMapEasting := ce.xMax;                    // UTM absolute Easting, bottom right
     tBottomMapNorthing := ce.yMin;                  // UTM absolute Northing, bottom right
-    tWidth :=  trunc((ce.xMax - ce.xMin) / -tDeltaX);  // number of columns
-    tHeight := trunc((ce.yMax - ce.yMin) /  tDeltaY);  // number of rows
+    tWidth :=  round((ce.xMax - ce.xMin) / -tDeltaX);  // number of columns
+    tHeight := round((ce.yMax - ce.yMin) /  tDeltaY);  // number of rows
     // prepare TDM header
     with u_Thermal.TDM_Header do begin
       Width := tWidth;
@@ -519,8 +519,8 @@ begin
     end;
 
     // need to show overall columns, rows
-    Columns := trunc((oe.xMax - oe.xMin) / -u_Terrain.TerrainHeader.tDeltaX) DIV (256 DIV 4) /4;
-    Rows    := trunc((oe.yMax - oe.yMin) /  u_Terrain.TerrainHeader.tDeltaY) DIV (256 DIV 4) /4;
+    Columns := round((oe.xMax - oe.xMin) / -u_Terrain.TerrainHeader.tDeltaX) DIV (256 DIV 4) /4;
+    Rows    := round((oe.yMax - oe.yMin) /  u_Terrain.TerrainHeader.tDeltaY) DIV (256 DIV 4) /4;
     Form_DEM.ShowGrid(mBitmap, Columns, Rows);
 
     Button_Create.Enabled := true;

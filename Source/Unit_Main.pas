@@ -890,9 +890,10 @@ begin
         ProgressBar_Status.Position := 0;
 
         // make a batchfile to call all batch files
-        MakeGDAL_All_BatchFile(False,False);
+        MakeGDAL_All_BatchFile(False,False,3857);
+        MakeGDAL_All_BatchFile(False,False,4326);
         // for DetectTree
-        MakeGDAL_All_BatchFile(True,False);
+        MakeGDAL_All_BatchFile(True,False,3857);
         Make_DetectTree_to_ForestMaps_BatchFile;
 
 //        MakeDDS_All_BatchFile;
