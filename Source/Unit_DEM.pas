@@ -149,6 +149,7 @@ var
   library_Folder : string;           // external path for library
   Programsfolder : string;           // external path for library
   CondorVersion : string;
+  ApplicationPath : string;
 
   Areas : array of AreaPoints;
   AreaPointsDefined : boolean;
@@ -830,32 +831,6 @@ begin
     HGT_Long_Min := Floor(Long_Min);
     HGT_Long_Max := Floor(Long_Max);
 
-    // create a file to download the HGT files
-    AssignFile(DEM_file, File_folder+'\DEM_WGET.bat');
-    Rewrite(DEM_file);
-
-    writeln(DEM_file,'@echo off');
-    writeln(DEM_file,'setlocal');
-    writeln(DEM_file,'set PATH=%PATH%;c:\programs\wget');
-
-    writeln(DEM_file,'rem make sure needed programs exist');
-    writeln(DEM_file,'where wget');
-    writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
-    writeln(DEM_file,'   echo ERROR: c:\Programs\wget\wget.exe not found');
-    writeln(DEM_file,'   pause');
-    writeln(DEM_file,'   exit /b 9');
-    writeln(DEM_file,')');
-
-    writeln(DEM_file,'rem goto directory where batch file is');
-    writeln(DEM_file,'cd /d %~dp0');
-//    writeln(DEM_file, 'wget --http-user=uuuu --http-password=pppp -i URLs.txt');
-    writeln(DEM_file, 'echo USGS SRTM data download');
-    writeln(DEM_file, 'set uuuu=user');
-    writeln(DEM_file, 'set pppp=password');
-    writeln(DEM_file, 'if %uuuu% EQU user (set /p uuuu= User Name: )');
-    writeln(DEM_file, 'if %pppp% EQU password (set /p pppp= Password: )');
-    writeln(DEM_file, 'wget --http-user=%uuuu% --http-password=%pppp% -i URLs.txt');
-
     AssignFile(URL_file, File_folder+'\URLs.txt');
     Rewrite(URL_file);
     for i := HGT_Lat_Min to HGT_Lat_Max do begin
@@ -865,71 +840,111 @@ begin
     end;
     CloseFile(URL_file);
 
-//    writeln(DEM_file,'pause');
-    writeln(DEM_file,'endlocal');
-    // close the file
-    CloseFile(DEM_file);
+    // a file to download the HGT files
+    // first check if alternate batch file is available
+    if (FileExists(ApplicationPath+'\Batch\DEM_WGET.bat')) then begin
+      CopyFile(pchar(ApplicationPath+'\Batch\DEM_Wget.bat'),
+        pchar(File_Folder+'\DEM_Wget.bat'),false);
+    end else begin
+      // create a file to download the HGT files
+      AssignFile(DEM_file, File_folder+'\DEM_WGET.bat');
+      Rewrite(DEM_file);
 
-    // create a file to download the HGT files
-    AssignFile(DEM_file, File_folder+'\DEM_Extract.bat');
-    Rewrite(DEM_file);
+      writeln(DEM_file,'@echo off');
+      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'set PATH=%PATH%;c:\programs\wget');
 
-    writeln(DEM_file,'@echo off');
-    writeln(DEM_file,'setlocal');
-    writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
-    writeln(DEM_file,'set PATH=%PATH%;c:\Program Files\7-zip');
-    writeln(DEM_file,'set PATH=%PATH%;'+ProgramsFolder+'\geotiff');
+      writeln(DEM_file,'rem make sure needed programs exist');
+      writeln(DEM_file,'where wget');
+      writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
+      writeln(DEM_file,'   echo ERROR: c:\Programs\wget\wget.exe not found');
+      writeln(DEM_file,'   pause');
+      writeln(DEM_file,'   exit /b 9');
+      writeln(DEM_file,')');
 
-    writeln(DEM_file,'rem make sure needed programs exist');
-    writeln(DEM_file,'where 7z');
-    writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
-    writeln(DEM_file,'   echo ERROR: c:\Program Files\7-zip\7z.exe not found');
-    writeln(DEM_file,'   pause');
-    writeln(DEM_file,'   exit /b 9');
-    writeln(DEM_file,')');
+      writeln(DEM_file,'rem goto directory where batch file is');
+      writeln(DEM_file,'cd /d %~dp0');
+//      writeln(DEM_file, 'wget --http-user=uuuu --http-password=pppp -i URLs.txt');
+      writeln(DEM_file, 'echo USGS SRTM data download');
+      writeln(DEM_file, 'set uuuu=user');
+      writeln(DEM_file, 'set pppp=password');
+      writeln(DEM_file, 'if %uuuu% EQU user (set /p uuuu= User Name: )');
+      writeln(DEM_file, 'if %pppp% EQU password (set /p pppp= Password: )');
+      writeln(DEM_file, 'wget --http-user=%uuuu% --http-password=%pppp% -i URLs.txt');
 
-    writeln(DEM_file,'rem goto directory where batch file is');
-    writeln(DEM_file,'cd /d %~dp0');
-
-    for i := HGT_Lat_Min to HGT_Lat_Max do begin
-      for j := HGT_Long_Min to HGT_Long_Max do begin
-        writeln(DEM_file, '7z e '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
-        // alternate Win10 has tar
-        // writeln(DEM_file, 'tar -xf '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
-      end;
+//      writeln(DEM_file,'pause');
+      writeln(DEM_file,'endlocal');
+      // close the file
+      CloseFile(DEM_file);
     end;
 
-//  writeln(DEM_file,'pause');
-//  writeln(DEM_file,'exit 0');
-    writeln(DEM_file,'endlocal');
-    // close the file
-    CloseFile(DEM_file);
+    // a file to extract the HGT files
+    // first check if alternate batch file is available
+    if (FileExists(ApplicationPath+'\Batch\DEM_Extract.bat')) then begin
+      CopyFile(pchar(ApplicationPath+'\Batch\DEM_Extract.bat'),
+        pchar(File_Folder+'\DEM_Extract.bat'),false);
+    end else begin
+      // create a file to extract the HGT files
+      AssignFile(DEM_file, File_folder+'\DEM_Extract.bat');
+      Rewrite(DEM_file);
 
-    // then create a batch file that will convert the HGT files to DEM_Tiff
-    AssignFile(DEM_file, File_folder+'\DEM.bat');
-    Rewrite(DEM_file);
+      writeln(DEM_file,'@echo off');
+      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
+      writeln(DEM_file,'set PATH=%PATH%;c:\Program Files\7-zip');
+      writeln(DEM_file,'set PATH=%PATH%;'+ProgramsFolder+'\geotiff');
 
-    writeln(DEM_file,'rem @echo off');
-    writeln(DEM_file,'setlocal');
-    writeln(DEM_file,'set PATH=%PATH%;"'+library_Folder+'"');
-    writeln(DEM_file,'set GDAL_DATA='+library_Folder+'\..\share\epsg_csv');
-    writeln(DEM_file,'rem goto directory where batch file is');
-    writeln(DEM_file,'cd /d %~dp0');
-    writeln(DEM_file,'rem convert HGT file to GeoTiff');
+      writeln(DEM_file,'rem make sure needed programs exist');
+      writeln(DEM_file,'where 7z');
+      writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
+      writeln(DEM_file,'   echo ERROR: c:\Program Files\7-zip\7z.exe not found');
+      writeln(DEM_file,'   pause');
+      writeln(DEM_file,'   exit /b 9');
+      writeln(DEM_file,')');
 
-    MessageClear;
-    MessageShow('DEM: Will need to download the following STRM files:');
-    k := 0;
-    for i := HGT_Lat_Min to HGT_Lat_Max do begin
-      for j := HGT_Long_Min to HGT_Long_Max do begin
-        S := HGT_Name(i,j)+'.hgt';
-        MessageShow(S);
-        writeln(DEM_file,format('set sourceHGT=%s',[S]));
-        writeln(DEM_file,format('set destinationTIFF=T%d.tif',[k]));
-        writeln(DEM_file,'gdal_translate -of GTiff %sourceHGT% %destinationTIFF%');
-        INC(k,1)
+      writeln(DEM_file,'rem goto directory where batch file is');
+      writeln(DEM_file,'cd /d %~dp0');
+
+      for i := HGT_Lat_Min to HGT_Lat_Max do begin
+        for j := HGT_Long_Min to HGT_Long_Max do begin
+          writeln(DEM_file, '7z e '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
+          // alternate Win10 has tar
+          // writeln(DEM_file, 'tar -xf '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
+        end;
       end;
+
+//   writeln(DEM_file,'pause');
+//   writeln(DEM_file,'exit 0');
+     writeln(DEM_file,'endlocal');
+     // close the file
+     CloseFile(DEM_file);
     end;
+
+      // then create a batch file that will convert the HGT files to DEM_Tiff
+      AssignFile(DEM_file, File_folder+'\DEM.bat');
+      Rewrite(DEM_file);
+
+      writeln(DEM_file,'rem @echo off');
+      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'set PATH=%PATH%;"'+library_Folder+'"');
+      writeln(DEM_file,'set GDAL_DATA='+library_Folder+'\..\share\epsg_csv');
+      writeln(DEM_file,'rem goto directory where batch file is');
+      writeln(DEM_file,'cd /d %~dp0');
+      writeln(DEM_file,'rem convert HGT file to GeoTiff');
+
+      MessageClear;
+      MessageShow('DEM: Will need to download the following STRM files:');
+      k := 0;
+      for i := HGT_Lat_Min to HGT_Lat_Max do begin
+        for j := HGT_Long_Min to HGT_Long_Max do begin
+          S := HGT_Name(i,j)+'.hgt';
+          MessageShow(S);
+          writeln(DEM_file,format('set sourceHGT=%s',[S]));
+          writeln(DEM_file,format('set destinationTIFF=T%d.tif',[k]));
+          writeln(DEM_file,'gdal_translate -of GTiff %sourceHGT% %destinationTIFF%');
+          INC(k,1)
+        end;
+      end;
 
     // then assemble these tiff files together
     // first in rows

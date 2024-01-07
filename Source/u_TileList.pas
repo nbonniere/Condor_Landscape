@@ -305,6 +305,8 @@ begin
   MessageShow(format('%d tile corners created',[TileCount]));
 end;
 
+// NOTE: lat/long calculated based on 90m resolution, not calibration!
+// NOTE: whole tiles only, no partial tiles i.e. patches
 {----------------------------------------------------------------------------}
 procedure MakeTileList(Easting, Northing : double);
 var

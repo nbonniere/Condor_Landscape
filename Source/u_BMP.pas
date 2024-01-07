@@ -117,6 +117,7 @@ type
 const
   tDeciduous    : ColorConvert = (cRGB:(rgbtBlue:  0; rgbtGreen:255; rgbtRed:  0); cAlpha:0);
   tConiferous   : ColorConvert = (cRGB:(rgbtBlue:255; rgbtGreen:128; rgbtRed: 64); cAlpha:0);
+  tConiferous_LE: ColorConvert = (cRGB:(rgbtBlue:  0; rgbtGreen:128; rgbtRed:  0); cAlpha:0);
   tBoth         : ColorConvert = (cRGB:(rgbtBlue: 64; rgbtGreen:128; rgbtRed:255); cAlpha:0);
 
   tNone         : ColorConvert = (cRGB:(rgbtBlue:  0; rgbtGreen:  0; rgbtRed:  0); cAlpha:0);

@@ -108,6 +108,10 @@ type
     procedure ScrollBox_ImageResize(Sender: TObject);
     procedure Image_TileMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
+    procedure ListBox_ObjectListKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure FormKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -209,6 +213,16 @@ end;
 var
   ObjectCorners : CoordXY_Array;
   CentreMark : CoordXY_Array;
+
+//---------------------------------------------------------------------------
+Procedure Object_Change_Show(Changed, Show : Boolean);
+begin
+  ObjectsChanged := Changed;
+  Form_ObjectPlacer.Button_Save.enabled := Changed;
+  if (Show) then begin
+    Form_ObjectPlacer.ShowItem(nil);
+  end;
+end;
 
 //---------------------------------------------------------------------------
 procedure DrawObject(TileIndex : integer);
@@ -376,6 +390,11 @@ var
 
 begin
   if (ItemIndex <> -1) then begin
+    if (Object_Count > 1) then begin
+      Button_Delete.Enabled := true;
+    end else begin
+      Button_Delete.Enabled := false;
+    end;
     BitmapAvail := false; // assume for now
     with Object_List[ItemIndex] do begin
       Edit_FileName.Text := coName;
@@ -590,6 +609,23 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.ListBox_ObjectListKeyUp(Sender: TObject;
+  var Key: Word; Shift: TShiftState);
+begin
+  case Key of
+    VK_RETURN: begin
+      ItemIndex := ListBox_ObjectList.ItemIndex;
+      if (ItemIndex <> -1) then begin
+        opZoomScale := 1.0;
+        ShowItem(Sender);
+      end;
+    end;
+    else begin
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.Button_AddClick(Sender: TObject);
 begin
   SetLength(Object_List,Object_Count+1);
@@ -597,11 +633,12 @@ begin
   Object_List[Object_Count].coName := 'New.X.CX.c3d';
   ListBox_ObjectList.Items.Append(Object_List[Object_Count].coName);
   INC(Object_Count);   Label_ObjectCount.Caption := IntToStr(Object_Count);
-  ObjectsChanged := true;
+//  ObjectsChanged := true;
   ListBox_ObjectList.ItemIndex := ListBox_ObjectList.Items.Count-1;
   ItemIndex := ListBox_ObjectList.ItemIndex;
   opZoomScale := 1.0;
-  ShowItem(Sender);
+//  ShowItem(Sender);
+  Object_Change_Show(True, True);
 end;
 
 //---------------------------------------------------------------------------
@@ -614,11 +651,12 @@ begin
       Object_list[i] := Object_list[i+1];
     end;
     DEC(Object_Count); Label_ObjectCount.Caption := IntToStr(Object_Count);
-    ObjectsChanged := true;
+//    ObjectsChanged := true;
     ListBox_ObjectList.Items.Delete(ItemIndex);
     ItemIndex := ListBox_ObjectList.ItemIndex;
     opZoomScale := 1.0;
-    ShowItem(Sender);
+//    ShowItem(Sender);
+    Object_Change_Show(True, True);
   end;
 end;
 
@@ -646,7 +684,8 @@ procedure TForm_ObjectPlacer.Button_SaveClick(Sender: TObject);
 begin
   if (ObjectsChanged) then begin
     WriteObjectFile;
-    ObjectsChanged := false;
+//    ObjectsChanged := false;
+    Object_Change_Show(False, False);
   end;
 end;
 
@@ -659,7 +698,8 @@ begin
       with Object_List[ItemIndex] do begin
         coName := Edit_FileName.Text;
       end;
-      ObjectsChanged := true;
+//      ObjectsChanged := true;
+      Object_Change_Show(True, False);
     end;
   end;
 end;
@@ -673,8 +713,9 @@ begin
         coEasting := StrtoFloat(Edit_Easting.Text);
         Edit_Easting.Text := format('%1.5f',[coEasting]);
       end;
-      ObjectsChanged := true;
-      ShowItem(Sender);
+//      ObjectsChanged := true;
+//      ShowItem(Sender);
+      Object_Change_Show(True, True);
     end;
   end;
 end;
@@ -688,8 +729,9 @@ begin
         coNorthing := StrtoFloat(Edit_Northing.Text);
         Edit_Northing.Text := format('%1.5f',[coNorthing]);
       end;
-      ObjectsChanged := true;
-      ShowItem(Sender);
+//      ObjectsChanged := true;
+//      ShowItem(Sender);
+      Object_Change_Show(True, True);
     end;
   end;
 end;
@@ -703,7 +745,8 @@ begin
         coScale := StrtoFloat(Edit_Scale.Text);
         Edit_Scale.Text := format('%1.3f',[coScale]);
       end;
-      ObjectsChanged := true;
+//      ObjectsChanged := true;
+      Object_Change_Show(True, False);
     end;
   end;
 end;
@@ -717,7 +760,8 @@ begin
         coElevation := StrtoFloat(Edit_Elevation.Text);
         Edit_Elevation.Text := format('%1.1f',[coElevation]);
       end;
-      ObjectsChanged := true;
+//      ObjectsChanged := true;
+      Object_Change_Show(True, False);
     end;
   end;
 end;
@@ -731,7 +775,8 @@ begin
         coRotation := StrtoFloat(Edit_Rotation.Text)*PI/180;
         Edit_Rotation.Text := format('%1.3f',[coRotation*180/PI]);
       end;
-      ObjectsChanged := true;
+//      ObjectsChanged := true;
+      Object_Change_Show(True, False);
     end;
   end;
 end;
@@ -775,8 +820,9 @@ begin
     with Object_List[ItemIndex] do begin
       coEasting := coEasting + Delta;
     end;
-    ObjectsChanged := true;
-    ShowItem(Sender);
+//    ObjectsChanged := true;
+//    ShowItem(Sender);
+    Object_Change_Show(True, True);
   end;
 end;
 
@@ -802,8 +848,9 @@ begin
     with Object_List[ItemIndex] do begin
       coNorthing := coNorthing + Delta;
     end;
-    ObjectsChanged := true;
-    ShowItem(Sender);
+//    ObjectsChanged := true;
+//    ShowItem(Sender);
+    Object_Change_Show(True, True);
   end;
 end;
 
@@ -930,5 +977,22 @@ begin
   Recentre;  // on current centre cX, cY
 end;
 
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.FormKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    ord('S'), ord('s'): begin
+      if (ssCtrl in Shift) then begin
+        Button_SaveClick(Sender);
+        key := 0; // so that other components won't see this keypress
+      end;
+    end;
+    else begin
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 end.
 

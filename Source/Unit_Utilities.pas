@@ -298,11 +298,13 @@ begin
           ForceDirectories(Dest_File_Path);
           // convert
           V2_FOR_To_ForestGrid(FileName);
+    //      V2_ForestGrid_To_FOR(FileName+'.xxx'); // testing
 //          V2_2Color_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
 //          V2_2Color_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
-//          V2_GreyScale_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
-//          V2_GreyScale_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+//          V2_GreyScale_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
+//          V2_GreyScale_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
+          // b and s must be 24bit for Landscape Editor
           V2_24bit_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
           V2_24bit_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
@@ -1320,6 +1322,11 @@ begin
     u_MakeDDS.DXT_Type := DXT_Type;
     MakeDDSquarterTile(row, column, offset_Row, offset_Column);
     // MessageShow('Need to manually set nmips=1+log2(ImageSize)');
+
+    // now make a Batch ALL
+    u_QuarterTile.QT_folder := Working_Folder;
+    u_QuarterTile.Memo_Message := Memo_Message;
+    Make_QT_All_BatchFile(row, column, offset_Row, offset_Column);
   end;
 end;
 

@@ -78,7 +78,6 @@ Procedure MakeAutoGDALquarterTile(epsg : Integer; CurrentRow, CurrentColumn, off
 //Procedure MakeGDAL_All_BatchFile(DetectTree : boolean; TIFF : boolean);
 Procedure MakeGDAL_All_BatchFile(DetectTree, TIFF : boolean; epsg : integer);
 Procedure Make_DetectTree_to_ForestMaps_BatchFile;
-//Procedure MakeDDS_All_BatchFile;
 
 //----------------------------------------------------------------------------
 implementation
@@ -364,9 +363,12 @@ begin
   end else begin // (epsg = 3857)
     Zoom_Suffix := '';
     writeln(GDALfile,'set sourcebmp='+TileName+'_combined\'+TileName+'.bmp');
-    writeln(GDALfile,'set FileName='+TileName+'.gmid');
-    writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.umd');
+    writeln(GDALfile,'set FileName='+TileName+'.umd');
+    writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.gmid');
   end;
+  writeln(GDALfile,'if NOT exist %sourcebmp% (echo ERROR: %sourcebmp% NOT found & pause & exit /b 9)');
+  writeln(GDALfile,'if NOT exist %FileName% (echo ERROR: %FileName% NOT found & pause & exit /b 9)');
+
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_left=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_top=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Right_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_right=%%a');
@@ -703,9 +705,11 @@ begin
   end else begin // (epsg = 3857)
     Zoom_Suffix := '';
     writeln(GDALfile,'set sourcebmp='+TileName+'_combined\'+TileName+'.bmp');
-    writeln(GDALfile,'set FileName='+TileName+'.gmid');
-    writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.umd');
+    writeln(GDALfile,'set FileName='+TileName+'.umd');
+    writeln(GDALfile,'if NOT exist %FileName% set FileName='+TileName+'.gmid');
   end;
+  writeln(GDALfile,'if NOT exist %FileName% (echo ERROR: %FileName% NOT found & pause & exit /b 9)');
+
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_left=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_top=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Right_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_right=%%a');
@@ -1224,6 +1228,7 @@ begin
 
   writeln(GDALfile,'set FileName='+Name+'.umd');
   writeln(GDALfile,'if NOT exist %FileName% set FileName='+Name+'.gmid');
+  writeln(GDALfile,'if NOT exist %FileName% (echo ERROR: %FileName% NOT found & pause & exit /b 9)');
 
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download=" %FileName%'') do set real_left=%%a');
   writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download=" %FileName%'') do set real_top=%%a');
@@ -1591,7 +1596,8 @@ begin
     for i := 0 to TileRowCount-1 do begin
       TileIndex := i*(TileColumnCount+1)+j;
       Name := TileList[TileIndex].TileName;
-      writeln(GDALfile,'call '+Name+'\GDAL_'+Name+Ext_Name+'.bat');
+      // use || to execute next command if previous one failed
+      writeln(GDALfile,'call '+Name+'\GDAL_'+Name+Ext_Name+'.bat || exit /b 9');
     end;
   end;
   writeln(GDALfile,'endlocal');
@@ -1643,49 +1649,6 @@ begin
       writeln(GDALfile,')');
       writeln(GDALfile,'endlocal');
    end;   
-  // close the file
-  Close(GDALfile);
-  MessageShow(FileName+' done.');
-end;
-
-//-------------------------------------------------------------------------------------
-Procedure MakeDDS_All_BatchFile;
-var
-  i,j : integer;
-  FileName : string;
-  FilePath : string;
-  TileIndex : integer;
-  Name : string;
-
-begin
-  // check for folder
-  if (NOT DirectoryExists(GDALFolder)) then begin
-    MessageShow('Destination Folder not found');
-    exit;
-  end;
-  // create a folder if necessary
-  FilePath := GDALFolder +'\SourceTiles';
-  if (NOT DirectoryExists(FilePath)) then begin
-    mkdir(FilePath);
-  end;
-  //open the file
-  FileName := 'DDS_ALL.bat';
-  AssignFile(GDALfile, FilePath +'\'+ FileName);
-  Rewrite(GDALfile);
-
-  writeln(GDALfile,'@echo off');
-  writeln(GDALfile,'setlocal');
-  writeln(GDALfile,'rem goto directory where batch file is');
-  writeln(GDALfile,'cd /d %~dp0');
-  for j := 0 to TileColumnCount-1 do begin
-    for i := 0 to TileRowCount-1 do begin
-      TileIndex := i*(TileColumnCount+1)+j;
-      Name := TileList[TileIndex].TileName;
-      writeln(GDALfile,'call '+Name+'\DDS_'+Name+'.bat');
-    end;
-  end;
-  writeln(GDALfile,'endlocal');
-
   // close the file
   Close(GDALfile);
   MessageShow(FileName+' done.');

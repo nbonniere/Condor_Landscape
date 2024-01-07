@@ -65,7 +65,7 @@ type
     CheckBox_Selection: TCheckBox;
     Button_Replace: TButton;
     ProgressBar_Status: TProgressBar;
-    Button_Water: TButton;
+    Button_Tool_0: TButton;
     Button_Swamp: TButton;
     Button_Sand: TButton;
     Button_Import: TButton;
@@ -119,7 +119,7 @@ type
     procedure ShowSelection(Sender: TObject);
     procedure CheckBox_SelectionClick(Sender: TObject);
     procedure Button_ReplaceClick(Sender: TObject);
-    procedure Button_WaterClick(Sender: TObject);
+    procedure Button_Tool_0Click(Sender: TObject);
     procedure Button_SwampClick(Sender: TObject);
     procedure Button_SandClick(Sender: TObject);
     procedure Button_ImportClick(Sender: TObject);
@@ -1292,13 +1292,36 @@ begin
 //  SetBrushColor(ActivePixelColor);
 end;
 
+procedure ApplyMask; forward;
 //---------------------------------------------------------------------------
-procedure TForm_Graphic.Button_WaterClick(Sender: TObject);
+procedure TForm_Graphic.Button_Tool_0Click(Sender: TObject);
+var
+  Path : string;
+  FileName : string;
 begin
-  ColorSelect(tWater.Colorvalue);
-//  ActivePixelColor := ByteReverseOrder32(tWater.Colorvalue);  // blue
-//  Shape_EditColor.Brush.color := ActivePixelColor;
-//  SetBrushColor(ActivePixelColor);
+  case Graphic_mode of
+    gmForest : begin
+      // import b forest file
+      path := wWorkingPath+'\Terragen\ForestMaps';
+      u_BMP.BMPfolder := wWorkingPath+'\Terragen\ForestMaps';
+      FileName := '\b'+ExtractFileName(mFileName);
+      // try reading b file
+      if (ReadForestBitmapTile(FileName, False)) then begin
+        FileName := '\s'+ExtractFileName(mFileName);
+        // try reading s file and combine with b file
+        if (ReadForestBitmapTile(FileName, True)) then begin
+          // update the bitmap with new mask
+          ApplyMask;
+        end;
+      end;
+    end;
+    gmThermal : begin
+      ColorSelect(tWater.Colorvalue);
+//    ActivePixelColor := ByteReverseOrder32(tWater.Colorvalue);  // blue
+//    Shape_EditColor.Brush.color := ActivePixelColor;
+//    SetBrushColor(ActivePixelColor);
+    end;
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -1756,23 +1779,28 @@ end;
 {----------------------------------------------------------------------------}
 Procedure ApplyForestMask;
 var
-  NoColor : TColor;
-  mColor : TColor;
+  NoColor : ColorConvert;
+  mColor  : ColorConvert;
   i, j : integer;
+  pScanLine: pRGBArray;
 
 begin
+  Screen.Cursor := crHourGlass;  // Let user know we're busy...
   Form_Graphic.Image_Mask.Visible := false; //stops display update while processing
+  // !!! if transparent, mask doesn't get updated with scanline !!!
+  Form_Graphic.Image_Mask.Transparent := false; // must be done
   Form_Graphic.ProgressBar_Status.Max := tRows;
-//  mColor := ByteReverseOrder32(tExclusion.ColorValue);
-  NoColor := ByteSwapColor(tNone.ColorValue);//convert from ColorConvert to Tcolor
-  mColor := ByteSwapColor(tExclusion.ColorValue);//convert from ColorConvert to Tcolor
+  NoColor := tNone;
+  mColor := tExclusion;
   for i := 0 to tRows-1 do begin
+    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[i];
     for j := 0 to tColumns-1 do begin
-      //check for overwrite or pixel = tNone
+      // check for overwrite or pixel = tNone
       if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-        (Form_Graphic.Image_Mask.Canvas.Pixels[j,i] = NoColor)) then begin
+//        (pScanLine^[j] = NoColor.cRGB)) then begin // can't compare like this
+           CompareMem(@pScanLine^[j],@NoColor.cRGB,3) ) then begin
         if (ForestMajority(i,j) >= ForestResolution*ForestResolution div 2) then begin  // 50 %
-          Form_Graphic.Image_Mask.Canvas.Pixels[j,i] := mColor;
+          pScanLine^[j] := mColor.cRGB;
         end else begin
         end;
       end;
@@ -1785,84 +1813,93 @@ begin
 //    Form_Graphic.Image_Mask.Refresh;
   end;
   Form_Graphic.ProgressBar_Status.Position := 0;
+  Form_Graphic.Image_Mask.Transparent := true; // restore transparency
+  Screen.Cursor := crDefault;  // no longer busy
 end;
 
 {----------------------------------------------------------------------------}
-Procedure xApplyThermalMask; // V1 only thermal 256x256, forest 512x512
+Procedure ApplyMask;
 var
-  NoColor : TColor;
-  mColor : TColor;
+  NoColor : ColorConvert;
+  mColor  : ColorConvert;
   i, j : integer;
+  pScanLine: pRGBArray;
 
 begin
-  with Form_Graphic.Image_Mask do begin
-    Visible := false; //stops display update while processing
-    Form_Graphic.ProgressBar_Status.Max := tRows;
-//    mColor := ByteReverseOrder32(tExclusion.ColorValue);
-    mColor := ByteSwapColor(tExclusion.ColorValue);//convert from ColorConvert to Tcolor
-    NoColor := ByteSwapColor(tNone.ColorValue);//convert from ColorConvert to Tcolor
-    for i := 0 to tRows-1 do begin
-      for j := 0 to tColumns-1 do begin
-        if (ThermalGrid[i,j] <> 8 {Heating[8]}) then begin
-          //check for overwrite or pixel = tNone
-          if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-            (Canvas.Pixels[j*2,i*2] = NoColor)) then begin
-              Canvas.Pixels[j*2,i*2] := mColor;
+  Screen.Cursor := crHourGlass;  // Let user know we're busy...
+  Form_Graphic.Image_Mask.Visible := false; //stops display update while processing
+  // !!! if transparent, mask doesn't get updated with scanline !!!
+  Form_Graphic.Image_Mask.Transparent := false; // must be done
+  Form_Graphic.ProgressBar_Status.Max := tRows*ForestResolution;
+  NoColor := tNone;
+  for i := 0 to tRows*ForestResolution-1 do begin
+    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[i];
+    for j := 0 to tColumns*ForestResolution-1 do begin
+      // check for overwrite or pixel = tNone
+      if ((Form_Graphic.CheckBox_Overwrite.checked) OR
+//        (pScanLine^[j] = NoColor.cRGB)) then begin // can't compare like this
+           CompareMem(@pScanLine^[j],@NoColor.cRGB,3) ) then begin
+        case ForestGrid[i,j] of
+          1: begin
+            mColor := tDeciduous;
           end;
-          if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-            (Canvas.Pixels[j*2+1,i*2] = NoColor)) then begin
-            Canvas.Pixels[j*2+1,i*2] := mColor;
+          2: begin
+            mColor := tConiferous;
+//            mColor := tConiferous_LE;
           end;
-          if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-            (Canvas.Pixels[j*2,i*2+1] = NoColor)) then begin
-            Canvas.Pixels[j*2,i*2+1] := mColor;
+          3: begin
+            mColor := tBoth;
           end;
-          if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-            (Canvas.Pixels[j*2+1,i*2+1] = NoColor)) then begin
-            Canvas.Pixels[j*2+1,i*2+1] := mColor;
+          else begin
+            mColor := tNone; // can overwrite to tNone
           end;
         end;
+        pScanLine^[j] := mColor.cRGB;
       end;
-      Form_Graphic.ProgressBar_Status.StepIt;
-      Application.ProcessMessages;
     end;
-    if (MaskView) then begin
-      Visible := true;
-      Refresh;
-    end;
-    Form_Graphic.ProgressBar_Status.Position := 0;
+    Form_Graphic.ProgressBar_Status.StepIt;
+    Application.ProcessMessages;
   end;
+  if (MaskView) then begin
+    Form_Graphic.Image_Mask.Visible := true;
+//    Form_Graphic.Image_Mask.Refresh;
+  end;
+  Form_Graphic.ProgressBar_Status.Position := 0;
+  Form_Graphic.Image_Mask.Transparent := true; // restore transparency
+  Screen.Cursor := crDefault;  // no longer busy
 end;
 
 {----------------------------------------------------------------------------}
 Procedure ApplyThermalMask; // find scale. forest 512x512 or 2048x2048
 var
-  NoColor : TColor;
-  mColor : TColor;
+  NoColor : ColorConvert;
+  mColor  : ColorConvert;
   i, j : integer;
-  k, m : integer;
+  pScanLine: pRGBArray;
+//  k, m : integer;
   scale : integer;
 
 begin
+  Screen.Cursor := crHourGlass;  // Let user know we're busy...
   with Form_Graphic.Image_Mask do begin
     Scale := Picture.Bitmap.Width div tColumns; // ratio between thermal mask and forest mask
     Visible := false; //stops display update while processing
-    Form_Graphic.ProgressBar_Status.Max := tRows;
-//    mColor := ByteReverseOrder32(tExclusion.ColorValue);
-    mColor := ByteSwapColor(tExclusion.ColorValue);//convert from ColorConvert to Tcolor
-    NoColor := ByteSwapColor(tNone.ColorValue);//convert from ColorConvert to Tcolor
-    for i := 0 to tRows-1 do begin
-      for j := 0 to tColumns-1 do begin
-        // all but 8 ???  Why ?
-        if (ThermalGrid[i,j] <> 8 {Heating[8]}) then begin
-          for k := 0 to Scale-1 do begin
-            for m := 0 to Scale-1 do begin
-              //check for overwrite or pixel = tNone
-              if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-                (Canvas.Pixels[j*Scale+m,i*Scale+k] = NoColor)) then begin
-                  Canvas.Pixels[j*Scale+m,i*Scale+k] := mColor;
-              end;
-            end;
+    // !!! if transparent, mask doesn't get updated with scanline !!!
+    Transparent := false; // must be done
+    Form_Graphic.ProgressBar_Status.Max := tRows*ForestResolution;
+    mColor := tExclusion;
+    NoColor := tNone;
+    for i := 0 to tRows*Scale-1 do begin
+      pScanLine := Picture.Bitmap.ScanLine[i];
+      for j := 0 to tColumns*Scale-1 do begin
+
+        // check for overwrite or pixel = tNone
+        if ((Form_Graphic.CheckBox_Overwrite.checked) OR
+//          (pScanLine^[j] = NoColor.cRGB)) then begin // can't compare like this
+          CompareMem(@pScanLine^[j],@NoColor.cRGB,3) ) then begin
+          // all but 8 which is background default i.e. no specific thermal value
+          if (ThermalGrid[i div scale,j div scale] <> 8 {Heating[8]}) then begin
+            pScanLine^[j] := mColor.cRGB;
           end;
         end;
       end;
@@ -1871,35 +1908,14 @@ begin
     end;
     if (MaskView) then begin
       Visible := true;
-      Refresh;
+//      Refresh;
     end;
     Form_Graphic.ProgressBar_Status.Position := 0;
+    Transparent := true; // restore transparency
+    Screen.Cursor := crDefault;  // no longer busy
   end;
 end;
 
-//---------------------------------------------------------------------------
-{procedure TForm_Graphic.Button_ImportClick(Sender: TObject);
-var
-  Position : integer;
-  FileName : string;
-
-begin
-  FileName := mFileName;
-  u_BMP.BMPfolder := ExtractFilepath(FileName);
-  Position := pos('.',FileName);
-  Delete(FileName,Position-1,1);
-  if (Graphic_Mode = gmThermal) then begin
-    Insert('f',FileName,Position-1);
-    ReadForestBitmapTile(ExtractFilename(FileName));
-    ApplyForestMask;
-  end else begin
-    Insert('t',FileName,Position-1);
-    ClearThermalGrid;
-    ReadThermalBitmapTileIndexes(ExtractFilename(FileName));
-    ApplyThermalMask;
-  end;
-end;
-}
 //---------------------------------------------------------------------------
 procedure TForm_Graphic.Button_ImportClick(Sender: TObject);
 begin
@@ -1907,7 +1923,7 @@ begin
     // only possible for V1 !
     // need to make fRows, fColumns and ForestGrid adjustable to make this work
     u_BMP.BMPfolder := ExtractFilepath(mFileName);
-    ReadForestBitmapTile(ExtractFilename(mFileName));
+    ReadForestBitmapTile(ExtractFilename(mFileName), False);
     ApplyForestMask;
   end else begin
     ClearThermalGrid;

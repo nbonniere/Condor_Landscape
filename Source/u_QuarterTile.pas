@@ -32,8 +32,13 @@ UNIT u_QuarterTile;
 {============================================================================}
 INTERFACE
 
-//uses stdctrls;
+uses
+  stdctrls;
+
 var
+  Memo_Message : TMemo;  // external TMemo for messages
+  QT_Folder : string;    // external path for file output
+
   // saved true corners
   Tile_RB_Lat_save  : real;
   Tile_RB_Long_save : real;
@@ -44,15 +49,24 @@ var
   Tile_LT_Lat_save  : real;
   Tile_LT_Long_save : real;
 
-Procedure CalcCorners(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+Procedure Make_QT_All_BatchFile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 
+Procedure CalcCorners(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 
 {============================================================================}
 
 IMPLEMENTATION
 uses
-//uses SysUtils,
-  u_UTM, u_Terrain, u_SceneryHDR;
+  {Windows, StdCtrls,} SysUtils, FileCtrl,
+  u_TileList, u_UTM, u_Terrain, u_SceneryHDR;
+
+{----------------------------------------------------------------------------}
+Procedure MessageShow(Info : string);
+begin
+  if (Memo_Message <> nil) then begin
+    Memo_Message.lines.add(Info);
+  end;
+end;
 
 //---------------------------------------------------------------------------
 Procedure CalcCorners(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
@@ -89,6 +103,43 @@ begin
     UTM_Zone,UTM_ZoneNS);
   Tile_LT_Lat_save  := uLatitude;
   Tile_LT_Long_save := uLongitude;
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure Make_QT_All_BatchFile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+var
+  i,j : integer;
+  FileName : string;
+  FilePath : string;
+  TileIndex : integer;
+  TileName : string;
+  QT_file : TextFile;
+
+begin
+  TileIndex := CurrentRow * (TileColumnCount+1) + CurrentColumn;
+
+  FilePath := QT_folder +'\SourceTiles\'+ TileList[TileIndex].TileName +'\QuarterTiles';
+  // create path
+  ForceDirectories(FilePath);
+
+  TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
+//  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+
+  //open the file
+  FileName := 'MAKE_ALL_'+TileName+'.bat';
+  AssignFile(QT_file, FilePath +'\'+ FileName);
+  Rewrite(QT_file);
+
+  writeln(QT_file,'@echo off');
+  // use || to execute next command if previous one failed
+  writeln(QT_file,'call Batch_Download_'+TileName+'.bat || exit /b 9');
+  writeln(QT_file,'call Batch_Combine_'+TileName+'.bat || exit /b 9');
+  writeln(QT_file,'call GDAL_'+TileName+'_3857.bat || exit /b 9');
+  writeln(QT_file,'call DDS_'+TileName+'.bat || exit /b 9');
+
+  // close the file
+  Close(QT_file);
+  MessageShow(FileName+' done.');
 end;
 
 {----------------------------------------------------------------------------}

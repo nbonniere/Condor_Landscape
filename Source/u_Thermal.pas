@@ -222,6 +222,7 @@ const
 var
   BitmapFile : File of byte;
   i,j : integer;
+  P24  : pRGBArray;
 
 begin
   Result := false; // assume for now
@@ -231,50 +232,56 @@ begin
     MessageShow('Bitmap file needs to be 256x256, 24 bit color');
     Beep;
   end else begin
-    AssignFile(BitmapFile,u_BMP.BMPfolder+'\'+FileName);
-    Reset(BitmapFile);
-    seek(BitmapFile,BitmapHeader_24bitColor.Bitmap24PixelOffset);
-    for i := tRows-1 downto 0 do begin // rows from bottom
-      for j := 0 to tColumns-1 do begin // columns from left
-        // read each pixel
-        BlockRead(BitmapFile,tRGB.cRGB,sizeof(tRGB.cRGB));
-        // match color to a thermal index
-        if (tRGB.ColorValue = tWater.ColorValue) then begin
-          ThermalGrid[i,j] := 3 {Heating[3]};
-        end else begin
-          if (tRGB.ColorValue = tSwamp.ColorValue) then begin
-            ThermalGrid[i,j] := 2 {Heating[2]};
+    try
+      P24 := AllocMem(tColumns*ForestResolution * 3); // one row at a time
+      AssignFile(BitmapFile,u_BMP.BMPfolder+'\'+FileName);
+      Reset(BitmapFile);
+      seek(BitmapFile,BitmapHeader_24bitColor.Bitmap24PixelOffset);
+      ProgressBar_Status.Max := tRows;
+      for i := tRows-1 downto 0 do begin // rows from bottom
+        BlockRead(BitmapFile,P24^,tColumns * 3);
+        for j := 0 to tColumns-1 do begin // columns from left
+//          // read each pixel
+//          BlockRead(BitmapFile,tRGB.cRGB,sizeof(tRGB.cRGB));
+          tRGB.cRGB := P24^[j]; // each pixel
+          // match color to a thermal index
+          if (tRGB.ColorValue = tWater.ColorValue) then begin
+            ThermalGrid[i,j] := 3 {Heating[3]};
           end else begin
-            if (tRGB.ColorValue = tSand.ColorValue) then begin
-              ThermalGrid[i,j] := 7 {Heating[7]};
+            if (tRGB.ColorValue = tSwamp.ColorValue) then begin
+              ThermalGrid[i,j] := 2 {Heating[2]};
             end else begin
-              if (tRGB.ColorValue = tYellowFields.ColorValue) then begin
-                ThermalGrid[i,j] := 6 {Heating[6]};
+              if (tRGB.ColorValue = tSand.ColorValue) then begin
+                ThermalGrid[i,j] := 7 {Heating[7]};
               end else begin
-                if (tRGB.ColorValue = tGreenFields.ColorValue) then begin
-                  ThermalGrid[i,j] := 5 {Heating[5]};
+                if (tRGB.ColorValue = tYellowFields.ColorValue) then begin
+                  ThermalGrid[i,j] := 6 {Heating[6]};
                 end else begin
-                  if (tRGB.ColorValue = tDarkFields.ColorValue) then begin
-                    ThermalGrid[i,j] := 4 {Heating[4]};
+                  if (tRGB.ColorValue = tGreenFields.ColorValue) then begin
+                    ThermalGrid[i,j] := 5 {Heating[5]};
                   end else begin
-                    if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
-                      if (ThermalGrid[i,j] = 0) then begin // not already done
-                        ThermalGrid[i,j] := 1 {Heating[1]};
-                      end;
+                    if (tRGB.ColorValue = tDarkFields.ColorValue) then begin
+                      ThermalGrid[i,j] := 4 {Heating[4]};
                     end else begin
-                      if (tRGB.ColorValue = tConiferous.ColorValue) then begin
+                      if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
                         if (ThermalGrid[i,j] = 0) then begin // not already done
-                          ThermalGrid[i,j] := 2 {Heating[2]};
+                          ThermalGrid[i,j] := 1 {Heating[1]};
                         end;
                       end else begin
-                        if (tRGB.ColorValue = tBoth.ColorValue) then begin
+                        if (tRGB.ColorValue = tConiferous.ColorValue) then begin
                           if (ThermalGrid[i,j] = 0) then begin // not already done
                             ThermalGrid[i,j] := 2 {Heating[2]};
-                          end;  
+                          end;
                         end else begin
-                          if (ThermalGrid[i,j] = 0) then begin // if no forest, or no forest tile
-                            ThermalGrid[i,j] := 8  {Heating[8]}; //assume default
-                           end;
+                          if (tRGB.ColorValue = tBoth.ColorValue) then begin
+                            if (ThermalGrid[i,j] = 0) then begin // not already done
+                              ThermalGrid[i,j] := 2 {Heating[2]};
+                            end;
+                          end else begin
+                            if (ThermalGrid[i,j] = 0) then begin // if no forest, or no forest tile
+                              ThermalGrid[i,j] := 8  {Heating[8]}; //assume default
+                             end;
+                          end;
                         end;
                       end;
                     end;
@@ -284,10 +291,15 @@ begin
             end;
           end;
         end;
+        ProgressBar_Status.StepIt;
+        Application.ProcessMessages;
       end;
+    finally
+     freemem(P24);
     end;
     Close(BitmapFile);
     Result := true;
+    ProgressBar_Status.Position := 0;
   end;
 end;
 
@@ -311,7 +323,7 @@ begin
   if (FileExists(FilePath+'\'+fFileName)) then begin
     Result := true;
     //read the bitmap file
-    if ReadForestBitmapTile(fFileName) then begin
+    if ReadForestBitmapTile(fFileName, False) then begin
     end;
       ConvertForestMask(Heating[0],Heating[1],Heating[8]);
   end else begin

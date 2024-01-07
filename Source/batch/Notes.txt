@@ -1,0 +1,4 @@
+
+Condor batch file replacements or alternates.
+
+Install this folder in same folder as Condor_Tiles.exe

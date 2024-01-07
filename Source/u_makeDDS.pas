@@ -148,6 +148,8 @@ begin
   writeln(DDSfile,'set sourcebmp='+SourcePath+TileName);
   writeln(DDSfile,'if exist %sourcebmp%.tif (set fext=.tif) else (set fext=.bmp)');
   writeln(DDSfile,'set sourcebmp=%sourcebmp%%fext%');
+
+  writeln(DDSfile,'if NOT exist %sourcebmp% (echo ERROR: %sourcebmp% NOT found & pause & exit /b 9)');
 {
   // read bitmap size
   BMPfolder := FilePath;
@@ -272,10 +274,12 @@ begin
   writeln(DDSfile,'cd /d %~dp0');
 
   writeln(DDSfile,'rem converts .bmp file into .dds in "dds" folder');
-//  writeln(DDSfile,'set destinationbmp='+TileName+'.bmp');
-  writeln(DDSfile,'set destinationbmp='+TextureName+'.bmp');
+//  writeln(DDSfile,'set sourcebmp='+TileName+'.bmp');
+  writeln(DDSfile,'set sourcebmp='+TextureName+'.bmp');
 //  writeln(DDSfile,'set destinationdds='+'dds\'+TileName+'.dds');
   writeln(DDSfile,'set destinationdds='+TextureName+'.dds');
+
+  writeln(DDSfile,'if NOT exist %sourcebmp% (echo ERROR: %sourcebmp% NOT found & pause & exit /b 9)');
 {
 //  // 8 mipmaps, but probably should use 2^(n-1). For 1024 n = 11, for 2048 n = 12
 //  NumMips := '8';
@@ -292,17 +296,17 @@ begin
 //  writeln(DDSfile,'nvDXT.exe -quality_highest -nmips '+NumMips+' -Cubic -dxt3 -outdir "dds" -file ',TextureName,'.bmp');
   if (DXT_Gen = g_nVDXT) then begin
     if (DXT_Type = 'DXT1') then begin
-      writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -'+LowerCase(DXT_Type)+'c -outdir "dds" -file %destinationbmp%');
+      writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -'+LowerCase(DXT_Type)+'c -outdir "dds" -file %sourcebmp%');
     end else begin
-      writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -'+LowerCase(DXT_Type)+' -outdir "dds" -file %destinationbmp%');
+      writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -'+LowerCase(DXT_Type)+' -outdir "dds" -file %sourcebmp%');
     end;
   end else begin // must be Compressonator
-    writeln(DDSfile,'CompressonatorCLI.exe -fd '+DXT_Type+' -mipsize 1 -CompressionSpeed 0 %destinationbmp% %destinationdds%');
+    writeln(DDSfile,'CompressonatorCLI.exe -fd '+DXT_Type+' -mipsize 1 -CompressionSpeed 0 %sourcebmp% %destinationdds%');
   // if dxt1 with alpha
   //  writeln(DDSfile,'CompressonatorCLI.exe -fd '+DXT_Type+' -DXT1UseAlpha 1 -AlphaThreshold 192 -mipsize 1 -CompressionSpeed 0 %destinationbmp% %destinationdds%');
   end;
 
-   writeln(DDSfile,'rem del %destinationbmp%');
+   writeln(DDSfile,'rem del %sourcebmp%');
    writeln(DDSfile,'rem move %destinationdds% ' + '..\..\..\..\Textures');
 
   writeln(DDSfile,'endlocal');
@@ -346,7 +350,8 @@ begin
     for i := 0 to TileRowCount-1 do begin
       TileIndex := i*(TileColumnCount+1)+j;
       Name := TileList[TileIndex].TileName;
-      writeln(DDSfile,'call '+Name+'\DDS_'+Name+'.bat');
+      // use || to execute next command if previous one failed
+      writeln(DDSfile,'call '+Name+'\DDS_'+Name+'.bat || exit /b 9');
     end;
   end;
   writeln(DDSfile,'endlocal');

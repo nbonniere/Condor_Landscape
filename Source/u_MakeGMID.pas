@@ -154,6 +154,8 @@ begin
     ZoomLevel := inttostr(strtoint(ZoomLevel)+1); // +1 for geid
     ID := ZoomLevel;     // for geid start zoom level
   end;
+  writeln(GMIDfile,'if NOT exist "'+GMIDProgramsFolder+'\downloader.exe" (echo ERROR: "'+GMIDProgramsFolder+'\downloader.exe" NOT found & pause & exit /b 9)');
+
   writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
                      '"'+GMIDProgramsFolder+'\downloader.exe"',
                      Name,
@@ -171,7 +173,8 @@ var
   Params : string;
 
 begin
-//  writeln(GMIDfile,'@echo off');
+  writeln(GMIDfile,'if NOT exist "'+GMIDProgramsFolder+'\combiner.exe" (echo ERROR: "'+GMIDProgramsFolder+'\combiner.exe" NOT found & pause & exit /b 9)');
+
   writeln(GMIDfile,'IF [%1] NEQ [] (set type=%1 & set option=%2) else (set type=bmp & set option=meters)');
 {
   writeln(GMIDfile,'setlocal enabledelayedexpansion');
@@ -651,9 +654,9 @@ begin
       TileIndex := i*(TileColumnCount+1)+j;
       Name := TileList[TileIndex].TileName;
 //      writeln(GMIDfile,'mklink /D "'+Name+'\'+Name+'" "..\Tiles"');
-      writeln(GMIDfile,'call '+Name+'\Batch_Download_'+Name+'.bat');
+      writeln(GMIDfile,'call '+Name+'\Batch_Download_'+Name+'.bat || exit /b 9');
 //      writeln(GMIDfile,'call '+Name+'\Batch_Combine_'+Name+'.bat');
-      writeln(GMIDfile,'call '+Name+'\Batch_Combine_'+Name+'.bat %type% %option%');
+      writeln(GMIDfile,'call '+Name+'\Batch_Combine_'+Name+'.bat %type% %option% || exit /b 9');
     end;
   end;
   writeln(GMIDfile,'endlocal');
@@ -699,7 +702,7 @@ begin
       Name := TileList[TileIndex].TileName;
 //      writeln(GMIDfile,'mklink /D "'+Name+'\'+Name+'" "..\Tiles"');
 //      writeln(GMIDfile,'call '+Name+'\Batch_Combine_'+Name+'.bat');
-      writeln(GMIDfile,'call '+Name+'\Batch_Combine_'+Name+'.bat %type% %option%');
+      writeln(GMIDfile,'call '+Name+'\Batch_Combine_'+Name+'.bat %type% %option% || exit /b 9');
     end;
   end;
   writeln(GMIDfile,'endlocal');

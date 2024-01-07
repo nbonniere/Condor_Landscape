@@ -460,12 +460,15 @@ begin
           if ( NOT (tUTMgrid[0] IN ['N', 'S']) ) then begin
             UTM_ZoneNS := UTMgridConvert(tUTMgrid[0]);
             ComboBox_Version.text := 'V1';
-          end else begin // assume comboxbox is correct
-            if (ComboBox_Version.text = 'V1') then begin
-              UTM_ZoneNS := UTMgridConvert(tUTMgrid[0]);
-            end else begin
-              UTM_ZoneNS := tUTMgrid[0];
+          end else begin
+            if (DirectoryExists(WorkingPathName+'\..\HeightMaps')) then begin
+              ComboBox_Version.text := 'V2';
             end;
+          end;
+          if (ComboBox_Version.text = 'V1') then begin
+            UTM_ZoneNS := UTMgridConvert(tUTMgrid[0]);
+          end else begin
+            UTM_ZoneNS := tUTMgrid[0];
           end;
           // assume corner and calc centre - possible problem here
 //          UTM_Right := tRightMapEasting - round(tResolution/2);     //90m tile centre
@@ -486,7 +489,7 @@ begin
         // cannot override terrain file since it is used
         Button_OverrideCalib.enabled := false;
       end;
-    end else begin
+    end else begin // scenery header not errain header
       Button_OverrideCalib.enabled := true;
       if (DEM_Res = 30) then begin
         ComboBox_Version.text := 'V2';
@@ -1338,10 +1341,11 @@ begin
       end;
     end;
   end else begin // V2
-    // check if V2 deciduous file is present
-    // really need to get coniferous too ! TBD
     path := WorkingPathName+'\Terragen\ForestMaps';
-    mFileName := path +'\b'+TileName+'.bmp';
+//    // check if V2 deciduous file is present
+//    mFileName := path +'\b'+TileName+'.bmp';
+    // check if V2 combined file is present
+    mFileName := path + '\'+TileName+'.bmp';
     if (NOT FileExists(mFileName)) then begin  // if so use it
       ForceDirectories(Path);
       CreateForestTileBitmap(mFileName); // V2 style 2048x2048
@@ -1370,6 +1374,7 @@ begin
   u_Forest.Memo_Message := Memo_Info;
   u_Forest.ProgressBar_Status := ProgressBar_Status;
   u_Thermal.Memo_Message := Memo_Info;
+  u_Thermal.ProgressBar_Status := Form_Graphic.ProgressBar_Status;
   u_TIFF.Memo_Message := Memo_Info;
 //  if (HeaderOpen) AND (TileOpen) then begin
   if (LandscapeOpened) then begin
@@ -1443,14 +1448,16 @@ begin
         Form_Graphic.Button_Color0.Caption := 'Coniferous';
         Form_Graphic.Button_Color1.Caption := 'Deciduous';
         Form_Graphic.Button_Color2.Caption := 'Both';
-        Form_Graphic.Button_Water.Visible := false;
+        Form_Graphic.Button_Tool_0.Caption := 'b/s Import';
         Form_Graphic.Button_Sand.Visible := false;
         Form_Graphic.Button_Swamp.Visible := false;
         Form_Graphic.Button_Import.Caption := 'T Import';
         if (ComboBox_Version.text = 'V1') then begin
           ForestResolution := 2;
+          Form_Graphic.Button_Tool_0.Visible := false;
         end else begin
           ForestResolution := 8;
+          Form_Graphic.Button_Tool_0.Visible := true;
         end;
         Form_Graphic.Button_Import.Enabled := true;
         Form_Graphic.Button_Save_TIF.Visible := true;
@@ -1479,6 +1486,7 @@ begin
     setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
   end;
   u_Thermal.Memo_Message := Memo_Info;
+  u_Thermal.ProgressBar_Status := Form_Graphic.ProgressBar_Status;
   u_Forest.Memo_Message := Memo_Info;
   u_Forest.ProgressBar_Status := Form_Graphic.ProgressBar_Status;
   if (LandscapeOpened) then begin
@@ -1548,7 +1556,8 @@ begin
         Form_Graphic.Button_Color0.Caption := 'Green Fields';
         Form_Graphic.Button_Color1.Caption := 'Yellow Fields';
         Form_Graphic.Button_Color2.Caption := 'Dark Fields';
-        Form_Graphic.Button_Water.Visible := true;
+        Form_Graphic.Button_Tool_0.Caption := 'Water';
+        Form_Graphic.Button_Tool_0.Visible := true;
         Form_Graphic.Button_Sand.Visible := true;
         Form_Graphic.Button_Swamp.Visible := true;
         Form_Graphic.Button_Import.Caption := 'F Import';
@@ -1557,8 +1566,8 @@ begin
           Form_Graphic.Button_Import.Enabled := true;
         end else begin
           ForestResolution := 8;
-          Form_Graphic.Button_Import.Enabled := false;
-//          Form_Graphic.Button_Import.Enabled := true;
+//          Form_Graphic.Button_Import.Enabled := false;
+          Form_Graphic.Button_Import.Enabled := true;
         end;
         Form_Graphic.Button_Save_TIF.Visible := false;
 
@@ -1613,7 +1622,10 @@ begin
 //    mkdir(WorkingPathName+'\Temp');
 //  end;
 
-  form_Objects.ShowModal;
+//  Form_Objects.Position := poDefault;
+  Form_Objects.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+  Form_Objects.Top  := Self.Top + 0;
+  Form_Objects.ShowModal;
 end;
 
 //---------------------------------------------------------------------------
@@ -1630,12 +1642,17 @@ begin
         Beep;
         exit;
       end;
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
       ReadObjectFile;
       Form_ObjectPlacer.Initialize(Sender);
+      Screen.Cursor := crDefault;  // no longer busy
       Unit_ObjectPlacer.CurrentLandscape := CondorLandscapeName;
       Unit_ObjectPlacer.opVersion:= ComboBox_Version.text;
     end else begin
     end;
+//    Form_ObjectPlacer.Position := poDefault;
+    Form_ObjectPlacer.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+    Form_ObjectPlacer.Top  := Self.Top + 0;
     Form_ObjectPlacer.ShowModal;
 //  end else begin
 //    Memo_Info.Lines.Add('Need Header file first');
@@ -1662,6 +1679,9 @@ begin
       Unit_AirportPlacer.apVersion:= ComboBox_Version.text;
     end else begin
     end;
+//    Form_AirportPlacer.Position := poDefault;
+    Form_AirportPlacer.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+    Form_AirportPlacer.Top  := Self.Top + 0;
     Form_AirportPlacer.ShowModal;
   end;
 end;
@@ -1855,6 +1875,7 @@ begin
     Unit_DEM.File_Folder := WorkingPathName+'\DEM';
     Unit_DEM.CurrentLandscape := CondorLandscapeName;
     Unit_DEM.Programsfolder := DownloaderPathName; // for 7-zip for now
+    Unit_DEM.ApplicationPath := ApplicationPathName;
 
     // offset to be able to see status and progressbar
 //    Form_DEM.Position := poDefault;
@@ -1915,7 +1936,10 @@ begin
   Unit_SimpleObjects.CondorFolder := CondorPathName;
   Unit_SimpleObjects.WorkingFolder := WorkingPathName;
   Unit_SimpleObjects.Memo_Message := Memo_Info;
-  form_SimpleObjects.ShowModal;
+//  Form_SimpleObjects.Position := poDefault;
+  Form_SimpleObjects.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+  Form_SimpleObjects.Top  := Self.Top + 0;
+  Form_SimpleObjects.ShowModal;
 end;
 
 //---------------------------------------------------------------------------

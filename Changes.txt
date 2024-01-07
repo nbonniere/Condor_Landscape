@@ -302,6 +302,9 @@ v0.8.20 - Dec 2023
   - clean-up quartertiles batch file generation
   - add batch download and combine for QuarterTiles
 
+v0.8.21 - Jan 2024
+  - add support for alternate/replacement DEM batch files
+  - add Make_All QuarterTile batch file
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

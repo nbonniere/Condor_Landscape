@@ -253,6 +253,16 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+Procedure Airport_Change_Show(Changed, Show : Boolean);
+begin
+  AirportsChanged := Changed;
+  Form_AirportPlacer.Button_Save.enabled := Changed;
+  if (Show) then begin
+    Form_AirportPlacer.ShowItem(nil);
+  end;
+end;
+
+//---------------------------------------------------------------------------
 var
   AirportCorners : CoordXY_Array;
   CentreMark : CoordXY_Array;
@@ -735,7 +745,11 @@ begin
         // relative ratios degrees per metre
         LatDegPerM :=  (TileList[TileIndex2].TileLatBottom - TileList[AirportTileIndex].TileLatBottom) / T_Range;
         LongDegPerM := (TileList[TileIndex2].TileLongRight - TileList[AirportTileIndex].TileLongRight) / -T_Range;
+        // bug- above only works if there is a full tile, not for partial tile!
+        LatDegPerM := (0.001/(earthRadius*2*Pi))*360;
+        LongDegPerM := LatDegPerM/cos(apLatitude*Pi/180);
 
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
         // if DDS textures available, use 4 closest, otherwise use terragen tile
         if (RadioButton_DDS.Checked = true) then begin
           Find_DDS_Tiles(AirportEasting, AirportNorthing, DDS_Col, DDS_Row);
@@ -818,6 +832,7 @@ begin
             Image_Tile_Clear;
           end;
         end;
+        Screen.Cursor := crDefault;  // no longer busy
       end else begin
         // blank image
         Image_Tile_Clear;
@@ -967,11 +982,12 @@ begin
   Airport_List[Airport_Count].apName := 'New Airport';
   ListBox_ObjectList.Items.Append(Airport_List[Airport_Count].apName);
   INC(Airport_Count);
-  AirportsChanged := true;
+//  AirportsChanged := true;
   ListBox_ObjectList.ItemIndex := ListBox_ObjectList.Items.Count-1;
   ItemIndex := ListBox_ObjectList.ItemIndex;
   apZoomScale := 1.0;
-  ShowItem(Sender);
+//  ShowItem(Sender);
+  Airport_Change_Show(True, True);
   // search for airport details
   Search_Airport_Details;
 end;
@@ -995,9 +1011,10 @@ begin
         ListBox_ObjectList.ItemIndex := ItemIndex;
       end;
       DEC(Airport_Count);
-      AirportsChanged := true;
+//      AirportsChanged := true;
       SetLength(Airport_List,Airport_Count);
-      ShowItem(Sender);
+//      ShowItem(Sender);
+      Airport_Change_Show(True, True);
       // search for airport details
       Search_Airport_Details;
     end;
@@ -1028,7 +1045,8 @@ procedure TForm_AirportPlacer.Button_SaveClick(Sender: TObject);
 begin
   if (AirportsChanged) then begin
     WriteAirportFile;
-    AirportsChanged := false;
+//    AirportsChanged := false;
+    Airport_Change_Show(False, False);
   end;
 end;
 
@@ -1043,7 +1061,8 @@ begin
       end;
       // search for airport details
 
-      AirportsChanged := true;
+//      AirportsChanged := true;
+      Airport_Change_Show(True, False);
     end;
   end;
 end;
@@ -1057,8 +1076,9 @@ begin
         apLatitude := StrtoFloat(Edit_Latitude.Text);
         Edit_Latitude.Text := format('%1.7f',[apLatitude]);
       end;
-      AirportsChanged := true;
-      ShowItem(Sender);
+//      AirportsChanged := true;
+//      ShowItem(Sender);
+      Airport_Change_Show(True, True);
     end;
   end;
 end;
@@ -1072,8 +1092,9 @@ begin
         apLongitude := StrtoFloat(Edit_Longitude.Text);
         Edit_Longitude.Text := format('%1.7f',[apLongitude]);
       end;
-      AirportsChanged := true;
-      ShowItem(Sender);
+//      AirportsChanged := true;
+//      ShowItem(Sender);
+      Airport_Change_Show(True, True);
     end;
   end;
 end;
@@ -1087,7 +1108,8 @@ begin
         apAltitude := StrtoFloat(Edit_Altitude.Text);
         Edit_Altitude.Text := format('%1.3f',[apAltitude]);
       end;
-      AirportsChanged := true;
+//      AirportsChanged := true;
+      Airport_Change_Show(True, False);
     end;
   end;
 end;
@@ -1101,8 +1123,9 @@ begin
         apDirection := Encode_apDirection(Edit_Direction.Text);
         Edit_Direction.Text := Decode_apDirection(apDirection);
       end;
-      AirportsChanged := true;
-      ShowItem(Sender);
+//      AirportsChanged := true;
+//      ShowItem(Sender);
+      Airport_Change_Show(True, True);
     end;
   end;
 end;
@@ -1116,8 +1139,9 @@ begin
         apLength := StrtoInt(Edit_Length.Text);
         Edit_Length.Text := format('%d',[apLength]);
       end;
-      AirportsChanged := true;
-      ShowItem(Sender);
+//      AirportsChanged := true;
+//      ShowItem(Sender);
+      Airport_Change_Show(True, True);
     end;
   end;
 end;
@@ -1131,8 +1155,9 @@ begin
         apWidth := StrtoInt(Edit_Width.Text);
         Edit_Width.Text := format('%d',[apWidth]);
       end;
-      AirportsChanged := true;
-      ShowItem(Sender);
+//      AirportsChanged := true;
+//      ShowItem(Sender);
+      Airport_Change_Show(True, True);
     end;
   end;
 end;
@@ -1146,7 +1171,8 @@ begin
         apFrequency := StrtoFloat(Edit_Frequency.Text);
         Edit_Frequency.Text := format('%1.5f',[apFrequency]);
       end;
-      AirportsChanged := true;
+//      AirportsChanged := true;
+      Airport_Change_Show(True, False);
     end;
   end;
 end;
@@ -1164,8 +1190,9 @@ begin
         apOptions := (apOptions AND $FFFFFF00) OR $00000000;
       end;
     end;
-    AirportsChanged := true;
-    ShowItem(Sender);
+//    AirportsChanged := true;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, True);
   end;
 end;
 
@@ -1182,8 +1209,9 @@ begin
         apOptions := (apOptions AND $FFFF00FF) OR $00000000;
       end;
     end;
-    AirportsChanged := true;
-    ShowItem(Sender);
+//    AirportsChanged := true;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, True);
   end;
 end;
 
@@ -1200,8 +1228,9 @@ begin
         apOptions := (apOptions AND $FF00FFFF) OR $00000000;
       end;
     end;
-    AirportsChanged := true;
-    ShowItem(Sender);
+//    AirportsChanged := true;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, True);
   end;
 end;
 
@@ -1217,7 +1246,8 @@ begin
         apAsphaltFlag := 1;
       end;
     end;
-    AirportsChanged := true;
+//    AirportsChanged := true;
+    Airport_Change_Show(True, False);
   end;
 end;
 
@@ -1233,7 +1263,8 @@ begin
         apAsphaltFlag := 0;
       end;
     end;
-    AirportsChanged := true;
+//    AirportsChanged := true;
+    Airport_Change_Show(True, False);
   end;
 end;
 
@@ -1283,8 +1314,9 @@ begin
     with Airport_List[ItemIndex] do begin
       apLongitude := apLongitude + Delta * LongDegPerM;
     end;
-    AirportsChanged := true;
-    ShowItem(Sender);
+//    AirportsChanged := true;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, True);
   end;
 end;
 
@@ -1310,8 +1342,9 @@ begin
     with Airport_List[ItemIndex] do begin
       apLatitude := apLatitude + Delta * LatDegPerM;
     end;
-    AirportsChanged := true;
-    ShowItem(Sender);
+//    AirportsChanged := true;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, True);
   end;
 end;
 
@@ -1465,7 +1498,7 @@ begin
     ord('S'), ord('s'): begin
       if (ssCtrl in Shift) then begin
         Button_SaveClick(Sender);
-//        key := #0; // so that other components won't see this keypress
+        key := 0; // so that other components won't see this keypress
       end;
     end;
     else begin
