@@ -79,6 +79,11 @@ Procedure MakeAutoGDALquarterTile(epsg : Integer; CurrentRow, CurrentColumn, off
 Procedure MakeGDAL_All_BatchFile(DetectTree, TIFF : boolean; epsg : integer);
 Procedure Make_DetectTree_to_ForestMaps_BatchFile;
 
+// for HiResRunway
+Procedure MakeAutoGDAL_Generic(epsg : Integer; FileName, FilePath : string;
+  Name, Zoom_Level : string;
+  UTM_Left, UTM_Right, UTM_Bottom, UTM_Top : single);
+
 //----------------------------------------------------------------------------
 implementation
 
@@ -122,6 +127,8 @@ begin
   writeln(GDALfile,'@echo off');
   writeln(GDALfile,'setlocal');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
+  // suppress generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -346,6 +353,8 @@ begin
   writeln(GDALfile,'setlocal EnableDelayedExpansion');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -502,6 +511,8 @@ begin
   writeln(GDALfile,'setlocal');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -692,6 +703,8 @@ begin
   writeln(GDALfile,'setlocal EnableDelayedExpansion');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -1111,6 +1124,8 @@ begin
   writeln(GDALfile,'setlocal EnableDelayedExpansion');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -1218,6 +1233,8 @@ begin
   writeln(GDALfile,'setlocal EnableDelayedExpansion');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -1335,6 +1352,8 @@ begin
   writeln(GDALfile,'@echo off');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
 
   writeln(GDALfile,'rem convert bitmap to GeoTiff to embed the EPSG:4326 lat/long coordinates');
   writeln(GDALfile,format('set real_left=%1.8f',[SourceLeftLongitude]));
@@ -1423,6 +1442,8 @@ begin
 //  writeln(GDALfile,'setlocal EnableDelayedExpansion');
   writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GDALfile,'rem goto directory where batch file is');
   writeln(GDALfile,'cd /d %~dp0');
 
@@ -1627,8 +1648,12 @@ begin
   begin
       writeln(GDALfile,'@echo off');
       writeln(GDALfile,'setlocal EnableDelayedExpansion');
-      writeln(GDALfile,'set PATH=%PATH%;"C:\OSGeo4W64\bin"');
-      writeln(GDALfile,'set PATH=%PATH%;"\Tools"');
+//      writeln(GDALfile,'set PATH=%PATH%;"C:\OSGeo4W64\bin"');
+//      writeln(GDALfile,'set PATH=%PATH%;"\Tools"');
+      writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
+//      writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+      // suppress generation of .xml file
+      writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
       writeln(GDALfile,'rem goto directory where batch file is');
       writeln(GDALfile,'cd /d %~dp0');
       writeln(GDALfile,'rem create output folder if necessary');
@@ -1640,17 +1665,138 @@ begin
       writeln(GDALfile,'set destinationBMP=..\..\ForestMaps\b%%~ny.bmp');
       writeln(GDALfile,'rem convert 24 bit greyscale to 8 bit greyscale by just using one of the three colors');
       writeln(GDALfile,'gdal_translate -b 1 !sourceTIF! !destinationBMP!');
-      writeln(GDALfile,'del !destinationBMP!.aux.xml');
+//      writeln(GDALfile,'del !destinationBMP!.aux.xml');
       writeln(GDALfile,'rem create a blank s file');
       writeln(GDALfile,'set destinationBMP=..\..\ForestMaps\s%%~ny.bmp');
       writeln(GDALfile,'gdal_translate -b 1 -scale 0 255 0 0 !sourceTIF! !destinationBMP!');
-      writeln(GDALfile,'rem remove un-wanted files');
-      writeln(GDALfile,'del !destinationBMP!.aux.xml');
+//      writeln(GDALfile,'rem remove un-wanted files');
+//      writeln(GDALfile,'del !destinationBMP!.aux.xml');
       writeln(GDALfile,')');
       writeln(GDALfile,'endlocal');
-   end;   
+   end;
   // close the file
   Close(GDALfile);
+  MessageShow(FileName+' done.');
+end;
+
+// 3857 for gmid and 4326 for geid
+//-------------------------------------------------------------------------------------
+Procedure MakeAutoGDAL_Generic(epsg : Integer; FileName, FilePath : string;
+  Name, Zoom_Level : string;
+  UTM_Left, UTM_Right, UTM_Bottom, UTM_Top : single);
+
+var
+  Zoom_Suffix : string;
+
+begin
+  // create path
+  ForceDirectories(FilePath);
+
+  //open the file
+  AssignFile(GDALfile, FilePath +'\'+ FileName);
+  Rewrite(GDALfile);
+
+  writeln(GDALfile,'@echo off');
+  writeln(GDALfile,'rem Enable Delayed Expansion for !Variables! ');
+  writeln(GDALfile,'setlocal EnableDelayedExpansion');
+  writeln(GDALfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
+  writeln(GDALfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
+  writeln(GDALfile,'rem goto directory where batch file is');
+  writeln(GDALfile,'cd /d %~dp0');
+
+  writeln(GDALfile,'rem convert bitmap to GeoTiff to embed the lat/long coordinates');
+
+  if (epsg = 4326) then begin
+    Zoom_Suffix := format('_%d',[strtoint(ZoomLevel)+1]); // for geid, zoom level is 1 step higher
+//    writeln(GDALfile,'set sourcebmp='+TileName+'_geid_combined\'+TileName+'_zoom'+Zoom_Suffix+'.bmp');
+    writeln(GDALfile,'set sourcebmp='+Name+'_combined\'+Name+'_zoom'+Zoom_Suffix+'.bmp');
+    writeln(GDALfile,'set FileName='+Name+'.geid');
+  end else begin // (epsg = 3857)
+    Zoom_Suffix := '';
+    writeln(GDALfile,'set sourcebmp='+Name+'_combined\'+Name+'.bmp');
+    writeln(GDALfile,'set FileName='+Name+'.umd');
+    writeln(GDALfile,'if NOT exist %FileName% set FileName='+Name+'.gmid');
+  end;
+  writeln(GDALfile,'if NOT exist %FileName% (echo ERROR: %FileName% NOT found & pause & exit /b 9)');
+
+  writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Left_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_left=%%a');
+  writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Top_Latitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_top=%%a');
+  writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Right_Longitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_right=%%a');
+  writeln(GDALfile,'for /f "tokens=2 delims==" %%a in (''find "Bottom_Latitude_download'+Zoom_Suffix+'=" %FileName%'') do set real_bottom=%%a');
+  // trim spaces
+//  writeln(GDALfile,'set real_left=%real_left: =%');
+//  writeln(GDALfile,'set real_top=%real_top: =%');
+//  writeln(GDALfile,'set real_right=%real_right: =%');
+//  writeln(GDALfile,'set real_bottom=%real_bottom: =%');
+
+  writeln(GDALfile,'set destinationtiff='+'bigmap.tif');
+  writeln(GDALfile,'if exist %destinationTIFF% del %destinationTIFF%'); // if already present
+
+  if (epsg = 4326) then begin
+    writeln(GDALfile,'gdal_translate -of Gtiff -a_ullr %real_left% %real_top% %real_right% %real_bottom% -a_srs EPSG:4326 %sourcebmp% %destinationtiff%');
+  end else begin // (epsg = 3857)
+    // convert coordinates
+    writeln(GDALfile,'rem convert EPSG:4326 coords to EPSG:3857');
+    writeln(GDALfile,'rem convert lat/long coordinates to meters');
+    writeln(GDALfile,'(echo %real_left% %real_top%)>Coord_In.txt');
+    writeln(GDALfile,'(echo %real_right% %real_bottom%)>>Coord_In.txt');
+    writeln(GDALfile,'gdaltransform -s_srs EPSG:4326 -t_srs EPSG:3857 <Coord_In.txt >Coord_Out.txt');
+    writeln(GDALfile,'rem Get file contents and store them per variable ex: var1, var2, var3, var4');
+    writeln(GDALfile,'set VarList=0');
+    writeln(GDALfile,'for /F "tokens=1,2" %%A in (Coord_Out.txt) do (');
+    writeln(GDALfile,'    SET /A VarList=!VarList! + 1');
+    writeln(GDALfile,'    set "var!VarList!=%%A"');
+    writeln(GDALfile,'    SET /A VarList=!VarList! + 1');
+    writeln(GDALfile,'    set "var!VarList!=%%B"');
+    writeln(GDALfile,')');
+
+    writeln(GDALfile,'if exist %destinationTIFF% del %destinationTIFF%'); // if already present
+    writeln(GDALfile,'gdal_translate -of Gtiff -a_ullr %var1% %var2% %var3% %var4% -a_srs EPSG:3857 %sourcebmp% %destinationtiff%');
+  end;
+  writeln(GDALfile,'rem del %sourcebmp%');
+
+  writeln(GDALfile,'rem crop to UTM coordinates');
+  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  if (UTM_ZoneNS = 'N') then begin
+    writeln(GDALfile,'set utm_grid=north');
+  end else begin
+    writeln(GDALfile,'set utm_grid=south');
+  end;
+  writeln(GDALfile,format('set utm_wanted_left=%1.1f',[UTM_Left]));
+  writeln(GDALfile,format('set utm_wanted_bottom=%1.1f',[UTM_Bottom]));
+  writeln(GDALfile,format('set utm_wanted_right=%1.1f',[UTM_Right]));
+  writeln(GDALfile,format('set utm_wanted_top=%1.1f',[UTM_Top]));
+
+// no size for airport
+//  writeln(GDALfile,'rem re-size');
+//  writeln(GDALfile,'set image_width='+OutputTileSize);
+//  writeln(GDALfile,'set image_height='+OutputTileSize);
+
+  writeln(GDALfile,'set sourcetiff='+'bigmap.tif');
+  writeln(GDALfile,'set destinationtiff='+'UTMmap.tif');
+
+  writeln(GDALfile,'rem convert, with cropping, and re-sizing');
+  writeln(GDALfile,'if exist %destinationTIFF% del %destinationTIFF%'); // if already present
+//  writeln(GDALfile,'gdalwarp.exe -r lanczos -of GTiff -t_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -ts %image_width% %image_height% -te %utm_wanted_left% %utm_wanted_bottom% %utm_wanted_right% %utm_wanted_top% %sourcetiff% %destinationtiff%');
+// no size for airport
+  writeln(GDALfile,'gdalwarp.exe -r lanczos -of GTiff -t_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -te %utm_wanted_left% %utm_wanted_bottom% %utm_wanted_right% %utm_wanted_top% %sourcetiff% %destinationtiff%');
+  writeln(GDALfile,'del %sourcetiff%');
+
+  writeln(GDALfile,'rem convert to bitmap');
+  writeln(GDALfile,'set sourcetiff='+'UTMmap.tif');
+  writeln(GDALfile,'set destinationbmp='+Name+'.bmp');
+  writeln(GDALfile,'gdal_translate -of BMP %sourcetiff% %destinationbmp%');
+  writeln(GDALfile,'del %sourcetiff%');
+// no move for airport
+//  writeln(GDALfile,'rem move %destinationbmp% ' + File_Destination);
+
+  writeln(GDALfile,'endlocal');
+
+  // close the file
+  Close(GDALfile);
+
   MessageShow(FileName+' done.');
 end;
 

@@ -147,7 +147,9 @@ var
   CurrentLandscape : string;
   File_Folder : string;              // external path for file
   library_Folder : string;           // external path for library
-  Programsfolder : string;           // external path for library
+  sZIPfolder : string;               // external path for 7-zip
+  WGETfolder : string;               // external path for Wget
+  LEfolder : string;                 // external path for Landscape Editor
   CondorVersion : string;
   ApplicationPath : string;
 
@@ -203,6 +205,7 @@ begin
         try
           result := 1000 * StrToFloat(Edit_ExtendCustom.text);
         except
+          result := 0;
           MessageShow('Invalid custom range margin');
           Beep; Exit;
         end;
@@ -251,7 +254,7 @@ var
   dX, dY : double;
   Columns, Rows : integer;
   Margin : double;
-  Temp_File : TextFile;
+//  Temp_File : TextFile;
 begin
   try
     LatNorth := StrToFloat(Edit_CoordLatNorth.text);
@@ -369,7 +372,7 @@ var
   dX, dY : double;
   Columns, Rows : integer;
   Margin : double;
-  Temp_File : TextFile;
+//  Temp_File : TextFile;
 begin
   try
     LatRef := StrToFloat(Edit_CoordLat.text);
@@ -851,16 +854,15 @@ begin
       Rewrite(DEM_file);
 
       writeln(DEM_file,'@echo off');
-      writeln(DEM_file,'setlocal');
-      writeln(DEM_file,'set PATH=%PATH%;c:\programs\wget');
+//      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'setlocal EnableDelayedExpansion');
+//      writeln(DEM_file,'set PATH=%PATH%;c:\programs\wget');
+      writeln(DEM_file,'set PATH=%PATH%;'+WGETfolder);
 
       writeln(DEM_file,'rem make sure needed programs exist');
-      writeln(DEM_file,'where wget');
+      writeln(DEM_file,'where wget 2>nul');
       writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
-      writeln(DEM_file,'   echo ERROR: c:\Programs\wget\wget.exe not found');
-      writeln(DEM_file,'   pause');
-      writeln(DEM_file,'   exit /b 9');
-      writeln(DEM_file,')');
+      writeln(DEM_file,'   echo ERROR: '+WGETfolder+'\wget.exe not found & pause & exit /b 9)');
 
       writeln(DEM_file,'rem goto directory where batch file is');
       writeln(DEM_file,'cd /d %~dp0');
@@ -871,6 +873,12 @@ begin
       writeln(DEM_file, 'if %uuuu% EQU user (set /p uuuu= User Name: )');
       writeln(DEM_file, 'if %pppp% EQU password (set /p pppp= Password: )');
       writeln(DEM_file, 'wget --http-user=%uuuu% --http-password=%pppp% -i URLs.txt');
+
+      writeln(DEM_file, 'rem check files OK');
+      writeln(DEM_file, 'for /F %%G in (URLs.txt) DO (');
+      writeln(DEM_file, '  for /F "tokens=6 delims=/" %%a in ("%%G") do set "zipFile=%%a"');
+      writeln(DEM_file, '  if not exist !zipFile! (echo ERROR: !zipFile! is missing & pause & exit /b 9)');
+      writeln(DEM_file,')');
 
 //      writeln(DEM_file,'pause');
       writeln(DEM_file,'endlocal');
@@ -889,22 +897,21 @@ begin
       Rewrite(DEM_file);
 
       writeln(DEM_file,'@echo off');
-      writeln(DEM_file,'setlocal');
-      writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
-      writeln(DEM_file,'set PATH=%PATH%;c:\Program Files\7-zip');
-      writeln(DEM_file,'set PATH=%PATH%;'+ProgramsFolder+'\geotiff');
+//      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'setlocal EnableDelayedExpansion');
+
+//      writeln(DEM_file,'set PATH=%PATH%;c:\programs\7-zip');
+      writeln(DEM_file,'set PATH=%PATH%;'+sZIPfolder);
 
       writeln(DEM_file,'rem make sure needed programs exist');
-      writeln(DEM_file,'where 7z');
+      writeln(DEM_file,'where 7z 2>nul');
       writeln(DEM_file,'IF %ERRORLEVEL% NEQ 0 (');
-      writeln(DEM_file,'   echo ERROR: c:\Program Files\7-zip\7z.exe not found');
-      writeln(DEM_file,'   pause');
-      writeln(DEM_file,'   exit /b 9');
-      writeln(DEM_file,')');
+//      writeln(DEM_file,'   echo ERROR: c:\Program Files\7-zip\7z.exe not found');
+      writeln(DEM_file,'  echo ERROR: '+sZIPfolder+'\7z.exe not found & pause & exit /b 9)');
 
       writeln(DEM_file,'rem goto directory where batch file is');
       writeln(DEM_file,'cd /d %~dp0');
-
+{
       for i := HGT_Lat_Min to HGT_Lat_Max do begin
         for j := HGT_Long_Min to HGT_Long_Max do begin
           writeln(DEM_file, '7z e '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
@@ -912,6 +919,13 @@ begin
           // writeln(DEM_file, 'tar -xf '+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
         end;
       end;
+}
+      writeln(DEM_file,'rem extract files');
+      writeln(DEM_file,'for /F %%G in (URLs.txt) DO (');
+      writeln(DEM_file,'  for /F "tokens=6 delims=/" %%a in ("%%G") do set "zipFile=%%a"');
+      writeln(DEM_file,'  if exist !zipFile! (7z e !zipFile!');
+      writeln(DEM_file,'  ) else (echo ERROR: !zipFile! is missing & pause & exit /b 9)');
+      writeln(DEM_file,')');
 
 //   writeln(DEM_file,'pause');
 //   writeln(DEM_file,'exit 0');
@@ -924,17 +938,22 @@ begin
       AssignFile(DEM_file, File_folder+'\DEM.bat');
       Rewrite(DEM_file);
 
-      writeln(DEM_file,'rem @echo off');
-      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'@echo off');
+//      writeln(DEM_file,'setlocal');
+      writeln(DEM_file,'setlocal EnableDelayedExpansion');
       writeln(DEM_file,'set PATH=%PATH%;"'+library_Folder+'"');
       writeln(DEM_file,'set GDAL_DATA='+library_Folder+'\..\share\epsg_csv');
+      // suppres generation of .xml file
+      writeln(DEM_file,'set GDAL_PAM_ENABLED=NO');
       writeln(DEM_file,'rem goto directory where batch file is');
       writeln(DEM_file,'cd /d %~dp0');
       writeln(DEM_file,'rem convert HGT file to GeoTiff');
 
       MessageClear;
       MessageShow('DEM: Will need to download the following STRM files:');
-      k := 0;
+
+    // replace below to generalize the processing
+{      k := 0;
       for i := HGT_Lat_Min to HGT_Lat_Max do begin
         for j := HGT_Long_Min to HGT_Long_Max do begin
           S := HGT_Name(i,j)+'.hgt';
@@ -964,6 +983,23 @@ begin
     writeln(DEM_file,'gdalwarp '+ SS + 'Overall.tif');
     writeln(DEM_file,'del T*.tif'); // no longer need
     writeln(DEM_file,'del R*.tif'); // no longer need
+}
+    // generalize the processing
+    // first show the files
+    for i := HGT_Lat_Min to HGT_Lat_Max do begin
+      for j := HGT_Long_Min to HGT_Long_Max do begin
+        S := HGT_Name(i,j)+'.hgt';
+        MessageShow(S);
+      end;
+    end;
+    // then use *.tif instead of specific filenames
+    writeln(DEM_file,'del *.tif');
+    writeln(DEM_file,'For %%G IN (*.hgt) do (set "hgtFile=%%G" & echo !hgtFile!');
+    writeln(DEM_file,'  gdal_translate -of GTiff !hgtFile! !hgtFile!.tif');
+    writeln(DEM_file,')');
+    writeln(DEM_file,'gdalwarp *.tif Overall.tif');
+    writeln(DEM_file,'del *.hgt');
+    writeln(DEM_file,'del *.hgt.tif');
 
     // then warp to UTM and crop
     writeln(DEM_file,'rem create a DEM with the desired UTM easting and northing');
@@ -1071,7 +1107,8 @@ var
 begin
   AssignFile(DEM_file, File_folder+'\..\Make_Hash.bat');
   Rewrite(DEM_file);
-  writeln(DEM_file,'C:\Condor2\CondorSceneryToolkit\LandscapeEditor.exe -hash '+ CurrentLandscape);
+//  writeln(DEM_file,'C:\Condor2\CondorSceneryToolkit\LandscapeEditor.exe -hash '+ CurrentLandscape);
+  writeln(DEM_file,LEfolder+'\LandscapeEditor.exe -hash '+ CurrentLandscape);
   // close the file
   CloseFile(DEM_file);
 end;
@@ -1183,12 +1220,13 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-Procedure Execute_BatchFile(FilePath, FileName, Params : String);
-var
-  ExitCode : DWORD;
+//Procedure Execute_BatchFile(FilePath, FileName, Params : String);
+Function Execute_BatchFile(FilePath, FileName, Params : String) : DWORD;
+//var
+//  ExitCode : DWORD;
 begin
-  ExitCode := Shell_Execute(FilePath, FileName, Params, true);
-  case ExitCode of
+  Result := Shell_Execute(FilePath, FileName, Params, true);
+  case Result of
     DWORD(-1): begin
       MessageShow('ERROR - Cannot execute Batch file');
     end;
@@ -1196,7 +1234,7 @@ begin
       MessageShow('Batch file done');
     end;
     else begin
-      MessageShow(format('ERROR batch file exit code= %d',[ExitCode]));
+      MessageShow(format('ERROR batch file exit code= %d',[Result]));
     end;
   end;
 end;
@@ -1248,9 +1286,11 @@ end;
 //---------------------------------------------------------------------------
 Procedure Do_All_BatchFiles;
 begin
-  Execute_BatchFile(File_Folder, 'DEM_WGET.bat', '');
-  Execute_BatchFile(File_Folder, 'DEM_Extract.bat', '');
-  Execute_BatchFile(File_Folder, 'DEM.bat', '');
+  if (Execute_BatchFile(File_Folder, 'DEM_WGET.bat', '') = 0) then begin
+    if (Execute_BatchFile(File_Folder, 'DEM_Extract.bat', '') = 0) then begin
+      Execute_BatchFile(File_Folder, 'DEM.bat', '');
+    end;
+  end;
 end;
 
 //---------------------------------------------------------------------------

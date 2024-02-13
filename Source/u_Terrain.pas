@@ -141,12 +141,12 @@ begin
     BlockRead(Terrain_File,TerrainHeader,sizeof(CondorTerrainHeader));
     with TerrainHeader do begin
       MessageShow(format('UTM Zone:   %d %s',[tUTMzone, tUTMgrid[0]]));
-      MessageShow(format('UTM Bottom: %1.3f',[tBottomMapNorthing]));
       MessageShow(format('UTM Right:  %1.3f',[tRightMapEasting]));
-//      MessageShow(format('Height:     %d  (256 x %d)',[tHeight,tHeight div 256]));
-      MessageShow(format('Height:     %d  (64 x %d, 256 x %1.2f)',[tHeight,tHeight div pRows,tHeight/tRows]));
+      MessageShow(format('UTM Bottom: %1.3f',[tBottomMapNorthing]));
 //      MessageShow(format('Width:      %d  (256 x %d)',[tWidth,tWidth div 256]));
       MessageShow(format('Width:      %d  (64 x %d, 256 x %1.2f)',[tWidth,tWidth div pColumns,tWidth/tColumns]));
+//      MessageShow(format('Height:     %d  (256 x %d)',[tHeight,tHeight div 256]));
+      MessageShow(format('Height:     %d  (64 x %d, 256 x %1.2f)',[tHeight,tHeight div pRows,tHeight/tRows]));
       MessageShow(format('Resolution: %1.6f',[tResolution]));
       MessageShow(format('Delta X:    %1.6f',[tDeltaX]));
       MessageShow(format('Delta Y:    %1.6f',[tDeltaY]));

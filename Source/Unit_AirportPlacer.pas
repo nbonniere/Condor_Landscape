@@ -69,7 +69,7 @@ type
     CheckBox_Tow_Primary_Left: TCheckBox;
     CheckBox_Tow_Secondary_Left: TCheckBox;
     GroupBox1: TGroupBox;
-    TreeView_Object: TTreeView;
+    TreeView_G: TTreeView;
     GroupBox2: TGroupBox;
     ScrollBox_Image: TScrollBox;
     Image_Tile: TImage;
@@ -86,12 +86,16 @@ type
     RadioButton_DDS: TRadioButton;
     Panel_Details: TPanel;
     RadioButton_APT: TRadioButton;
-    RadioButton_G_File: TRadioButton;
     Label_UTM: TLabel;
     Label_AirportCount: TLabel;
     Label_H_pos: TLabel;
     RadioButton_Elev: TRadioButton;
     RadioButton_Paved: TRadioButton;
+    Panel1: TPanel;
+    CheckBox_G_File: TCheckBox;
+    CheckBox_O_File: TCheckBox;
+    TreeView_O: TTreeView;
+    Button_HiResRunway: TButton;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -147,6 +151,11 @@ type
       Shift: TShiftState);
     procedure FormKeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
+    procedure CheckBox_G_FileMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure CheckBox_O_FileMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure Button_HiResRunwayClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -170,8 +179,9 @@ implementation
 {$R *.DFM}
 
 uses
-  ClipBrd,
-  u_Terrain, u_Airport, Unit_Graphics, Unit_Main, u_TileList, u_UTM,
+  FileCtrl, ClipBrd,
+  Unit_Graphics, Unit_Main, u_MakeGDAL, u_MakeDDS, Unit_HiResRunway,
+  u_Terrain, u_Airport, u_TileList, u_UTM, u_MakeGMID,
   u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT;
 
 var
@@ -246,7 +256,11 @@ begin
   apZoomScale := 1.0;
   AirportsChanged := false;
 
-  // blank to start
+  // clear treeview
+  ClearTreeView(TreeView_O);
+  ClearTreeView(TreeView_G);
+
+  // blank image to start
   Image_Tile_Clear;
 
   // also clear input boxes...
@@ -264,17 +278,20 @@ end;
 
 //---------------------------------------------------------------------------
 var
-  AirportCorners : CoordXY_Array;
-  CentreMark : CoordXY_Array;
-  TowPlaneTrack : CoordXY_Array;
-  GliderTrack : CoordXY_Array;
-  WindSock : CoordXY_Array;    // V1
+  AirportCorners : TCoordXY_Array;
+  CentreMark : TCoordXY_Array;
+  TowPlaneTrack : TCoordXY_Array;
+  GliderTrack : TCoordXY_Array;
+  WindSock : TCoordXY_Array;    // V1
 
-  TP_CR : CoordXY;
-  TP_TD : CoordXY;
-  TP_PK : CoordXY;
-  GL_TO : CoordXY;
-  WS    : CoordXY;
+  G_Object : TArray_CoordXY_Array; // G file asphalt and grass
+  O_Object_Outline : TCoordXY_Array; // O file object
+
+  TP_CR : TCoordXY;
+  TP_TD : TCoordXY;
+  TP_PK : TCoordXY;
+  GL_TO : TCoordXY;
+  WS    : TCoordXY;
 
 // V1
 // note - drawing on canvas has Y reversed !
@@ -321,8 +338,8 @@ end;
 procedure DrawRunway(TileIndex : integer);
 var
   i : integer;
-  Temp_CoordXY : CoordXY;
-  Airport_CoordXY : CoordXY;
+  Temp_CoordXY : TCoordXY;
+  Airport_CoordXY : TCoordXY;
   ScaleX , ScaleY : double;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -454,11 +471,19 @@ begin
 
   Offset_Array(AirportCorners,Airport_CoordXY);
 
+  // prepare pen
   with Form_AirportPlacer.Image_Tile do begin
-    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
     Canvas.Pen.Style := psSolid;
     Canvas.Pen.Width := 1;
     Canvas.Pen.Color := clRed;
+  end;
+
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Style := psSolid;
+//    Canvas.Pen.Width := 1;
+//    Canvas.Pen.Color := clRed;
     Canvas.MoveTo(round(AirportCorners[3].X * ScaleX), Round(AirportCorners[3].Y * ScaleY));
     for i := 0 to 3 do begin
       Canvas.LineTo(round(AirportCorners[i].X * ScaleX), Round(AirportCorners[i].Y * ScaleY));
@@ -506,22 +531,22 @@ end;
 //---------------------------------------------------------------------------
 procedure DrawElevation(TileIndex : integer);
 var
-  ScaleX , ScaleY : double;  // same for drawrunway -> move out ?
+//  ScaleX , ScaleY : double;  // same for drawrunway -> move out ?
   Steps : integer;
   Increment : double;
   i, j : integer;
   x, y : integer;
 
-  xLeft, xRight : integer;
-  xTop, xBottom : integer;
+//  xLeft, xRight : integer;
+//  xTop, xBottom : integer;
 
 begin
   with Form_AirportPlacer do begin
     Steps := trunc(apRange / 30); // 23040m or 11520m / 30m for V2
     Increment := Image_Tile.Width / Steps;
 
-    ScaleX := Image_Tile.Width/apRange * apZoomScale;
-    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+//    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+//    ScaleY := Image_Tile.Height/apRange * apZoomScale;
 
     //draw dots only in visible range
     // first find visible range
@@ -556,6 +581,147 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure Draw_G_Objects;
+var
+  Index : integer;
+//  Temp_CoordXY : TCoordXY;
+  Airport_CoordXY : TCoordXY;
+  ScaleX , ScaleY : double;
+//  useColor : TColor;
+  nName : string;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure DrawObject(useColor : TColor);
+var
+  i, j : integer;
+begin
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Style := psSolid;
+//    Canvas.Pen.Width := 1;
+    Canvas.Pen.Color := useColor;
+    for j := 0 to length(G_Object)-1 do begin
+      // -180 because of Condor airport definition
+      Rotate_Array(G_Object[j], AirportDirection-180);
+
+      Offset_Array(G_Object[j], Airport_CoordXY);
+
+      // start with last point to draw a closed surface
+      Canvas.MoveTo(round(G_Object[j][Length(G_Object[j])-1].X * ScaleX), Round(G_Object[j][Length(G_Object[j])-1].Y * ScaleY));
+      for i := 0 to Length(G_Object[j])-1 do begin
+        Canvas.LineTo(round(G_Object[j][i].X * ScaleX), Round(G_Object[j][i].Y * ScaleY));
+      end;
+    end;
+  end;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  // for drawing need reference to top left instead of bottom right
+  Airport_CoordXY.X := apRange - xCoord;
+  Airport_CoordXY.Y := apRange - yCoord;
+
+  with Form_AirportPlacer do begin
+    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+  end;
+
+  // prepare pen
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+    Canvas.Pen.Style := psSolid;
+    Canvas.Pen.Width := 1;
+//    Canvas.Pen.Color := clRed;
+  end;
+
+  Index := 0;
+  While (Index <> -1) do begin
+    // scan TreeView_G looking for mesh name = asphalt or grass
+    Index := FindNodebyType(Form_AirportPlacer.TreeView_G, Index, oMesh, nName);
+    if (Index <> -1) then begin
+      if (upperCase(nName) = 'ASPHALT') then begin
+        sExtract(Form_AirportPlacer.TreeView_G, Index, G_Object);
+        DrawObject(clBlack);
+      end else begin
+        if (uppercase(nName) = 'GRASS') then begin
+          sExtract(Form_AirportPlacer.TreeView_G, Index, G_Object);
+          DrawObject(clGreen);
+       	end;
+      end;
+      INC(Index);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure Draw_O_Objects;
+var
+  Index : integer;
+//  Temp_CoordXY : TCoordXY;
+  Airport_CoordXY : TCoordXY;
+  ScaleX , ScaleY : double;
+//  useColor : TColor;
+  nName : string;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure DrawObject(useColor : TColor);
+var
+  i, j : integer;
+begin
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Style := psSolid;
+//    Canvas.Pen.Width := 1;
+    Canvas.Pen.Color := useColor;
+    // -180 because of Condor airport definition
+    Rotate_Array(O_Object_Outline, AirportDirection-180);
+
+    Offset_Array(O_Object_Outline, Airport_CoordXY);
+
+    // start with last point to draw a closed surface
+    Canvas.MoveTo(round(O_Object_Outline[Length(O_Object_Outline)-1].X * ScaleX), Round(O_Object_Outline[Length(O_Object_Outline)-1].Y * ScaleY));
+    for i := 0 to Length(O_Object_Outline)-1 do begin
+      Canvas.LineTo(round(O_Object_Outline[i].X * ScaleX), Round(O_Object_Outline[i].Y * ScaleY));
+    end;
+  end;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  // for drawing need reference to top left instead of bottom right
+  Airport_CoordXY.X := apRange - xCoord;
+  Airport_CoordXY.Y := apRange - yCoord;
+
+  with Form_AirportPlacer do begin
+    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+  end;
+
+  // prepare pen
+  with Form_AirportPlacer.Image_Tile do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+    Canvas.Pen.Style := psSolid;
+    Canvas.Pen.Width := 1;
+//    Canvas.Pen.Color := clRed;
+  end;
+
+  Index := 0;
+  While (Index <> -1) do begin
+    // scan TreeView_G looking for mesh name = asphalt or grass
+    Index := FindNodebyType(Form_AirportPlacer.TreeView_O, Index, oMesh, nName);
+    if (Index <> -1) then begin
+      vExtract(Form_AirportPlacer.TreeView_O, Index, O_Object_Outline);
+      // only show outline
+//      O_Object_Outline := GrahamScan(O_Object_Outline); // bug - no good
+//      FindConvexHull(O_Object_Outline); // OK, but stack overflow on QuickSort sometimes
+      FindConvexHull(O_Object_Outline); // OK, with ShellSort ?
+      DrawObject(clBlack);
+      INC(Index);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure DrawObjects(TileIndex : integer);
 begin
   Screen.Cursor := crHourGlass;  // Let user know we're busy...
@@ -568,6 +734,12 @@ begin
           DrawElevation(TileIndex);
         end else begin
         end;
+      end;
+      if (CheckBox_G_File.Checked) then begin
+        Draw_G_Objects;
+      end;
+      if (CheckBox_O_File.Checked) then begin
+        Draw_O_Objects;
       end;
     end;
   finally
@@ -693,6 +865,7 @@ begin
       Button_Delete.Enabled := true;
     end else begin
       Button_Delete.Enabled := false;
+      Button_HiResRunway.Enabled := false;
     end;
     BitmapAvail := false; // assume for now
     with Airport_List[ItemIndex] do begin
@@ -710,8 +883,10 @@ begin
       CheckBox_Tow_Secondary_Left.checked := (apOptions AND $00010000 = $00010000);
       if ((apAsphaltFlag AND 1) = 1) then begin
         RadioButton_Paved.Checked := true;
+        Button_HiResRunway.Enabled := true;
       end else begin
         RadioButton_Grass.Checked := true;
+        Button_HiResRunway.Enabled := false;
       end;
       //default to 0 if no bitmap
       LatDegPerM := 0.0; LongDegPerM := 0.0;
@@ -745,7 +920,7 @@ begin
         // relative ratios degrees per metre
         LatDegPerM :=  (TileList[TileIndex2].TileLatBottom - TileList[AirportTileIndex].TileLatBottom) / T_Range;
         LongDegPerM := (TileList[TileIndex2].TileLongRight - TileList[AirportTileIndex].TileLongRight) / -T_Range;
-        // bug- above only works if there is a full tile, not for partial tile!
+        // bug- above only works if there is a full tile, not for partial tile and not using Ceil!
         LatDegPerM := (0.001/(earthRadius*2*Pi))*360;
         LongDegPerM := LatDegPerM/cos(apLatitude*Pi/180);
 
@@ -764,15 +939,31 @@ begin
               end;
             end;
           end;
+          // show a blank background if no files
+          if (DDS_Size = 0) then begin
+            DDS_Size := 512; // choose a default size
+          end;
+
+          with Image_Tile.Picture.Bitmap do begin
+            Image_Tile.Align := alClient;
+            Image_Tile.AutoSize := true;
+            Width := DDS_Size * 2;
+            Height := DDS_Size * 2;
+            Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+            Image_Tile_Clear;
+          end;
+
           // load 4 dds tiles and draw onto Image_Tile
           for i := 0 to 2-1 do begin
             for j := 0 to 2-1 do begin
               FileName := format('%sTextures\t%2.2d%2.2d.dds',[lAirportFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
               if (NOT FileExists(FileName)) then begin
-//              BitmapAvail := false;
+//              BitmapAvail := false; // change - allow even if no files
                 // blank image
-                Image_Tile_Clear;
-                exit;
+                Screen.Cursor := crDefault;  // no longer busy
+          //      Image_Tile_Clear;
+          //      exit;
+                continue;
               end;
               FilePicture := TPicture.Create;
               try
@@ -783,6 +974,7 @@ begin
                 end;
                 try
                   with Image_Tile.Picture.Bitmap do begin
+             {
                     if ((i = 0) AND (j=0)) then begin
                       Image_Tile.Align := alClient;
                       Image_Tile.AutoSize := true;
@@ -792,6 +984,7 @@ begin
                       Height := DDS_Size * 2;
                       Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
                     end;
+             }
 //                    Image_Tile.Canvas.CopyMode := cmSrcCopy;
 //                    Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
 //                      (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
@@ -822,15 +1015,26 @@ begin
           apRange := T_Range; // metres
           Label_Tile.Caption := TileList[AirportTileIndex].TileName;
           if (LoadTileBitmap(TileList[AirportTileIndex].TileName)) then begin
+      {
             BitmapAvail := true;
             ZoomRestore(Sender); // after load/reload of tile
             CentreAirport;
 //            DrawRunway(0);
             DrawObjects(0);
+      }
           end else begin
             // blank image
             Image_Tile_Clear;
+            // default size
+            Image_Tile.Picture.Bitmap.Width :=  512;
+            Image_Tile.Picture.Bitmap.Height := 512;
           end;
+          // change - allow even if no file
+          BitmapAvail := true;
+          ZoomRestore(Sender); // after load/reload of tile
+          CentreAirport;
+//          DrawRunway(0);
+          DrawObjects(0);
         end;
         Screen.Cursor := crDefault;  // no longer busy
       end else begin
@@ -875,6 +1079,7 @@ begin
       (Horiz * cCOS + Vert * -cSIN),
       (Horiz * cSIN + Vert *  cCOS)
       ]);
+{
     Horiz := trunc(apRange/30*
       (Image_Tile.Width-1-X)/Image_Tile.Width);
     Vert := trunc(apRange/30*
@@ -883,7 +1088,6 @@ begin
  Horiz := ScrollBox_Image.HorzScrollBar.Position;
  Vert  := ScrollBox_Image.VertScrollBar.Position;
 
-{
     Label_H_Pos.Caption := format('%1.0f,%1.0f',[
       Horiz, Vert
       ]);
@@ -941,24 +1145,46 @@ var
   SearchRec: TSearchRec;
   path, mask : string;
 begin
-    // also show objects
-    u_X_CX.oTreeView := TreeView_Object;
+    // find objects in O file
+    u_X_CX.oTreeView := TreeView_O;
+    ClearTreeView(TreeView_O); // and append to not show headers
 
     // look for O.c3d or O.x or O.cx
     Path := lAirportFolderName+'Airports\';
     Mask := Airport_List[ItemIndex].apName + 'O.*';
     if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
       if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
-        ReadCondorC3Dfile(Path+SearchRec.Name, false);
+        ReadCondorC3Dfile(Path+SearchRec.Name, true);
       end else begin
-        ReadCondorXfile(Path+SearchRec.Name, false);
+        ReadCondorXfile(Path+SearchRec.Name, true);
       end;
     end else begin
       FindClose(SearchRec);
       // clear treeview
-      ClearTreeView(TreeView_Object);
+      ClearTreeView(TreeView_O);
     end;
     FindClose(SearchRec);
+
+    // find objects in G file
+    u_X_CX.oTreeView := TreeView_G;
+    ClearTreeView(TreeView_G); // and append to not show headers
+
+    // look for G.c3d or G.x or G.cx
+    Path := lAirportFolderName+'Airports\';
+    Mask := Airport_List[ItemIndex].apName + 'G.*';
+    if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
+      if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
+        ReadCondorC3Dfile(Path+SearchRec.Name, true);
+      end else begin
+        ReadCondorXfile(Path+SearchRec.Name, true);
+      end;
+    end else begin
+      FindClose(SearchRec);
+      // clear treeview
+      ClearTreeView(TreeView_G);
+    end;
+    FindClose(SearchRec);
+
 end;
 
 //---------------------------------------------------------------------------
@@ -968,9 +1194,8 @@ begin
   ItemIndex := ListBox_ObjectList.ItemAtPos(point(X,Y), true);
   if (ItemIndex <> -1) then begin
     apZoomScale := 1.0;
+    Search_Airport_Details; // get details from G and O files
     ShowItem(Sender);
-    // also show objects
-    Search_Airport_Details;
   end;
 end;
 
@@ -986,10 +1211,9 @@ begin
   ListBox_ObjectList.ItemIndex := ListBox_ObjectList.Items.Count-1;
   ItemIndex := ListBox_ObjectList.ItemIndex;
   apZoomScale := 1.0;
+  Search_Airport_Details;
 //  ShowItem(Sender);
   Airport_Change_Show(True, True);
-  // search for airport details
-  Search_Airport_Details;
 end;
 
 //---------------------------------------------------------------------------
@@ -1013,10 +1237,9 @@ begin
       DEC(Airport_Count);
 //      AirportsChanged := true;
       SetLength(Airport_List,Airport_Count);
+      Search_Airport_Details;
 //      ShowItem(Sender);
       Airport_Change_Show(True, True);
-      // search for airport details
-      Search_Airport_Details;
     end;
   end;
 end;
@@ -1381,6 +1604,20 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.CheckBox_G_FileMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  ShowItem(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.CheckBox_O_FileMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  ShowItem(Sender);
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.Button_ZoomInClick(Sender: TObject);
 begin
   if (BitmapAvail) then begin
@@ -1479,9 +1716,8 @@ begin
       ItemIndex := ListBox_ObjectList.ItemIndex;
       if (ItemIndex <> -1) then begin
         apZoomScale := 1.0;
-        ShowItem(Sender);
-        // also show objects
         Search_Airport_Details;
+        ShowItem(Sender);
       end;
     end;
     else begin
@@ -1504,6 +1740,254 @@ begin
     else begin
     end;
   end;
+end;
+
+//---------------------------------------------------------------------------
+type
+  tCoord = array[0..2-1] of single;
+
+//---------------------------------------------------------------------------
+Procedure Make_Px_Airport(FilePath, FileName : string;
+  gV, gT : array of tCoord);
+var
+  PXfile : text;
+begin
+  //open the file
+  AssignFile(PXfile, FilePath +'\'+ FileName);
+  Rewrite(PXfile);
+  // write PX fields
+  writeln(PXfile,'xof 0303txt 0032');
+  writeln(PXfile,'Mesh AsphaltPaint {');
+  writeln(PXfile,'4;');
+  writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[0][0],gV[0][1]]));
+  writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[1][0],gV[1][1]]));
+  writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[2][0],gV[2][1]]));
+  writeln(PXfile,format('%3.3f; %3.3f; 0.0;;',[gV[3][0],gV[3][1]]));
+  writeln(PXfile,'2;');
+  writeln(PXfile,'3; 0, 2, 1;,');
+  writeln(PXfile,'3; 2, 0, 3;;');
+  writeln(PXfile,'MeshNormals {');
+  writeln(PXfile,'4;');
+  writeln(PXfile,' 0.0; 0.0; 1.0;,');
+  writeln(PXfile,' 0.0; 0.0; 1.0;,');
+  writeln(PXfile,' 0.0; 0.0; 1.0;,');
+  writeln(PXfile,' 0.0; 0.0; 1.0;;');
+  writeln(PXfile,'2;');
+  writeln(PXfile,'3; 0, 2, 1;,');
+  writeln(PXfile,'3; 2, 0, 3;;');
+  writeln(PXfile,'}');
+  writeln(PXfile,'MeshTextureCoords {');
+  writeln(PXfile,'4;');
+  writeln(PXfile,format('%3.3f; %1.6f;,',[gT[0][0],gT[0][1]]));
+  writeln(PXfile,format('%3.3f; %1.6f;,',[gT[1][0],gT[1][1]]));
+  writeln(PXfile,format('%3.3f; %1.6f;,',[gT[2][0],gT[2][1]]));
+  writeln(PXfile,format('%3.3f; %1.6f;;',[gT[3][0],gT[3][1]]));
+  writeln(PXfile,'}');
+  writeln(PXfile,'MeshMaterialList {');
+  writeln(PXfile,' 1;');
+  writeln(PXfile,' 1;');
+  writeln(PXfile,' 0;');
+  writeln(PXfile,'Material  {');
+  writeln(PXfile,' 1.0; 1.0; 1.0; 1.0;;');
+  writeln(PXfile,' 1.0;');
+  writeln(PXfile,' 0.0; 0.0; 0.0;;');
+  writeln(PXfile,' 1.0; 1.0; 1.0;;');
+  writeln(PXfile,'TextureFilename {');
+  writeln(PXfile,'"Textures/Airport.dds";');
+  writeln(PXfile,'}');
+  writeln(PXfile,'}');
+  writeln(PXfile,'}');
+  writeln(PXfile,'}');
+  writeln(PXfile,'}');
+  // close the file
+  Close(PXfile);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_HiResRunwayClick(Sender: TObject);
+const
+  Margin : single = 25.0;    // meters
+  EarthRadius = 6371000.0;  // metres
+  Zoom_Level_Airport = '19';
+
+var
+  i : integer;
+  Temp : single;
+  Airport_Longitude : single;
+  Airport_Latitude : single;
+  Airport_Direction : single;
+  Airport_Length : single;
+  Airport_Width : single;
+  Airport_Offset_Easting : single;
+  Airport_Offset_Northing : single;
+  Airport_Corners : array[0..4-1] of tCoord;
+  Airport_G_Corners : array[0..4-1] of tCoord;
+  Rotation_Matrix : array[0..2-1] of array[0..2-1] of single;
+  X_Min, X_Max, Y_Min, Y_Max : single;
+  X_Offset , Y_Offset : single;
+  X_Extent , Y_Extent : single;
+  Longitude_m_to_degrees, Latitude_m_to_degrees : single;
+  FileName, FilePath : string;
+
+begin
+  // pop-up request runway details
+  // need length, width, offset in metres
+//    Form_HiResRunway.Position := poDefault;
+  // offset to be able to see status and progressbar
+  Form_HiResRunway.Left := Self.Left + 50;
+  Form_HiResRunway.Top  := Self.Top + 50;
+
+  // default to airport placer runway
+  Form_HiResRunway.Edit_Length.Text := Edit_Length.Text;
+  Form_HiResRunway.Edit_Width.Text := Edit_Width.Text;
+
+  form_HiResRunway.ShowModal;
+  Application.ProcessMessages;
+  if ( NOT Unit_HiResRunway.gActionRequest) then begin
+    exit;
+  end;
+
+  FilePath := u_MakeGMID.GMIDfolder+'\Airports\'+Edit_AirportName.Text;
+  ForceDirectories(FilePath);
+
+  // calculate corners in UTM metres
+  Airport_Length := STRtoFloat(form_HiResRunway.Edit_Length.text);
+  Airport_Width := STRtoFloat(form_HiResRunway.Edit_Width.text);
+  Airport_Offset_Easting := STRtoFloat(form_HiResRunway.Edit_Easting.text);
+  Airport_Offset_Northing := STRtoFloat(form_HiResRunway.Edit_Northing.text);
+  Airport_Corners[0][0] :=  Airport_Width /2; Airport_Corners[0][1] :=  Airport_Length /2;
+  Airport_Corners[1][0] :=  Airport_Width /2; Airport_Corners[1][1] := -Airport_Length /2;
+  Airport_Corners[2][0] := -Airport_Width /2; Airport_Corners[2][1] := -Airport_Length /2;
+  Airport_Corners[3][0] := -Airport_Width /2; Airport_Corners[3][1] :=  Airport_Length /2;
+
+  // G file corners must include the offset
+  for i := 0 to 4-1 do begin
+    Airport_G_Corners[i][0] := Airport_Corners[i][0] + Airport_Offset_Easting;
+    Airport_G_Corners[i][1] := Airport_Corners[i][1] + Airport_Offset_Northing;
+  end;
+
+  // get airport direction (degrees) and create rotation matrix
+  Airport_Direction := strtofloat(Edit_Direction.Text);
+  Rotation_Matrix[0][0] :=  COS((Airport_Direction-180)/180*Pi);
+  Rotation_Matrix[0][1] := -SIN((Airport_Direction-180)/180*Pi);
+  Rotation_Matrix[1][0] :=  SIN((Airport_Direction-180)/180*Pi);
+  Rotation_Matrix[1][1] :=  COS((Airport_Direction-180)/180*Pi);
+
+  // rotate airport corners
+  Temp := Rotation_Matrix[0][0] * Airport_Corners[0][0] +
+          Rotation_Matrix[0][1] * Airport_Corners[0][1];
+  Airport_Corners[0][1] := Rotation_Matrix[1][0] * Airport_Corners[0][0] +
+                           Rotation_Matrix[1][1] * Airport_Corners[0][1];
+  Airport_Corners[0][0] := Temp;
+
+  Temp := Rotation_Matrix[0][0] * Airport_Corners[1][0] +
+          Rotation_Matrix[0][1] * Airport_Corners[1][1];
+  Airport_Corners[1][1] := Rotation_Matrix[1][0] * Airport_Corners[1][0] +
+                           Rotation_Matrix[1][1] * Airport_Corners[1][1];
+  Airport_Corners[1][0] := Temp;
+
+  Temp := Rotation_Matrix[0][0] * Airport_Corners[2][0] +
+          Rotation_Matrix[0][1] * Airport_Corners[2][1];
+  Airport_Corners[2][1] := Rotation_Matrix[1][0] * Airport_Corners[2][0] +
+                           Rotation_Matrix[1][1] * Airport_Corners[2][1];
+  Airport_Corners[2][0] := Temp;
+
+  Temp := Rotation_Matrix[0][0] * Airport_Corners[3][0] +
+          Rotation_Matrix[0][1] * Airport_Corners[3][1];
+  Airport_Corners[3][1] := Rotation_Matrix[1][0] * Airport_Corners[3][0] +
+                           Rotation_Matrix[1][1] * Airport_Corners[3][1];
+  Airport_Corners[3][0] := Temp;
+
+  // find min, max, extents
+  X_Min := Airport_Corners[0][0];
+  for i := 1 to 4-1 do begin
+    if (Airport_Corners[i][0] < X_Min) then begin
+      X_Min := Airport_Corners[i][0];
+    end;
+  end;
+  Y_Min := Airport_Corners[0][1];
+  for i := 1 to 4-1 do begin
+    if (Airport_Corners[i][1] < Y_Min) then begin
+      Y_Min := Airport_Corners[i][1];
+    end;
+  end;
+  X_Max := Airport_Corners[0][0];
+  for i := 1 to 4-1 do begin
+    if (Airport_Corners[i][0] > X_Max) then begin
+      X_Max := Airport_Corners[i][0];
+    end;
+  end;
+  Y_Max := Airport_Corners[0][1];
+  for i := 1 to 4-1 do begin
+    if (Airport_Corners[i][1] > Y_Max) then begin
+      Y_Max := Airport_Corners[i][1];
+    end;
+  end;
+  // add margin to extents
+  X_Extent := X_Max-X_min + 2*Margin;
+  Y_Extent := Y_Max-Y_min + 2*Margin;
+  // calculate rotated UTM offsets (rotate by - airportDirection)
+  X_Offset := Airport_Offset_Easting*  COS((-Airport_Direction/180*Pi))
+             +Airport_Offset_Northing*-SIN((-Airport_Direction/180*Pi));
+  Y_Offset := Airport_Offset_Easting*  SIN((-Airport_Direction/180*Pi))
+             +Airport_Offset_Northing* COS((-Airport_Direction/180*Pi));
+
+  // calculate texture coords relative to extents range
+  for i := 0 to 4-1 do begin
+    Airport_Corners[i][0] := (Airport_Corners[i][0] / X_Extent) + 0.5;
+    Airport_Corners[i][1] := (Airport_Corners[i][1] / Y_Extent) + 0.5;
+  end;
+  // make runway .px file
+  FileName := 'Airport.px';
+  Make_Px_Airport(FilePath, FileName,
+    Airport_G_Corners,Airport_Corners);
+
+  // get centre of airport lat/long coords
+  Airport_Longitude := strtofloat(Edit_Longitude.Text);
+  Airport_Latitude := strtofloat(Edit_Latitude.Text);
+
+  // convert extents to degrees based on earth radius and latitude
+  // could also have done a UTM to lat/long conversion
+  Latitude_m_to_degrees := 360/(EarthRadius*2*Pi);
+  Longitude_m_to_degrees := Latitude_m_to_degrees / COS(Airport_Latitude/180*Pi);
+  // create a lat/long coords for GMID download and combine batch files
+  X_Min := Airport_Longitude+(X_Offset-X_Extent/2)*Longitude_m_to_degrees;
+  X_Max := Airport_Longitude+(X_Offset+X_Extent/2)*Longitude_m_to_degrees;
+  Y_Min := Airport_Latitude+ (Y_Offset-Y_Extent/2)* Latitude_m_to_degrees;
+  Y_Max := Airport_Latitude+ (Y_Offset+Y_Extent/2)* Latitude_m_to_degrees;
+  // create download and combine batch files
+  // need to create a more generic make_GMID to call here which includes download and combine - TBD
+  FileName := 'Batch_Airport_Download.bat';
+  Make_Batch_DownloadCombine(td_D, 'Airport',
+                             u_MakeGMID.GMIDMapID, u_MakeGMID.GMIDMapType,
+                             FilePath, FileName,
+                             Zoom_Level_Airport,
+                             X_Min, X_Max, Y_Max, Y_Min);
+  FileName := 'Batch_Airport_Combine.bat';
+  Make_Batch_DownloadCombine(td_C, 'Airport',
+                             u_MakeGMID.GMIDMapID, u_MakeGMID.GMIDMapType,
+                             FilePath, FileName,
+                             Zoom_Level_Airport,
+                             X_Min, X_Max, Y_Max, Y_Min);
+
+  // get landscape Bottom-Right UTM coords
+  // use UTM_Right, UTM_Bottom
+  // get airport relative UTM coords
+  // use AirportEasting, AirportNorthing
+  // calculate desired UTM for GDAL
+  X_Min := UTM_Right-AirportEasting+  (X_Offset-X_Extent/2);
+  X_Max := UTM_Right-AirportEasting+  (X_Offset+X_Extent/2);
+  Y_Min := UTM_Bottom+AirportNorthing+(Y_Offset-Y_Extent/2);
+  Y_Max := UTM_Bottom+AirportNorthing+(Y_Offset+Y_Extent/2);
+  // create GDAL batch file
+  FileName := 'GDAL_Airport.bat';
+  MakeAutoGDAL_Generic(3857, FileName, FilePath,
+    'Airport', Zoom_Level_Airport,
+    X_Min, X_Max, Y_Min, Y_Max);
+  // create DDS batch file
+  FileName := 'DDS_Airport.bat';
+  MakeDDS_Generic('Airport', FilePath, FileName);
+
 end;
 
 //---------------------------------------------------------------------------

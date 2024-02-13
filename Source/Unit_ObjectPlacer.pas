@@ -187,6 +187,17 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+Procedure Object_Change_Show(Changed, Show : Boolean);
+begin
+  ObjectsChanged := Changed;
+  Form_ObjectPlacer.Button_Delete.Enabled := (Object_Count > 0);
+  Form_ObjectPlacer.Button_Save.enabled := Changed;
+  if (Show) then begin
+    Form_ObjectPlacer.ShowItem(nil);
+  end;
+end;
+
+//---------------------------------------------------------------------------
 Procedure TForm_ObjectPlacer.Initialize(Sender: TObject);
 var
   i : integer;
@@ -198,10 +209,11 @@ begin
     ListBox_ObjectList.Items.Append(Object_List[i].coName);
   end;
   Label_ObjectCount.Caption := IntToStr(Object_Count);
-//  ItemIndex := ListBox_ObjectList.ItemIndex;
+//  ItemIndex := ListBox_ObjectList.ItemIndex; // default empty is 0 ?
   ItemIndex := -1;
   opZoomScale := 1.0;
-  ObjectsChanged := false;
+//  ObjectsChanged := false;
+  Object_Change_Show(False, False);
 
   // blank to start
   Image_Tile_Clear;
@@ -211,25 +223,15 @@ end;
 
 //---------------------------------------------------------------------------
 var
-  ObjectCorners : CoordXY_Array;
-  CentreMark : CoordXY_Array;
-
-//---------------------------------------------------------------------------
-Procedure Object_Change_Show(Changed, Show : Boolean);
-begin
-  ObjectsChanged := Changed;
-  Form_ObjectPlacer.Button_Save.enabled := Changed;
-  if (Show) then begin
-    Form_ObjectPlacer.ShowItem(nil);
-  end;
-end;
+  ObjectCorners : TCoordXY_Array;
+  CentreMark : TCoordXY_Array;
 
 //---------------------------------------------------------------------------
 procedure DrawObject(TileIndex : integer);
 var
   i : integer;
-  Temp_CoordXY : CoordXY;
-  Object_CoordXY : CoordXY;
+  Temp_CoordXY : TCoordXY;
+  Object_CoordXY : TCoordXY;
   ScaleX , ScaleY : double;
 
 begin
@@ -390,7 +392,8 @@ var
 
 begin
   if (ItemIndex <> -1) then begin
-    if (Object_Count > 1) then begin
+//    if (Object_Count > 1) then begin
+    if (Object_Count > 0) then begin
       Button_Delete.Enabled := true;
     end else begin
       Button_Delete.Enabled := false;
@@ -629,7 +632,11 @@ end;
 procedure TForm_ObjectPlacer.Button_AddClick(Sender: TObject);
 begin
   SetLength(Object_List,Object_Count+1);
-  Object_list[Object_Count] := Object_list[Object_Count-1]; //default values
+  if (Object_Count >0) then begin
+    Object_list[Object_Count] := Object_list[Object_Count-1]; //default values from previous
+  end else begin
+    Object_list[Object_Count] := CondorObject_Default; //default values
+  end;
   Object_List[Object_Count].coName := 'New.X.CX.c3d';
   ListBox_ObjectList.Items.Append(Object_List[Object_Count].coName);
   INC(Object_Count);   Label_ObjectCount.Caption := IntToStr(Object_Count);
@@ -651,9 +658,14 @@ begin
       Object_list[i] := Object_list[i+1];
     end;
     DEC(Object_Count); Label_ObjectCount.Caption := IntToStr(Object_Count);
+    SetLength(Object_List,Object_Count);
 //    ObjectsChanged := true;
     ListBox_ObjectList.Items.Delete(ItemIndex);
-    ItemIndex := ListBox_ObjectList.ItemIndex;
+    if (Object_Count = 0) then begin
+      ItemIndex := -1; // force not 0
+    end else begin
+      ItemIndex := ListBox_ObjectList.ItemIndex;
+    end;  
     opZoomScale := 1.0;
 //    ShowItem(Sender);
     Object_Change_Show(True, True);

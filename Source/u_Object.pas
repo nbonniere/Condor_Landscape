@@ -64,6 +64,10 @@ type
       coName      : string[131];
     end;
 
+const
+  CondorObject_Default: CondorObject = (coEasting: 5760;coNorthing: 5760;
+    coElevation: 0; coScale: 1.0; coRotation: 0.0; coName: '');
+
 var
   Memo_Message : TMemo;  // external TMemo for messages
 

@@ -29,7 +29,9 @@ see OBJ8 at end of file
 //===========================================================================
 INTERFACE
 
-uses Graphics, Comctrls, StdCtrls;
+uses
+  Graphics, Comctrls, StdCtrls,
+  u_VectorXY;
 
 type
   X_CX_type = (fx, fcx, fpx);
@@ -297,6 +299,11 @@ Procedure Reset_FTM_Unity;
 Procedure UpdateFTM(FTMname : string ; FTM : Array of single);
 Procedure UpdateTC(TCname : string; TC : Array of single);
 Procedure UpdateTF(TFname : string; F : string);
+
+function FindNodebyType(oTreeView : TTreeView;Index : integer;
+                        nType : oObjType; var nName : string) : integer;
+Procedure sExtract(oTreeView : TTreeView; Index : integer; var o_Object : TArray_CoordXY_Array);
+Procedure vExtract(oTreeView : TTreeView; Index : integer; var o_Object : TCoordXY_Array);
 
 //===========================================================================
 IMPLEMENTATION
@@ -2541,6 +2548,88 @@ begin
   end;
 end;
 
+{----------------------------------------------------------------------------}
+Procedure sExtract(oTreeView : TTreeView; Index : integer; var o_Object : TArray_CoordXY_Array);
+var
+  i, j : integer;
+//  Xcentre, Ycentre,Scale : double;
+//  iX, iY : integer;
+  Ptr : pointer;
+
+begin
+  with oTreeView do begin
+    Ptr := pMesh(pObjectItem(Items[Index].data)^.oPointer);
+{
+    if (pMesh(Ptr)^.tRotation <> 0) then begin
+    end;
+    if (pMesh(Ptr)^.tHeight <> 0) then begin
+    end;
+    with pMesh(Ptr)^ do begin
+      Xcentre := tMinMaxArray[4];
+      Ycentre := tMinMaxArray[5];
+      Scale := tMinMaxArray[6] * 2;
+      if (Scale = 0) then begin
+        Scale := 1.0;  //avoid potential div 0 errors
+      end;
+    end;
+}
+    with pMesh(Ptr)^ do begin
+      // need to set the size of the number of surfaces
+      SetLength(o_Object,sArray.aCount);
+      for i := 0 to sArray.aCount-1 do begin
+        // need to set the size of the number of vertices
+//        SetLength(o_Object[i],sArray.aArray[i].aCount+1); // one extra to close polygon
+        SetLength(o_Object[i],sArray.aArray[i].aCount);
+//        o_Object[i][0].X := (tArray.aArray[sArray.aArray[i].aArray[sArray.aArray[i].aCount-1]][0]{-Xcentre});
+//        o_Object[i][0].Y := (tArray.aArray[sArray.aArray[i].aArray[sArray.aArray[i].aCount-1]][1]{-ycentre});
+        for j := 0 to sArray.aArray[i].aCount-1 do begin
+          o_Object[i][j].X := (tArray.aArray[sArray.aArray[i].aArray[j]][0]{-Xcentre});
+          o_Object[i][j].Y := (tArray.aArray[sArray.aArray[i].aArray[j]][1]{-ycentre});
+        end;
+      end;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure vExtract(oTreeView : TTreeView; Index : integer; var o_Object : TCoordXY_Array);
+var
+  i, j : integer;
+//  Xcentre, Ycentre,Scale : double;
+//  iX, iY : integer;
+  Ptr : pointer;
+
+begin
+  with oTreeView do begin
+    Ptr := pMesh(pObjectItem(Items[Index].data)^.oPointer);
+{
+    if (pMesh(Ptr)^.tRotation <> 0) then begin
+    end;
+    if (pMesh(Ptr)^.tHeight <> 0) then begin
+    end;
+    with pMesh(Ptr)^ do begin
+      Xcentre := tMinMaxArray[4];
+      Ycentre := tMinMaxArray[5];
+      Scale := tMinMaxArray[6] * 2;
+      if (Scale = 0) then begin
+        Scale := 1.0;  //avoid potential div 0 errors
+      end;
+    end;
+}
+    with pMesh(Ptr)^ do begin
+      // need to set the size of the number of vertices
+//      SetLength(o_Object,tArray.aCount+1); // one extra to close polygon
+      SetLength(o_Object,tArray.aCount);
+//        o_Object[0].X := (tArray.aArray[tArray.aCount-1][0]{-Xcentre});
+//        o_Object[0].Y := (tArray.aArray[tArray.aCount-1][1]{-ycentre});
+      for i := 0 to tArray.aCount-1 do begin
+        o_Object[i].X := (tArray.aArray[i][0]{-Xcentre});
+        o_Object[i].Y := (tArray.aArray[i][1]{-ycentre});
+      end;
+    end;
+  end;
+end;
+
 {----------------------------------------------------------------------------
 Condor .C3D object coordinate encoding/decoding
 ----------------------------------------------------------------------------}
@@ -2973,6 +3062,35 @@ begin
           else begin // skip
             INC(i);
           end;
+        end;
+      end else begin // skip
+        INC(i);
+      end;
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function FindNodebyType(oTreeView : TTreeView; Index : integer;
+                        nType : oObjType; var nName : string) : integer;
+var
+  i : integer;
+
+begin
+  result := -1; // assume not found at first
+  //search tree for material with matching name
+  with oTreeView do begin
+    i := Index;
+    while  (i <= Items.Count-1) do begin
+      if (Items[i].data <> nil) then begin
+        if (pObjectItem(Items[i].data)^.oType = nType) then begin
+          with pMaterial(pObjectItem(Items[i].data)^.oPointer)^ do begin
+            nName := tName;
+          end;
+          result := i;
+          break;
+        end else begin // skip
+          INC(i);
         end;
       end else begin // skip
         INC(i);

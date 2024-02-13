@@ -306,6 +306,17 @@ v0.8.21 - Jan 2024
   - add support for alternate/replacement DEM batch files
   - add Make_All QuarterTile batch file
 
+v0.9.1 - Feb 2024
+  - Add path selection for 7-zip, wget, landscape editor.
+  - AirportPlacer - now can show G-file
+  - AirportPlacer - now can show O-file
+  - ObjectPlacer - fix delete and save processing bugs
+  - allow masking of 24 bit as well as 8 bit bitmaps by 'water' mask
+    - can do texture for missing ocean data, and forests to clear river/lake/ocean areas
+  - add a new method for forest generation with Maryland University Land Cover database
+  - add support for creating hi-res runways	in AirportPlacer
+  - allow showing runway on blank area if no terragen or no dds files
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

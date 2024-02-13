@@ -47,9 +47,6 @@ type
     ComboBox_Landscape: TComboBox;
     Button_GDAL: TButton;
     Button_Header: TButton;
-    GroupBox_GDALpath: TGroupBox;
-    Edit_GDALpath: TEdit;
-    Button_GDALpath: TButton;
     Button_Forest: TButton;
     Button_Thermal: TButton;
     Button_EditForest: TButton;
@@ -72,21 +69,34 @@ type
     Button_DEM: TButton;
     GroupBox_GEO: TGroupBox;
     ComboBox_GEO: TComboBox;
-    GroupBox_TextureCompression: TGroupBox;
-    Edit_CompressorPath: TEdit;
-    Button_TextureCompressorPath: TButton;
     GroupBox_DXT: TGroupBox;
     ComboBox_DXT: TComboBox;
     Button_DDS: TButton;
     Button_Merge: TButton;
-    GroupBox_Downloader: TGroupBox;
-    Edit_DownloaderPath: TEdit;
-    Button_Downloader: TButton;
     GroupBox_MapType: TGroupBox;
     ComboBox_MapType: TComboBox;
     GroupBox_MapID: TGroupBox;
     ComboBox_MapID: TComboBox;
     Button_SimpleObjects: TButton;
+    Label_CondorProg: TLabel;
+    Button_GDALpath: TButton;
+    Edit_GDALpath: TEdit;
+    Label_GDAL_Lib: TLabel;
+    Button_TextureCompressorPath: TButton;
+    Edit_CompressorPath: TEdit;
+    Label_Compressor: TLabel;
+    Button_DownloaderPath: TButton;
+    Edit_DownloaderPath: TEdit;
+    Label_Downloader: TLabel;
+    Edit_LEpath: TEdit;
+    Button_LEpath: TButton;
+    Label_Condor_LE: TLabel;
+    Edit_WgetPath: TEdit;
+    Button_WgetPath: TButton;
+    Label_Wget: TLabel;
+    Label_7zip: TLabel;
+    Edit_7zipPath: TEdit;
+    Button_7zipPath: TButton;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -120,8 +130,11 @@ type
     procedure Button_TextureCompressorPathClick(Sender: TObject);
     procedure Button_DDSClick(Sender: TObject);
     procedure Button_MergeClick(Sender: TObject);
-    procedure Button_DownloaderClick(Sender: TObject);
+    procedure Button_DownloaderPathClick(Sender: TObject);
     procedure Button_SimpleObjectsClick(Sender: TObject);
+    procedure Button_LEpathClick(Sender: TObject);
+    procedure Button_7zipPathClick(Sender: TObject);
+    procedure Button_WgetPathClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -138,11 +151,12 @@ IMPLEMENTATION
 {$R *.DFM}
 
 uses
-  FileCtrl, Dialogs,
+  FileCtrl, Dialogs, Math,
   Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
   Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects, Unit_SimpleObjects,
+  u_MakeGradient,
   u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
-  u_MakeForest, u_MakeThermal, u_MakeGradient,
+  u_MakeForest, u_MakeThermal,
   u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
   u_Terrain, u_Forest, u_Thermal, u_UTM,
   u_X_CX, u_CalibImport, u_LandsatMet,
@@ -162,6 +176,9 @@ var
   CondorLandscapeName : string;
   WorkingPathName : string;
   TileName : string;
+  CondorLEpathName : string;
+  WgetPathName : string;
+  sZipPathName : string;
 
 //---------------------------------------------------------------------------
 function LandscapeSelected : boolean;
@@ -324,6 +341,54 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_Main.Button_LEpathClick(Sender: TObject);
+var
+  S : String;
+
+begin
+  S := BrowseForFolder('Condor Landscape Editor folder',CondorLEpathName);
+  if (S <> '') then begin
+    CondorLEpathName := S;
+
+    Edit_LEpath.Text := ShortenFolderString(CondorLEpathName,ShortPathNameLength);
+    Edit_LEpath.Hint := CondorLEpathName;
+    FIniFile.WriteString('Paths','CondorLEpath',CondorLEpathName);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_7zipPathClick(Sender: TObject);
+var
+  S : String;
+
+begin
+  S := BrowseForFolder('7-zip Archiver folder',sZIPpathName);
+  if (S <> '') then begin
+    sZIPpathName := S;
+
+    Edit_7zipPath.Text := ShortenFolderString(sZIPpathName,ShortPathNameLength);
+    Edit_7zipPath.Hint := sZIPpathName;
+    FIniFile.WriteString('Paths','7zipPath',sZIPpathName);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_WgetPathClick(Sender: TObject);
+var
+  S : String;
+
+begin
+  S := BrowseForFolder('Wget downloader folder',WgetPathName);
+  if (S <> '') then begin
+    WgetPathName := S;
+
+    Edit_WgetPath.Text := ShortenFolderString(WgetPathName,ShortPathNameLength);
+    Edit_WgetPath.Hint := WgetPathName;
+    FIniFile.WriteString('Paths','WgetPath',WgetPathName);
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_Main.Button_TextureCompressorPathClick(Sender: TObject);
 var
   S : String;
@@ -340,7 +405,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.Button_DownloaderClick(Sender: TObject);
+procedure TForm_Main.Button_DownloaderPathClick(Sender: TObject);
 var
   S : String;
   Ext_File : TextFile;
@@ -489,7 +554,7 @@ begin
         // cannot override terrain file since it is used
         Button_OverrideCalib.enabled := false;
       end;
-    end else begin // scenery header not errain header
+    end else begin // scenery header not terrain header
       Button_OverrideCalib.enabled := true;
       if (DEM_Res = 30) then begin
         ComboBox_Version.text := 'V2';
@@ -501,15 +566,16 @@ begin
 //  end;
 
     if (HeaderOpen) then begin
-      {u_TileList.}TileRowCount := RowCount div 256;
-      {u_TileList.}TileColumnCount := ColumnCount div 256;
-      Label_Rows.Caption := format('Rows: %d',[TileRowCount]);
-      Label_Columns.Caption := format('Columns: %d',[TileColumnCount]);
+//      {u_TileList.}TileRowCount := RowCount div 256;
+//      {u_TileList.}TileColumnCount := ColumnCount div 256;
+      {u_TileList.}TileRowCount := Ceil(RowCount / 256);        // round up for partial tiles
+      {u_TileList.}TileColumnCount := Ceil(ColumnCount / 256);  // round up for partial tiles
+      Label_Rows.Caption := format('Rows:     %3.2f',[RowCount/256]);
+      Label_Columns.Caption := format('Columns: %3.2f',[ColumnCount/256]);
 
       TileOpen := false;
       u_TileList.ProgressBar_Status := ProgressBar_Status;
-      // extend form centre of tile to corner
-//      MakeTileList(UTM_Right+Resolution/2, UTM_Bottom-Resolution/2);
+      // create a table of lat/long and UTM coord for each tile bottom-right
       MakeTileList(UTM_Right+Legacy_Offset, UTM_Bottom-Legacy_Offset);
 
       // add blank for 'all'
@@ -725,17 +791,32 @@ begin
   ForceDirectories(GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName);
   Form_Main.Memo_Info.Lines.Add(GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName);
 
-          MakeGEObatchFile(TileIndex);  // do first to create paths if needed
+  case u_MakeGEO.GeoDatabaseType of
+    OSM, CanVec: begin
+      MakeGEObatchFile(TileIndex);  // do first to create paths if needed
 // still make for now       if (ComboBox_Version.text = 'V1') then begin
-            MakeGEO_V1_Forest_batchFile(TileIndex);
-//          end else begin
-            MakeGEO_V2_Forest_Deciduous_batchFile(TileIndex);
-            MakeGEO_V2_Forest_Coniferous_batchFile(TileIndex);
-            MakeGEO_V2_Water_batchFile(TileIndex);
-//          end;
-          MakeGEO_Thermal_batchFile(TileIndex);
+        MakeGEO_V1_Forest_batchFile(TileIndex);
+//      end else begin
+        MakeGEO_V2_Forest_Deciduous_batchFile(TileIndex);
+        MakeGEO_V2_Forest_Coniferous_batchFile(TileIndex);
+        MakeGEO_V2_Water_batchFile(TileIndex);
+//      end;
+      MakeGEO_Thermal_batchFile(TileIndex);
+    end;
+    GLC: begin
+      MakeGEO_GLC_batchFile(TileIndex, gGeneric, ggSize); // generic
+      MakeGEO_GLC_batchFile(TileIndex, gThermal, gtSize); // thermal
+      MakeGEO_GLC_batchFile(TileIndex, gV2decideous, gfV2Size); // forest - deciduous
+//      MakeGEO_GLC_batchFile(TileIndex, gV2coniferous, gfV2Size); // forest - conifeous
+      // make a blank coniferous file instead
+      MakeGEO_GLC_Blank(TileIndex, gV2coniferous, gfV2Size); // forest - conifeous - blank
+      MakeGEO_GLC_batchFile(TileIndex, gWater, StrToInt(u_MakeGEO.OutputTileSize)); // water (must be same size as texture)
+    end;
+    else begin
+    end;
+  end;
 end;
-          
+
 //---------------------------------------------------------------------------
 procedure TForm_Main.Button_GEOClick(Sender: TObject);
 
@@ -759,16 +840,22 @@ begin
     u_MakeGEO.Memo_Message := Memo_Info;
     u_MakeGEO.GEOfolder := WorkingPathName;
     u_MakeGEO.GDALlibraryfolder := GDALpathName;
+    u_MakeGEO.WGETfolder := WgetPathName; // for Wget
+    u_MakeGEO.ApplicationPath := ApplicationPathName;
 //    u_MakeGEO.OutputTileSize := '1024'; // default for now
     u_MakeGEO.OutputTileSize := ComboBox_TileSize.text;
     if MessageDlg('Proceed with tile size "' + u_MakeGEO.OutputTileSize + '" ?', mtConfirmation,
       [mbYes, mbNo], 0) = mrNo then begin
       Exit;
     end;
-    if (ComboBox_GEO.Text = 'CanVec') then begin
-      u_MakeGEO.GeoDatabaseType := CanVec;
+    if (ComboBox_GEO.Text = 'GLC') then begin
+      u_MakeGEO.GeoDatabaseType := GLC;
     end else begin
-      u_MakeGEO.GeoDatabaseType := OSM;
+      if (ComboBox_GEO.Text = 'CanVec') then begin
+        u_MakeGEO.GeoDatabaseType := CanVec;
+      end else begin
+        u_MakeGEO.GeoDatabaseType := OSM;
+      end;
     end;
     u_MakeGEO.Init;
 
@@ -807,6 +894,11 @@ begin
         TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
         MakeGeoBatch(TileIndex);
       end;
+    end;
+    if (ComboBox_GEO.Text = 'GLC') then begin
+      // show files needed
+      MakeGEO_GLC_Wget;
+      MakeGEO_Blank_GreyScale(WorkingPathName+'\Terragen\ForestMaps\sBlank.bmp', gfV2Size);
     end;
   end;
 end;
@@ -1080,47 +1172,47 @@ var
   i : integer;
 
 begin
- if (ComboBox_Version.text = 'V1') then begin
-  ForestResolution := 2;
-  setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
-  if (HeaderOpen) then begin
-    // offset to be able to see status and progressbar
-//    Form_MakeForest.Position := poDefault;
-    Form_MakeForest.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
-    Form_MakeForest.Top  := Self.Top + 0;
-    Form_MakeForest.ShowModal;
-    Application.ProcessMessages;
-    if (u_MakeForest.ActionRequest) then begin
-      // create a Forest file
-      u_Forest.Memo_Message := Memo_Info;
-      u_Forest.ProgressBar_Status := ProgressBar_Status;
-      u_Forest.SourceForestFolder := WorkingPathName;
-      u_Forest.DestinationForestFolder := WorkingPathName+'\..';
-      if (form_MakeForest.CheckBox_Forest.checked) then begin
-        CreateForestMap(form_MakeForest.CheckBox_Shrink.checked, CondorLandscapeName+'.for');
+  if (ComboBox_Version.text = 'V1') then begin
+    ForestResolution := 2;
+    setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
+    if (HeaderOpen) then begin
+//      Form_MakeForest.Position := poDefault;
+      // offset to be able to see status and progressbar
+      Form_MakeForest.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+      Form_MakeForest.Top  := Self.Top + 0;
+      Form_MakeForest.ShowModal;
+      Application.ProcessMessages;
+      if (u_MakeForest.ActionRequest) then begin
+        // create a Forest file
+        u_Forest.Memo_Message := Memo_Info;
+        u_Forest.ProgressBar_Status := ProgressBar_Status;
+        u_Forest.SourceForestFolder := WorkingPathName;
+        u_Forest.DestinationForestFolder := WorkingPathName+'\..';
+        if (form_MakeForest.CheckBox_Forest.checked) then begin
+          CreateForestMap(form_MakeForest.CheckBox_Shrink.checked, CondorLandscapeName+'.for');
+        end;
+        u_Forest.DestinationForestFolder := WorkingPathName+'\ForestMaps';
+        if (NOT DirectoryExists(WorkingPathName+'\ForestMaps')) then begin
+          mkdir(WorkingPathName+'\ForestMaps');
+        end;
+        if (form_MakeForest.CheckBox_Coniferous.checked) then begin
+          CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fConiferous,'ConiferousMap.bmp');
+        end;
+        if (form_MakeForest.CheckBox_Deciduous.checked) then begin
+          CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fDeciduous,'DeciduousMap.bmp');
+        end;
+        Beep; //all done
       end;
-      u_Forest.DestinationForestFolder := WorkingPathName+'\ForestMaps';
-      if (NOT DirectoryExists(WorkingPathName+'\ForestMaps')) then begin
-        mkdir(WorkingPathName+'\ForestMaps');
-      end;
-      if (form_MakeForest.CheckBox_Coniferous.checked) then begin
-        CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fConiferous,'ConiferousMap.bmp');
-      end;
-      if (form_MakeForest.CheckBox_Deciduous.checked) then begin
-        CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fDeciduous,'DeciduousMap.bmp');
-      end;
-      Beep; //all done
+    end else begin
+      Memo_Info.Lines.Add('Need Header file first');
+      Beep;
     end;
   end else begin
-    Memo_Info.Lines.Add('Need Header file first');
-    Beep;
-  end;
- end else begin
     ForestResolution := 8;
     setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
     Memo_Info.Lines.Add('Only possible for V1');
     Beep;
- end;
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -1136,8 +1228,8 @@ begin
       form_MakeThermal.RadioButton_SunnySlopes.enabled := false;
       form_MakeThermal.RadioButton_UniformHeating.checked := true;
     end;
-    // offset to be able to see status and progressbar
 //    Form_MakeThermal.Position := poDefault;
+    // offset to be able to see status and progressbar
     Form_MakeThermal.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
     Form_MakeThermal.Top  := Self.Top + 0;
     form_MakeThermal.ShowModal;
@@ -1531,6 +1623,7 @@ begin
         Form_Graphic.Image_Mask.{Picture.Bitmap.}Width := Form_Graphic.Image_Tile.Picture.Bitmap.Width;
         Form_Graphic.Image_Mask.{Picture.Bitmap.}Height := Form_Graphic.Image_Tile.Picture.Bitmap.Height;
         Form_Graphic.Image_Mask.Picture.LoadFromFile(thFileName);
+        Form_Graphic.Image_Mask.Picture.Bitmap.PixelFormat := pf24bit; // force 24 bit color
 
         Form_Graphic.Image_Mask.Picture.Bitmap.TransparentMode := tmFixed;
         Form_Graphic.Image_Mask.Picture.Bitmap.TransparentColor := tNone.ColorValue{clBlack};
@@ -1585,8 +1678,8 @@ begin
       CondorLandscapeName+'\HeightGradient.bmp';
     GradientFolder := WorkingPathName;
 
-    // offset to be able to see status and progressbar
 //    Form_Gradient.Position := poDefault;
+    // offset to be able to see status and progressbar
     Form_Gradient.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
     Form_Gradient.Top  := Self.Top + 0;
 
@@ -1623,6 +1716,7 @@ begin
 //  end;
 
 //  Form_Objects.Position := poDefault;
+  // offset to be able to see status and progressbar
   Form_Objects.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_Objects.Top  := Self.Top + 0;
   Form_Objects.ShowModal;
@@ -1651,6 +1745,7 @@ begin
     end else begin
     end;
 //    Form_ObjectPlacer.Position := poDefault;
+    // offset to be able to see status and progressbar
     Form_ObjectPlacer.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
     Form_ObjectPlacer.Top  := Self.Top + 0;
     Form_ObjectPlacer.ShowModal;
@@ -1679,7 +1774,19 @@ begin
       Unit_AirportPlacer.apVersion:= ComboBox_Version.text;
     end else begin
     end;
+    // for HiResRunway
+    u_MakeDDS.CompressorFolder := CompressorPathName;
+    u_MakeDDS.DXT_Type := ComboBox_DXT.Text;
+    // for HiResRunway
+    u_MakeGDAL.GDALfolder := WorkingPathName;
+    u_MakeGDAL.GDALlibraryfolder := GdalpathName;
+    // for HiResRunway
+    u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
+    u_MakeGMID.GMIDfolder := WorkingPathName;
+    u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
+    u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
 //    Form_AirportPlacer.Position := poDefault;
+    // offset to be able to see status and progressbar
     Form_AirportPlacer.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
     Form_AirportPlacer.Top  := Self.Top + 0;
     Form_AirportPlacer.ShowModal;
@@ -1735,6 +1842,11 @@ begin
   Edit_CondorPath.Hint := CondorPathName;
   MakeFolderList(ComboBox_Landscape.Items, CondorPathName+'\Landscapes', '\*.*');
 
+  CondorLEpathName := Edit_LEpath.text; {default}
+  CondorLEpathName := FIniFile.ReadString('Paths','CondorLEpath',CondorLEpathName);
+  Edit_LEpath.Text := ShortenFolderString(CondorLEpathName,ShortPathNameLength);
+  Edit_LEpath.Hint := CondorLEpathName;
+
 //  WorkingPathName := Edit_DestinationPath.text; {default}
 //  WorkingPathName := FIniFile.ReadString('Paths','DestinationPath',WorkingPathName);
 //  Edit_DestinationPath.Text := ShortenFolderString(WorkingPathName,ShortPathNameLength);
@@ -1763,6 +1875,16 @@ begin
   DownloaderPathName := FIniFile.ReadString('Paths','DownloaderPath',DownloaderPathName);
   Edit_DownloaderPath.Text := ShortenFolderString(DownloaderPathName,ShortPathNameLength);
   Edit_DownloaderPath.Hint := DownloaderPathName;
+
+  WgetPathName := Edit_WgetPath.text; {default}
+  WgetPathName := FIniFile.ReadString('Paths','WgetPath',WgetPathName);
+  Edit_WgetPath.Text := ShortenFolderString(WgetPathName,ShortPathNameLength);
+  Edit_WgetPath.Hint := WgetPathName;
+
+  sZIPpathName := Edit_7zipPath.text; {default}
+  sZIPpathName := FIniFile.ReadString('Paths','7zipPath',sZIPpathName);
+  Edit_7zipPath.Text := ShortenFolderString(sZIPpathName,ShortPathNameLength);
+  Edit_7zipPath.Hint := sZIPpathName;
 
   ComboBox_DXT.text:= FIniFile.ReadString('Tiles','DXT_Type',ComboBox_DXT.Items[0]);
   ComboBoxMatchString(ComboBox_DXT,'');
@@ -1830,6 +1952,7 @@ begin
       Unit_Utilities.Initial_Folder := '';
     end;
   end;
+  Unit_Utilities.WGETfolder := WgetPathName; // for Wget
   Unit_Utilities.library_Folder := GDALpathName;
   Unit_Utilities.ZoomLevel := ComboBox_ZoomLevel.text;
   Unit_Utilities.TileName := ComboBox_Single.text;
@@ -1841,11 +1964,11 @@ begin
   u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
   Unit_Utilities.opVersion:= ComboBox_Version.text;
 
-  // offset to be able to see status and progressbar
+//  Form_Utilities.Position := poDesigned;
 //  Form_Utilities.Position := poDefault;
+  // offset to be able to see status and progressbar
   Form_Utilities.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_Utilities.Top  := Self.Top + 0;
-//  Form_Utilities.Position := poDesigned;
 
   Form_Utilities.ShowModal;
 end;
@@ -1874,11 +1997,13 @@ begin
     Unit_DEM.library_Folder := GDALpathName;
     Unit_DEM.File_Folder := WorkingPathName+'\DEM';
     Unit_DEM.CurrentLandscape := CondorLandscapeName;
-    Unit_DEM.Programsfolder := DownloaderPathName; // for 7-zip for now
+    Unit_DEM.sZipFolder := sZipPathName; // for 7-zip
+    Unit_DEM.WGETfolder := WgetPathName; // for Wget
     Unit_DEM.ApplicationPath := ApplicationPathName;
+    Unit_DEM.LEfolder := CondorLEpathName; // for LandscapeEditor
 
-    // offset to be able to see status and progressbar
 //    Form_DEM.Position := poDefault;
+    // offset to be able to see status and progressbar
     Form_DEM.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
     Form_DEM.Top  := Self.Top + 0;
 
@@ -1915,11 +2040,10 @@ begin
   u_X_CX.oTreeView := Unit_Objects.Form_Objects.TreeView_Object;
   Unit_Merge.LandscapeList := ComboBox_Landscape.Items;
 
-  // offset to be able to see status and progressbar
 //  Form_Merge.Position := poDefault;
+  // offset to be able to see status and progressbar
   Form_Merge.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_Merge.Top  := Self.Top + 0;
-
   Form_Merge.ShowModal;
 end;
 
@@ -1929,7 +2053,9 @@ begin
   Unit_SimpleObjects.ApplicationPath := ApplicationPathName;
 //  soFolder := WorkingPathName;
   if (HeaderOpen) AND (TileOpen) then begin
-    objFolder := CondorPathName+'\Landscapes\' + CondorLandscapeName;
+    if (Unit_SimpleObjects.objFolder = '') then begin
+      Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes\' + CondorLandscapeName;
+    end;
   end else begin
     Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes';
   end;
@@ -1937,6 +2063,7 @@ begin
   Unit_SimpleObjects.WorkingFolder := WorkingPathName;
   Unit_SimpleObjects.Memo_Message := Memo_Info;
 //  Form_SimpleObjects.Position := poDefault;
+  // offset to be able to see status and progressbar
   Form_SimpleObjects.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_SimpleObjects.Top  := Self.Top + 0;
   Form_SimpleObjects.ShowModal;

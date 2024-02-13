@@ -38,8 +38,8 @@ var
 
 Procedure MakeDDSbatchFile(TileIndex : integer);
 Procedure MakeDDS_All_BatchFile;
-
 Procedure MakeDDSquarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+Procedure MakeDDS_Generic(Name, FilePath, FileName : string);
 
 //----------------------------------------------------------------------------
 implementation
@@ -359,6 +359,62 @@ begin
   // close the file
   Close(DDSfile);
   MessageShow(FileName+' done.');
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure MakeDDS_Generic(Name, FilePath, FileName : string);
+begin
+  // check for DXT generator
+  if (FileExists(CompressorFolder+'\nvDXT.exe')) then begin
+    DXT_Gen := g_nVDXT;
+  end else begin
+    if (FileExists(CompressorFolder+'\CompressonatorCLI.exe')) then begin
+      DXT_Gen := g_CompressonatorCLI;
+    end else begin
+      MessageShow('Select nvDXT path or Compressonator path');
+      Beep;
+      Exit;
+    end;
+  end;
+
+  //open the file
+  AssignFile(DDSfile, FilePath +'\'+ FileName);
+  Rewrite(DDSfile);
+
+  writeln(DDSfile,'@echo off');
+  writeln(DDSfile,'setlocal');
+  writeln(DDSfile,'set PATH=%PATH%;"'+CompressorFolder+'"');
+  writeln(DDSfile,'rem goto directory where batch file is');
+  writeln(DDSfile,'cd /d %~dp0');
+
+  writeln(DDSfile,'rem converts .bmp file into .dds');
+  writeln(DDSfile,'set sourcebmp='+Name+'.bmp');
+  writeln(DDSfile,'set destinationdds='+Name+'.dds');
+
+  writeln(DDSfile,'if NOT exist %sourcebmp% (echo ERROR: %sourcebmp% NOT found & pause & exit /b 9)');
+ // if not specified, nvdxt defaults to max, so no need
+//  writeln(DDSfile,'nvDXT.exe -quality_highest -nmips '+NumMips+' -Cubic -dxt1c -outdir "dds" -file ',TextureName,'.bmp');
+//  writeln(DDSfile,'nvDXT.exe -quality_highest -nmips '+NumMips+' -Cubic -dxt3 -outdir "dds" -file ',TextureName,'.bmp');
+  if (DXT_Gen = g_nVDXT) then begin
+    if (DXT_Type = 'DXT1') then begin
+      writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -'+LowerCase(DXT_Type)+'c -file %sourcebmp%');
+    end else begin
+      writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -'+LowerCase(DXT_Type)+' -file %sourcebmp%');
+    end;
+  end else begin // must be Compressonator
+    writeln(DDSfile,'CompressonatorCLI.exe -fd '+DXT_Type+' -mipsize 1 -CompressionSpeed 0 %sourcebmp% %destinationdds%');
+  // if dxt1 with alpha
+  //  writeln(DDSfile,'CompressonatorCLI.exe -fd '+DXT_Type+' -DXT1UseAlpha 1 -AlphaThreshold 192 -mipsize 1 -CompressionSpeed 0 %destinationbmp% %destinationdds%');
+  end;
+
+  writeln(DDSfile,'rem del %sourcebmp%');
+
+  writeln(DDSfile,'endlocal');
+
+  // close the file
+  Close(DDSfile);
+
+  MessageShow(FileName+' done ('+DXT_Type+').');
 end;
 
 {----------------------------------------------------------------------------}

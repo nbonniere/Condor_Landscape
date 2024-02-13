@@ -389,7 +389,7 @@ begin
       FileByte := FileByte SHL 1;
     end;
   end;
-  ByteToBit := FileByte XOR $FF;  // why ?
+  ByteToBit := FileByte XOR $FF;  // why ?  -> color table index is reversed - change ?
 end;
 
 {----------------------------------------------------------------------------}

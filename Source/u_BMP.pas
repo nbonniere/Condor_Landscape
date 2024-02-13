@@ -410,6 +410,7 @@ Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,Bitmap_32_FileName : string)
 procedure Rotate_180(Tile : Tbitmap);
 Procedure Bitmap_24_To_Bitmap_32_Alpha(Bitmap_24_FileName,Bitmap_8_FileName,Bitmap_32_FileName : string);
 Procedure Bitmap_24_To_Masked_24(Bitmap_24_FileName,Bitmap_8_FileName:string;maskColor:Tcolor);
+Procedure NewBitmap_To_Masked(Bitmap_FileName,Bitmap_8_FileName:string; maskColor:Tcolor);
 {procedure DDS_TO_BMP(aBmp : TBitmap);}
 
 procedure WriteBMP24Header(FileName : String);
@@ -1008,7 +1009,7 @@ begin
   end;
 end;
 
-// use an 8 bit mask file to force a given color when mask is not 255
+// use an 8 bit mask file to force a given color when mask is not white 255,255,255
 {----------------------------------------------------------------------------}
 Procedure Bitmap_24_To_Masked_24(Bitmap_24_FileName,Bitmap_8_FileName:string;maskColor:Tcolor);
 const
@@ -1031,7 +1032,7 @@ var
 
 begin
   Bitmap_Mask_FileName := copy(Bitmap_24_FileName,1,pos('.bmp',Bitmap_24_FileName)-1)+'_orig.bmp';
-  pColor.ColorValue := ByteSwapColor(maskColor); // need to convert
+  pColor.ColorValue := ByteSwapColor(maskColor); // need to convert format
   if (NOT FileExists(Bitmap_24_FileName)) then begin
     MessageShow('Bitmap file not found');
     Exit;
@@ -1088,7 +1089,7 @@ begin
         BlockRead(Bitmap_8_File,Palette_8,sizeof(BMP_8bit_ColorTable));
         // seek(Bitmap_8_File,Bitmap_Hdr_8.bH.bPixelArrayOffset); // need to skip over color table
 
-        // now read 24 bit pixels, and alpha and write 32 bit pixels
+        // now read 24 bit pixels, and overwrite when needed
         try
           P8  := AllocMem(bDib.bWidth * Color8Size);  // one row at a time
           P24 := AllocMem(bDib.bWidth * Color24Size); // one row at a time
@@ -1124,6 +1125,183 @@ begin
 
     Close(Bitmap_24_Masked_File);
     Close(Bitmap_24_File);
+    Close(Bitmap_8_File);
+    MessageShow('Bitmap masked.');
+    ProgressBar_Status.Position := 0;
+  end;
+end;
+
+// use an 8 bit mask file to force a given color when mask is not white 255,255,255
+{----------------------------------------------------------------------------}
+Procedure NewBitmap_To_Masked(Bitmap_FileName,Bitmap_8_FileName:string; maskColor:Tcolor);
+const
+  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+  pColor : ColorConvert;
+  Bitmap_File : File of byte;
+  Bitmap_Hdr : BMP_V1_Header;
+  Bitmap_8_File : File of byte;
+  Bitmap_Hdr_8 : BMP_V1_Header;
+  Bitmap_Masked_File : File of byte;
+//  ByteCount : longint;
+  P8, P8mask  : pAlphaArray;
+  P24 : pRGBArray;
+  Palette_8mask : BMP_8bit_ColorTable;
+  Palette_8 : BMP_8bit_ColorTable;
+  Bitmap_Mask_FileName : string;
+  PaletteIndex : integer;
+
+begin
+  // convert the desired color format
+  pColor.ColorValue := ByteSwapColor(maskColor); // need to convert format
+  // check presence of main input file
+  if (NOT FileExists(Bitmap_FileName)) then begin
+    MessageShow(format('File not found: %s',[ExtractFileName(Bitmap_FileName)]));
+    Exit;
+  end else begin
+    // keep the original file by making a copy
+    Bitmap_Mask_FileName := copy(Bitmap_FileName,1,pos('.bmp',Bitmap_FileName)-1)+'_orig.bmp';
+    CopyFile(PChar(Bitmap_FileName),PChar(Bitmap_Mask_FileName),true); // overwrite
+  end;
+  // check presence of 8 bit mask input file
+  if ((Bitmap_8_FileName <> '') AND (NOT FileExists(Bitmap_8_FileName))) then begin
+    MessageShow(format('File not found: %s',[ExtractFileName(Bitmap_8_FileName)]));
+    Exit;
+  end;
+  begin
+    // read header and check 8 bit mask input file
+    AssignFile(Bitmap_8_File,Bitmap_8_FileName);
+    Reset(Bitmap_8_File);
+//    seek(Bitmap_8_File,0);
+    BlockRead(Bitmap_8_File,Bitmap_Hdr_8,sizeof(Bitmap_Hdr));
+    with Bitmap_Hdr_8 do begin
+      // first confirm it is bmp and 8 bit color
+      if ((bH.bSignature <> $4D42) OR              // BitmapSignature
+          (bDib.bColorBits <> 8)) then begin // 8 bit color
+        MessageShow('Error: Not 8 bit color bitmap');
+        Close(Bitmap_8_File);
+        Exit;
+      end;
+    end;
+    // read the palette for the 8 bit file to access colors
+    BlockRead(Bitmap_8_File,Palette_8mask,sizeof(BMP_8bit_ColorTable));
+    // seek(Bitmap_8_File,Bitmap_Hdr_8.bH.bPixelArrayOffset); // need to skip over color table
+
+    MessageShow('Masking bit bitmap with 8 bitmap...');
+
+    // read header and check main input file
+    AssignFile(Bitmap_File,Bitmap_Mask_FileName);
+    Reset(Bitmap_File);
+//    seek(Bitmap_File,0);
+    BlockRead(Bitmap_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+    with Bitmap_Hdr do begin
+      // check for bitmap signature
+      if (bH.bSignature <> $4D42) then begin
+        MessageShow('Error: not bitmap');
+        Close(Bitmap_File);
+        exit;
+      end;
+      // check for matching size
+      if (Bitmap_Hdr_8.bDib.bWidth <> bDib.bWidth) then begin
+        MessageShow('Error: bitmap size mismatch');
+        Close(Bitmap_File);
+        exit;
+      end else begin
+        // prepare new file for output
+        AssignFile(Bitmap_Masked_File,Bitmap_FileName);
+        Rewrite(Bitmap_Masked_File);
+
+      // check for 8 bit or 24 bit color
+      case (bDib.bColorBits) of
+        8: begin
+          // copy the header as is
+          BlockWrite(Bitmap_Masked_File,Bitmap_Hdr, sizeof(Bitmap_Hdr));
+          // read the palette for the 8 bit main file to access colors
+          BlockRead(Bitmap_File,Palette_8,sizeof(BMP_8bit_ColorTable));
+          // seek(Bitmap_Masked_File,Bitmap_Hdr_8.bH.bPixelArrayOffset); // need to skip over color table
+          // match the color and get index
+          PaletteIndex := 0; // assume at first and will be default if no match
+          for i := 0 to (bDib.bPaletteColors-1) do begin
+//            if (ColorConvert(Palette_8[i])= pColor) then
+            if (CompareMem(@Palette_8[i],@pColor.cRGB,3)) then begin
+              PaletteIndex := i;
+              break;
+            end;
+          end;
+          // copy the palette as is
+          BlockWrite(Bitmap_Masked_File,Palette_8,sizeof(BMP_8bit_ColorTable));
+        end;
+        24: begin
+          // copy the header as is
+          BlockWrite(Bitmap_Masked_File,Bitmap_Hdr, sizeof(Bitmap_Hdr));
+        end;
+        else begin
+          MessageShow('Error: Not 8 or 24 bit color bitmap');
+          Close(Bitmap_File);
+          Close(Bitmap_Masked_File);
+          Exit;
+        end;
+      end;
+
+      // now read pixels, and overwrite when needed
+      try
+        ProgressBar_Status.Max := bDib.bHeight;
+        P8mask := AllocMem(bDib.bWidth * Color8Size);  // one row at a time
+        case (bDib.bColorBits) of
+          8: begin
+            P8 := AllocMem(bDib.bWidth * Color8Size);  // one row at a time
+            for i := 0 to bDib.bHeight-1 do begin
+              BlockRead(Bitmap_8_File,P8mask^,bDib.bWidth * sizeof(Byte));
+              BlockRead(Bitmap_File,P8^,bDib.bWidth * sizeof(Byte));
+              for j := 0 to bDib.bWidth-1 do begin
+                if (Palette_8mask[P8mask^[j]].rgbRed <> 255) then begin
+                  P8^[j] := PaletteIndex;
+                end;
+              end;
+              BlockWrite(Bitmap_Masked_File,P8^,bDib.bWidth * sizeof(Byte));
+            end;
+            ProgressBar_Status.StepIt;
+//          Application.ProcessMessages;
+          end;
+          24: begin
+            P24 := AllocMem(bDib.bWidth * Color24Size);  // one row at a time
+            for i := 0 to bDib.bHeight-1 do begin
+              BlockRead(Bitmap_8_File,P8mask^,bDib.bWidth * sizeof(Byte));
+              BlockRead(Bitmap_File,P24^,bDib.bWidth * sizeof(TRGBTriple));
+              for j := 0 to bDib.bWidth-1 do begin
+                if (Palette_8mask[P8mask^[j]].rgbRed <> 255) then begin
+                  P24^[j] := pColor.cRGB;
+                end;
+              end;
+              BlockWrite(Bitmap_Masked_File,P24^,bDib.bWidth * sizeof(TRGBTriple));
+            end;
+            ProgressBar_Status.StepIt;
+//          Application.ProcessMessages;
+          end;
+          else begin
+          end;
+        end;
+        finally
+          case (bDib.bColorBits) of
+            8: begin
+          freemem(P8);
+            end;
+            24: begin
+          freemem(P24);
+            end;
+            else begin
+            end;
+          end;
+          freemem(P8mask);
+        end;
+      end;
+    end;
+
+    Close(Bitmap_Masked_File);
+    Close(Bitmap_File);
     Close(Bitmap_8_File);
     MessageShow('Bitmap masked.');
     ProgressBar_Status.Position := 0;

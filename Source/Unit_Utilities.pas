@@ -145,6 +145,7 @@ var
   Condor_Folder : string;    // external path for file
   Compressor_Folder : string;    // external path for file
   Library_Folder : string;   // external path for file
+  WgetFolder : string;   // external path for Wget
   LandscapeName : string;    // external path for file
   ZoomLevel : string;
   TileName : string;
@@ -556,7 +557,8 @@ begin
 
     writeln(GDALfile,'echo off');
     writeln(GDALfile,'setlocal');
-    writeln(GDALfile,'set PATH=%PATH%;c:\programs\wget');
+//    writeln(GDALfile,'set PATH=%PATH%;c:\programs\wget');
+    writeln(GDALfile,'set PATH=%PATH%;'+WgetFolder);
     if (NOT SwapXY) then begin
       for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
         writeln(GDALfile, 'wget -P '+Name+'\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
@@ -1008,6 +1010,8 @@ begin
     writeln(GDALfile,'setlocal');
     writeln(GDALfile,'set PATH=%PATH%;"'+Library_Folder+'"');
     writeln(GDALfile,'set GDAL_DATA='+Library_Folder+'\..\share\epsg_csv');
+    // suppres generation of .xml file
+    writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
 
     writeln(GDALfile,'set l_bitmap=UTM_Basemap.bmp');
     writeln(GDALfile,'if NOT exist %l_bitmap% (echo %l_bitmap% missing & pause & exit)');
@@ -1139,6 +1143,8 @@ begin
     writeln(GDALfile,'setlocal');
     writeln(GDALfile,'set PATH=%PATH%;"'+Library_Folder+'"');
     writeln(GDALfile,'set GDAL_DATA='+Library_Folder+'\..\share\epsg_csv');
+    // suppres generation of .xml file
+    writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
 
     writeln(GDALfile,'rem generate color relief using color table versus elevation');
     writeln(GDALfile,'set l_DEM=../../DEM/UTM_Cropped_90m.tif');
@@ -1197,6 +1203,8 @@ begin
     writeln(GDALfile,'setlocal');
     writeln(GDALfile,'set PATH=%PATH%;"'+Library_Folder+'"');
     writeln(GDALfile,'set GDAL_DATA='+Library_Folder+'\..\share\epsg_csv');
+    // suppres generation of .xml file
+    writeln(GDALfile,'set GDAL_PAM_ENABLED=NO');
 
     writeln(GDALfile,'rem generate hillshade from 225 degrees');
     writeln(GDALfile,'set l_DEM=../../DEM/UTM_Cropped_90m.tif');
@@ -1326,7 +1334,8 @@ begin
     // now make a Batch ALL
     u_QuarterTile.QT_folder := Working_Folder;
     u_QuarterTile.Memo_Message := Memo_Message;
-    Make_QT_All_BatchFile(row, column, offset_Row, offset_Column);
+    Make_QT_All_BatchFile(3857, row, column, offset_Row, offset_Column);
+    Make_QT_All_BatchFile(4326, row, column, offset_Row, offset_Column); // geid as well
   end;
 end;
 
@@ -1626,6 +1635,7 @@ var
   File_Name : String;
   File_Name_NoExt : String;
   i : integer;
+  MaskFileName : string;
 
 begin
   OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
@@ -1643,8 +1653,21 @@ begin
 
         u_BMP.Memo_Message := Memo_Message;
         u_BMP.ProgressBar_Status := ProgressBar_Status;
-        Bitmap_24_To_Masked_24(FullFileName,
-                                     File_Folder+'\..\WaterMaps\'+File_Name,
+
+        MaskFileName := File_Folder+'\..\WaterMaps\'+File_Name;
+        if (NOT FileExists(MaskFileName)) then begin
+          // try 4 character for tilename number instead
+          MaskFileName := File_Folder+'\..\WaterMaps\'+
+            copy(File_Name_NoExt,length(File_Name_NoExt)-(4-1),
+              length(File_Name_NoExt))+'.bmp';
+        end;
+
+{        Bitmap_24_To_Masked_24(FullFileName,
+                                     MaskFileName,
+                                     Shape_pick.Brush.Color
+                                    );
+}        NewBitmap_To_Masked(FullFileName,
+                                     MaskFileName,
                                      Shape_pick.Brush.Color
                                     );
 

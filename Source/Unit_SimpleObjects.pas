@@ -51,12 +51,13 @@ type
     GroupBox_Texture: TGroupBox;
     Button_T_Exit: TButton;
     Image_Texture: TImage;
-    Edit_TextureFileName: TEdit;
     Label_File: TLabel;
+    Edit_TextureFileName: TEdit;
+    Label_Path: TLabel;
+    Edit_TextureFilePath: TEdit;
     Button_T_Open: TButton;
     Button_T_Save: TButton;
     Label_FileName: TLabel;
-    Label_TextureFileName: TLabel;
     Label_CompositeFileName: TLabel;
     StringGrid_Composite: TStringGrid;
     Button_C_Exit: TButton;
@@ -64,6 +65,7 @@ type
     Button_C_Save: TButton;
     Button_Remove: TButton;
     ButtonAdd: TButton;
+    Label_TextureFileName: TLabel;
     Label_T_Type: TLabel;
     ComboBox_T_Type: TComboBox;
     Label_Coords: TLabel;
@@ -295,6 +297,7 @@ type
     od_Height : string;
     od_Peak : string;
     od_File : string;
+    od_Path : string;
   end;
 
   oObject_t = record
@@ -306,17 +309,17 @@ const
     oObject : oObject_t =
       (oFile : ('Building_FlatRoof.px', 'Building_PeakRoof.px','Building_Domed.px',
                 'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px', 'asphalt.px', 'grass.px');
-       oButtons  : ($17, $1F, $17, $15, $06, $06, $06, $13, $13);
+       oButtons  : ($37, $3F, $37, $35, $06, $06, $06, $33, $33);
        oDefaults : (
-        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'Textures/H_PK_S_Red.bmp' ),
-        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'Textures/H_PK_Blue.bmp' ),
-        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'Textures/H_Dome_Blue.bmp' ),
-        ( od_Width : ' 0.1'; od_Length : '  0.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : 'Textures/Mast.dds' ),
-        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : ('') ),
-        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : ('') ),
-        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : ('') ),
-        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('') ),
-        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('') )
+        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'H_PK_S_Red.bmp';  od_Path : ('Textures/') ),
+        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'H_PK_Blue.bmp';   od_Path : ('Textures/') ),
+        ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'H_Dome_Blue.bmp'; od_Path : ('Textures/') ),
+        ( od_Width : ' 0.1'; od_Length : '  0.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : 'Mast.dds';        od_Path : ('Textures/') ),
+        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') )
        )
       );
 var
@@ -335,6 +338,7 @@ begin
     Edit_Height.{enabled}Visible := (Select AND 4) = 4;
     Edit_Peak.{enabled}Visible   := (Select AND 8) = 8;
     Edit_TextureFileName.{enabled}Visible   := (Select AND 16) = 16;
+    Edit_TextureFilePath.{enabled}Visible   := (Select AND 32) = 32;
   end;
 end;
 
@@ -347,6 +351,7 @@ begin
     Edit_Height.Text := Select.od_Height;
     Edit_Peak.Text := Select.od_Peak;
     Edit_TextureFileName.Text := Select.od_File;
+    Edit_TextureFilePath.Text := Select.od_Path;
   end;
 end;
 
@@ -359,10 +364,11 @@ begin
   imFileFilterString := 'Texture files (*.BMP *.DDS)|*.BMP;*.DDS|All files (*.*)|*.*';
   imFileName := '';
   imInitialDir := objFolder+'\Textures';
-  if OpenDialog then begin
+  if (OpenDialog) then begin
 //    // assume a Textures folder - let user fix it if not correct
 //    Edit_TextureFileName.Text := 'Textures\'+ExtractFileName(imFileName);
-    Edit_TextureFileName.Text := ExtractRelativePath(objFolder+'\', imFileName)
+//    Edit_TextureFileName.Text := ExtractRelativePath(objFolder+'\', imFileName)
+    Edit_TextureFileName.Text := ExtractFileName(imFileName);
   end;
 end;
 
@@ -376,7 +382,7 @@ begin
   imFileFilterString := 'Simple Object files (*.SO)|*.SO|All files (*.*)|*.*';
   imFileName := soFileName;
   imInitialDir := objFolder;
-  if OpenDialog then begin
+  if (OpenDialog) then begin
     if (uppercase(ExtractFileExt(imFileName)) <> '.SO') then begin
       exit; // must be .co
     end;
@@ -385,27 +391,27 @@ begin
     ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
     //remember folder for this session
     objFolder := ObjectFolder;
-  end;
 
-  // read in the SO file
-  if (FileExists(imFileName)) then begin
-    AssignFile(SO_file, imFileName);
-    Reset(SO_file);
-    Readln(SO_file, TempSTR);
-    ComboBox_Type.text := ReadCSV(TempSTR);
-    Edit_Width.text := ReadCSV(TempSTR);
-    Edit_Length.text := ReadCSV(TempSTR);
-    Edit_Height.text := ReadCSV(TempSTR);
-    Edit_Peak.text := ReadCSV(TempSTR);
-    Edit_TextureFileName.Text := ReadCSV(TempSTR);
-    CloseFile(SO_file);
+    // read in the SO file
+    if (FileExists(imFileName)) then begin
+      AssignFile(SO_file, imFileName);
+      Reset(SO_file);
+      Readln(SO_file, TempSTR);
+      ComboBox_Type.text := ReadCSV(TempSTR);
+      Edit_Width.text := ReadCSV(TempSTR);
+      Edit_Length.text := ReadCSV(TempSTR);
+      Edit_Height.text := ReadCSV(TempSTR);
+      Edit_Peak.text := ReadCSV(TempSTR);
+      Edit_TextureFileName.Text := ReadCSV(TempSTR);
+      Edit_TextureFilePath.Text := ReadCSV(TempSTR);
+      CloseFile(SO_file);
+      ComboBoxMatchString(ComboBox_Type, ComboBox_Type.Text);
+      Enable_Edits(oObject.oButtons[ComboBox_Type.ItemIndex]);
+    end;
+    // ???
+    // now see if the texture file can be found and read it too
+    //Image_Clear(Image_Texture);
   end;
-  ComboBoxMatchString(ComboBox_Type, ComboBox_Type.Text);
-  Enable_Edits(oObject.oButtons[ComboBox_Type.ItemIndex]);
-  // ???
-  // now see if the texture file can be found and read it too
-  //Image_Clear(Image_Texture);
-
 end;
 
 //---------------------------------------------------------------------------
@@ -419,29 +425,30 @@ begin
   // dialog to select output file - must be .SO or C3D extension
   exFileFilterString := 'Object files (*.SO *.C3D)|*.SO;*.C3D|All files (*.*)|*.*';
   if (soFileName = '') then begin
-    soFileName := ComboBox_Type.text+'_1.so';
+    soFileName := ComboBox_Type.text+'-1.so';
   end;
   exFileName := soFileName;
-  imInitialDir := objFolder;
+  exInitialDir := objFolder;
   if (SaveDialog) then begin
-    soFileName := exFileName;
-    Label_FileName.Caption := ExtractFileName(exFileName);
     ObjectFolder := ExtractFileDir(exFileName);  // not including trailing '\'
     //remember folder for this session
     objFolder := ObjectFolder;
 
     oFileExt := ExtractFileExt(exFileName);
     if (uppercase(oFileExt) = '.SO') then begin
+      soFileName := exFileName;
+      Label_FileName.Caption := ExtractFileName(soFileName);
       // save the SO file
       AssignFile(SO_file, exFileName);
       Rewrite(SO_file);
-      writeln(SO_File,format('%s,%s,%s,%s,%s,%s',[
+      writeln(SO_File,format('%s,%s,%s,%s,%s,%s,%s',[
         ComboBox_Type.text,
         Edit_Width.text,
         Edit_Length.text,
         Edit_Height.text,
         Edit_Peak.text,
-        Edit_TextureFileName.Text
+        Edit_TextureFileName.Text,
+        Edit_TextureFilePath.Text
           ]));
       CloseFile(SO_file);
     end else begin
@@ -476,7 +483,7 @@ begin
               FTM[10] := H;
               //FTM[11] := 0.0;
               UpdateFTM('FTM_0',FTM);
-              UpdateTF('TF_0',Edit_TextureFileName.Text);
+              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
             end;
             1: begin // peak roof
               // two FTM matrices to do!
@@ -485,13 +492,13 @@ begin
               FTM[10] := H;
               //FTM[11] := 0.0;
               UpdateFTM('FTM_0',FTM);
-              UpdateTF('TF_0',Edit_TextureFileName.Text);
+              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
               FTM[ 0] := W;
               FTM[ 5] := L;
               FTM[10] := P;
               FTM[11] := H;
               UpdateFTM('FTM_1',FTM);
-              UpdateTF('TF_1',Edit_TextureFileName.Text);
+              UpdateTF('TF_1',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
             end;
             2: begin // dome
               FTM[ 0] := W;
@@ -499,7 +506,7 @@ begin
               FTM[10] := H;
               //FTM[11] := 0.0;
               UpdateFTM('FTM_0',FTM);
-              UpdateTF('TF_0',Edit_TextureFileName.Text);
+              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
             end;
             3: begin // pole
               FTM[ 0] := W;
@@ -548,7 +555,7 @@ begin
               TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
               TC[1] := TC[0];
               UpdateTC('tc_Asphalt', TC);
-              UpdateTF('TF_0',Edit_TextureFileName.Text);
+              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
             end;
             8: begin // grass
               FTM[ 0] := W;
@@ -560,7 +567,7 @@ begin
               TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
               TC[1] := TC[0];
               UpdateTC('tc_Grass', TC);
-              UpdateTF('TF_0',Edit_TextureFileName.Text);
+              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
             end;
             else begin
               // MessageShow('Invalid Object type'');
@@ -736,7 +743,7 @@ begin
   imFileName := stFileName;
   imInitialDir := objFolder;
   try
-    if OpenDialog then begin
+    if (OpenDialog) then begin
       stFileName := imFileName;
       Label_TextureFileName.Caption := ExtractFileName(imFileName);
       ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
@@ -780,10 +787,10 @@ begin
   // dialog to select output file - must be .BMP extension
   exFileFilterString := 'Object files (*.BMP)|*.BMP|All files (*.*)|*.*';
   if (stFileName = '') then begin
-    stFileName := 'Texture_1.bmp';
+    stFileName := 'Texture-1.bmp';
   end;
   exFileName := stFileName;
-  imInitialDir := objFolder;
+  exInitialDir := objFolder;
   if (SaveDialog) then begin
     stFileName := exFileName;
     Label_FileName.Caption := ExtractFileName(exFileName);
@@ -812,7 +819,7 @@ begin
     imFileFilterString := 'Bitmap files (*.BMP)|*.BMP|All files (*.*)|*.*';
     imFileName := '';
     imInitialDir := objFolder;
-    if OpenDialog then begin
+    if (OpenDialog) then begin
       Label_TextureFileName.Caption := ExtractFileName(imFileName);
       ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
       //remember folder for this session
@@ -924,6 +931,7 @@ var
   sg_Row, sg_Col : Longint;
   str_pos : integer;
 begin
+ if (filecount > 0) then begin
   // find where clicked and action if needed
   StringGrid_Composite.MouseToCell(sg_X, sg_Y, sg_Col, sg_Row);
   if (sg_Col = 1) then begin
@@ -931,16 +939,11 @@ begin
     imFileFilterString := 'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
     imFileName := '';
     imInitialDir := objFolder;
-    if OpenDialog then begin
-//      str_pos := pos(objFolder,imFileName);
-//      if (str_pos <> 0) then begin
-//        StringGrid_Composite.Cells[sg_Col, sg_Row] := copy(imFileName,1+length(objFolder)+1,length(imFileName));
-//      end else begin
-//        StringGrid_Composite.Cells[sg_Col, sg_Row] := imFileName;
-//      end;
+    if (OpenDialog) then begin
       StringGrid_Composite.Cells[sg_Col, sg_Row] := ExtractRelativePath(objFolder+'\', imFileName)
     end;
   end;
+ end; 
 end;
 
 //---------------------------------------------------------------------------
@@ -953,7 +956,7 @@ begin
   imFileFilterString := 'Composite Object files (*.CO)|*.CO|All files (*.*)|*.*';
   imFileName := coFileName;
   imInitialDir := objFolder;
-  if OpenDialog then begin
+  if (OpenDialog) then begin
     if (uppercase(ExtractFileExt(imFileName)) <> '.CO') then begin
       exit; // must be .co
     end;
@@ -962,33 +965,32 @@ begin
     ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
     //remember folder for this session
     objFolder := ObjectFolder;
-  end;
 
-  // read in the CO file
-  if (FileExists(imFileName)) then begin
-    FileCount := 0;
-    with Form_SimpleObjects.StringGrid_Composite do begin
-      RowCount := 1+FirstRow;
-      AssignFile(CO_file, imFileName);
-      Reset(CO_file);
-      While (NOT EOF(CO_file)) do begin
-        Readln(CO_file, TempSTR);
-        cells[ 1,FileCount+FirstRow] := ReadCSV(TempSTR);
-        cells[ 2,FileCount+FirstRow] := ReadCSV(TempSTR);
-        cells[ 3,FileCount+FirstRow] := ReadCSV(TempSTR);
-        cells[ 4,FileCount+FirstRow] := ReadCSV(TempSTR);
-        INC(FileCount);
-        RowCount := FileCount+FirstRow;
-      end;
-      CloseFile(CO_file);
-      if (FileCount > 0) then begin
-        // allow editing
-//        EditorMode := true;
-        Options := Options + [goEditing];
+    // read in the CO file
+    if (FileExists(imFileName)) then begin
+      FileCount := 0;
+      with Form_SimpleObjects.StringGrid_Composite do begin
+        RowCount := 1+FirstRow;
+        AssignFile(CO_file, imFileName);
+        Reset(CO_file);
+        While (NOT EOF(CO_file)) do begin
+          Readln(CO_file, TempSTR);
+          cells[ 1,FileCount+FirstRow] := ReadCSV(TempSTR);
+          cells[ 2,FileCount+FirstRow] := ReadCSV(TempSTR);
+          cells[ 3,FileCount+FirstRow] := ReadCSV(TempSTR);
+          cells[ 4,FileCount+FirstRow] := ReadCSV(TempSTR);
+          INC(FileCount);
+          RowCount := FileCount+FirstRow;
+        end;
+        CloseFile(CO_file);
+        if (FileCount > 0) then begin
+          // allow editing
+//          EditorMode := true;
+          Options := Options + [goEditing];
+        end;
       end;
     end;
   end;
-
 end;
 
 //---------------------------------------------------------------------------
@@ -1003,19 +1005,19 @@ begin
   // dialog to select output file - must be .CO or C3D extension
   exFileFilterString := 'Object files (*.CO *.C3D)|*.CO;*.C3D|All files (*.*)|*.*';
   if (coFileName = '') then begin
-    coFileName := 'C_Object_1.co';
+    coFileName := 'C_Object-1.co';
   end;
   exFileName := coFileName;
-  imInitialDir := objFolder;
+  exInitialDir := objFolder;
   if (SaveDialog) then begin
-    coFileName := exFileName;
-    Label_CompositeFileName.Caption := ExtractFileName(exFileName);
     ObjectFolder := ExtractFileDir(exFileName);  // not including trailing '\'
     //remember folder for this session
     objFolder := ObjectFolder;
 
     oFileExt := ExtractFileExt(exFileName);
     if (uppercase(oFileExt) = '.CO') then begin
+      coFileName := exFileName;
+      Label_CompositeFileName.Caption := ExtractFileName(coFileName);
       with Form_SimpleObjects.StringGrid_Composite do begin
         // save the CO file
         AssignFile(CO_file, exFileName);
@@ -1049,7 +1051,12 @@ begin
                 FTM[5] := FTM[0];
                 FTM[3] := X;
                 FTM[7] := Y;
-                ReadCondorC3Dfile(oFileName, (i <> 0));
+                if (FileExists(objFolder +'\'+ oFilename)) then begin
+                  ReadCondorC3Dfile(objFolder +'\'+ oFileName, (i <> 0));
+                end else begin
+                  MessageDlg(oFileName + ' Not found.', mtInformation, [mbOk], 0);
+                  Exit;
+                end;
               end;
             end;
           end;
@@ -1071,6 +1078,11 @@ begin
     // set cursor
     Row := RowCount-1;
     Col := 1;
+    // initialize
+    Cells[Col+0, Row] := 'xxx.c3d';
+    Cells[Col+1, Row] := '0';
+    Cells[Col+2, Row] := '0';
+    Cells[Col+3, Row] := '0';
     // allow editing
 //    EditorMode := true;
     Options := Options + [goEditing];

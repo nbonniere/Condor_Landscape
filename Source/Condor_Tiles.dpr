@@ -6,24 +6,31 @@ uses
   Unit_About in 'Unit_About.pas' {AboutBox},
   Unit_Graphics in 'Unit_Graphics.pas' {Form_Graphic},
   Unit_Filter in 'Unit_Filter.pas' {Form_Filter},
+  Unit_EditPrompt in 'Unit_EditPrompt.pas' {Form_EditPrompt},
+  Unit_Objects in 'Unit_Objects.pas' {Form_Objects},
+  Unit_ObjectPlacer in 'Unit_ObjectPlacer.pas' {Form_ObjectPlacer},
+  Unit_AirportPlacer in 'Unit_AirportPlacer.pas' {Form_AirportPlacer},
+  Unit_Palette in 'Unit_Palette.pas' {Form_Palette},
+  Unit_Utilities in 'Unit_Utilities.pas' {Form_Utilities},
+  Unit_DEM in 'Unit_DEM.pas' {Form_DEM},
+  Unit_Coords in 'Unit_Coords.pas' {Form_Coords},
+  Unit_Merge in 'Unit_Merge.pas' {Form_Merge},
   u_MakeForest in 'u_MakeForest.pas' {Form_MakeForest},
   u_MakeThermal in 'u_MakeThermal.pas' {Form_MakeThermal},
   u_CalibImport in 'u_CalibImport.pas' {Form_CalibImport},
   u_CalibExport in 'u_CalibExport.pas' {Form_CalibExport},
   u_MakeGradient in 'u_MakeGradient.pas' {Form_Gradient},
-  Unit_EditPrompt in 'Unit_EditPrompt.pas' {Form_EditPrompt},
-  Unit_Objects in 'Unit_Objects.pas' {Form_Objects},
   u_Exec in 'u_Exec.pas',
-  Unit_ObjectPlacer in 'Unit_ObjectPlacer.pas' {Form_ObjectPlacer},
-  Unit_AirportPlacer in 'Unit_AirportPlacer.pas' {Form_AirportPlacer},
-  Unit_Palette in 'Unit_Palette.pas' {Form_Palette},
-  TGA in 'Graphics\TGA\TGA.pas',
-  DDS in 'Graphics\DDS\DDS.pas',
-  DXTC in 'Graphics\DDS\DXTC.pas',
-  Unit_Utilities in 'Unit_Utilities.pas' {Form_Utilities},
-  Unit_DEM in 'Unit_DEM.pas' {Form_DEM},
-  Unit_Coords in 'Unit_Coords.pas' {Form_Coords},
-  Unit_Merge in 'Unit_Merge.pas' {Form_Merge};
+  PaletteLibrary in 'Libraries\Palette\PaletteLibrary.PAS',
+  ColorQuantizationLibrary in 'Libraries\Palette\ColorQuantizationLibrary.pas',
+  TGA in 'Libraries\TGA\TGA.pas',
+  DDS in 'Libraries\DDS\DDS.pas',
+  DXTC in 'Libraries\DDS\DXTC.pas',
+  pngimage in 'Libraries\PNG\pngimage.pas',
+  pnglang in 'Libraries\PNG\pnglang.pas',
+  zlibpas in 'Libraries\PNG\zlibpas.pas',
+  Unit_SimpleObjects in 'Unit_SimpleObjects.pas' {Form_SimpleObjects},
+  Unit_HiResRunway in 'Unit_HiResRunway.pas' {Form_HiResRunway};
 
 {$R *.RES}
 
@@ -47,6 +54,8 @@ begin
   Application.CreateForm(TForm_DEM, Form_DEM);
   Application.CreateForm(TForm_Coords, Form_Coords);
   Application.CreateForm(TForm_Merge, Form_Merge);
+  Application.CreateForm(TForm_SimpleObjects, Form_SimpleObjects);
+  Application.CreateForm(TForm_HiResRunway, Form_HiResRunway);
   Application.Run;
 end.
 

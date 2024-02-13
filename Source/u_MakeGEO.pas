@@ -28,15 +28,31 @@ GEO database shapefile.
 ----------------------------------------------------------------------------}
 interface
 
-uses StdCtrls, FileCtrl, SysUtils;
+uses
+  StdCtrls, FileCtrl, SysUtils;
+
+const
+  ggSize : integer = 4096; // generic
+  gtSize : integer = 256; // thermal
+  gfV1Size : integer = 512; // V1 forest
+  gfV2Size : integer = 2048; // V2 forest
+
+  GEO_F_Name : array [0..6-1] of string = ('GEO_', 'GEO_t_', 'GEO_V1_f_',
+    'GEO_V2_b_','GEO_V2_s_','GEO_V2_w_');
+
+type
+  geoType = (gGeneric, gThermal, gV1forest,
+    gV2decideous, gV2coniferous, gWater);
 
 var
   Memo_Message : TMemo;  // external TMemo for messages
   GEOFolder : string;   // external path for file output
   GDALlibraryFolder : string; // external path for library
   OutputTileSize : string;
-  GeoDatabaseType : (OSM, CanVec);
+  GeoDatabaseType : (OSM, CanVec, GLC);
   File_Destination : string;
+  ApplicationPath : string;
+  WGETfolder : string;               // external path for Wget
 
 Procedure Init;
 //Procedure Init_Colors;
@@ -49,10 +65,19 @@ Procedure MakeGEO_V2_Forest_Coniferous_batchFile(TileIndex : integer);
 Procedure MakeGEO_Thermal_batchFile(TileIndex : integer);
 Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
 
+//Procedure MakeGEO_GLC_Thermal_batchFile(TileIndex : integer);
+Procedure MakeGEO_GLC_batchFile(TileIndex: integer;
+  gType : geoType; Size : integer);
+Procedure MakeGEO_GLC_Wget;
+Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer);
+Procedure MakeGEO_GLC_Blank(TileIndex : integer;
+  gType : geoType; Size : integer);
+
 //----------------------------------------------------------------------------
 implementation
 
-uses Graphics,
+uses
+  Windows, Graphics, Math,
   u_Terrain, u_TileList, u_SceneryHDR, u_BMP, u_Util, u_UTM;
 
 type
@@ -464,6 +489,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -572,6 +599,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -684,6 +713,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -727,7 +758,7 @@ begin
 //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
   writeln(GEOfile,'set sourcevec=../../GeoDatabase/%%f'+DBfolderName);
   writeln(GEOfile,'echo ^!sourcevec^!');
-  {for i := 0 to FeatureCount_250K-1 do} i:= 0; begin  // 0 only for deciduaous forest
+  {for i := 0 to FeatureCount_250K-1 do} i:= 0; begin  // 0 only for deciduous forest
     with FeatureList_250K[i] do begin
 //      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn '+fColor[0]+' -burn '+fColor[1]+' -burn '+fColor[2]+' -l '+fDesc + fSql +' %sourcevec% %destTiff%');
       writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn '+fColor[0]+' -burn '+fColor[1]+' -burn '+fColor[2]+' -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%');
@@ -741,7 +772,8 @@ begin
     with FeatureList_50K[i] do begin
 //      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn '+fColor[0]+' -burn '+fColor[1]+' -burn '+fColor[2]+' -l '+fDesc + fSql +' %sourcevec% %destTiff%');
       // overwrite forest with black non-forest features
-      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn 0 -burn 0 -burn 0 -l '+fDesc + fSql +' %sourcevec% %destTiff%');
+//      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn 0 -burn 0 -burn 0 -l '+fDesc + fSql +' %sourcevec% %destTiff%');
+      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn 0 -burn 0 -burn 0 -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%');
     end;
   end;
 
@@ -792,6 +824,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -906,6 +940,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -1024,6 +1060,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -1147,6 +1185,8 @@ begin
   writeln(GEOfile,'setlocal enabledelayedexpansion');
   writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
   writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  // suppres generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
   writeln(GEOfile,'gdalinfo --version');
 
   writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
@@ -1213,6 +1253,409 @@ begin
   // close the file
   Close(GEOfile);
   MessageShow(FileName+' done.');
+end;
+
+Type
+  tColorTable = array[0..256-1] of array[0..4-1] of byte;
+
+// include the color tables
+{$I Color_Table_Thermal.pas}
+{$I Color_Table_Forest.pas}
+{$I Color_Table_Water.pas}
+
+// For Modifying the color table
+//-------------------------------------------------------------------------------------
+Procedure Make_Dummy_VRT_File(FilePath, FileName : string;
+  Size : integer; ColorTable : tColorTable);
+
+var
+  i : integer;
+
+begin
+  //open the file
+  FileName := FileName+'.vrt';
+  AssignFile(GEOfile, FilePath +'\'+ FileName);
+  Rewrite(GEOfile);
+
+  writeln(GEOfile,format('<VRTDataset rasterXSize="%d" rasterYSize="%d">',[Size,Size]));
+  writeln(GEOfile,'  <VRTRasterBand dataType="Byte" band="1">');
+  writeln(GEOfile,'    <NoDataValue>255</NoDataValue>');
+  writeln(GEOfile,'    <ColorInterp>Palette</ColorInterp>');
+  writeln(GEOfile,'    <ColorTable>');
+
+  for i := 0 to 256-1 do begin
+    writeln(GEOfile,format('      <Entry c1="%d" c2="%d" c3="%d" c4="%d" />',
+      [ColorTable[i][0],ColorTable[i][1],ColorTable[i][2],ColorTable[i][3]]));;
+  end;
+
+  writeln(GEOfile,'    </ColorTable>');
+  writeln(GEOfile,'    <ComplexSource>');
+  writeln(GEOfile,format('      <SourceFilename relativeToVRT="1">%s</SourceFilename>',['UTMmap.tif']));
+  writeln(GEOfile,'      <SourceBand>1</SourceBand>');
+  writeln(GEOfile,format('      <SourceProperties RasterXSize="%d" RasterYSize="%d" DataType="Byte" BlockXSize="%d" BlockYSize="1" />',[Size,Size,Size]));
+  writeln(GEOfile,format('      <SrcRect xOff="0" yOff="0" xSize="%d" ySize="%d" />',[Size,Size]));
+  writeln(GEOfile,format('      <DstRect xOff="0" yOff="0" xSize="%d" ySize="%d" />',[Size,Size]));
+  writeln(GEOfile,'      <NODATA>255</NODATA>');
+  writeln(GEOfile,'    </ComplexSource>');
+  writeln(GEOfile,'  </VRTRasterBand>');
+  writeln(GEOfile,'</VRTDataset>');
+
+  // close the file
+  Close(GEOfile);
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure MakeGEO_GLC_batchFile(TileIndex : integer;
+  gType : geoType; Size : integer);
+
+var
+  FilePath : string;
+  BatchFileName : string;
+  FileName : string;
+  gName : string;
+  bmpPath : string;
+  bmpName : string;
+  ColorTable : tColorTable;
+
+  Tile_B_Lat : double;
+  Tile_T_Lat : double;
+  Tile_L_Long : double;
+  Tile_R_Long : double;
+
+begin
+  FilePath := GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName;
+  BatchFileName := GEO_F_Name[ord(gType)];
+  case gType of
+    gGeneric: begin
+      gName := 'gUTMmap';
+      bmpPath := '..\..\GeoDatabase\';
+      bmpName := TileList[TileIndex].TileName+'.bmp';
+    end;
+    gThermal: begin
+      gName := 'tUTMmap';
+      bmpPath := '';
+      bmpName := TileList[TileIndex].TileName+'_t.bmp';
+      ColorTable := Color_Table_Thermal;
+    end;
+    gV1forest: begin
+      gName := 'fUTMmap';
+      bmpPath := '..\..\Terragen\ForestMaps\';
+      bmpName := 'f'+TileList[TileIndex].TileName+'.bmp';
+      ColorTable := Color_Table_Forest;
+    end;
+    gV2decideous: begin
+      gName := 'fbUTMmap';
+      bmpPath := '..\..\Terragen\ForestMaps\';
+      bmpName := 'b'+TileList[TileIndex].TileName+'.bmp';
+      ColorTable := Color_Table_Forest;
+    end;
+    gV2coniferous: begin
+      gName := 'fsUTMmap';
+      bmpPath := '..\..\Terragen\ForestMaps\';
+      bmpName := 's'+TileList[TileIndex].TileName+'.bmp';
+      ColorTable := Color_Table_Forest;
+    end;
+    gWater: begin
+      gName := 'fwUTMmap';
+      bmpPath := '..\..\Terragen\WaterMaps\';
+      bmpName := TileList[TileIndex].TileName+'.bmp';
+      ColorTable := Color_Table_Water;
+    end;
+    else begin
+      Exit;
+    end;
+  end;
+
+  //open the file
+  FileName := BatchFileName+TileList[TileIndex].TileName+'.bat';
+  AssignFile(GEOfile, FilePath +'\'+ FileName);
+  Rewrite(GEOfile);
+
+  writeln(GEOfile,'echo off');
+  writeln(GEOfile,'rem Enable Delayed Expansion for !Variables!');
+  writeln(GEOfile,'setlocal enabledelayedexpansion');
+  writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
+  writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+  writeln(GEOfile,'gdalinfo --version');
+  // suppress generation of .xml file
+  writeln(GEOfile,'set GDAL_PAM_ENABLED=NO');
+
+  writeln(GEOfile,'rem create a GeoTiff to embed the UTM easting and northing');
+
+  writeln(GEOfile,'rem set the size');
+  writeln(GEOfile,format('set image_width=%d',[Size]));
+  writeln(GEOfile,format('set image_height=%d',[Size]));
+
+  Tile_B_Lat  := TileList[TileIndex].TileUTMBottom + UTM_Bottom - Legacy_Offset;
+  Tile_T_Lat  := Tile_B_Lat + 23040;
+  Tile_L_Long  := UTM_Right + Legacy_Offset - TileList[TileIndex+1].TileUTMRight;
+  Tile_R_Long  := Tile_L_Long + 23040;
+
+  writeln(GEOfile,'rem crop to UTM coordinates');
+  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  if (UTM_ZoneNS = 'N') then begin
+    writeln(GEOfile,'set utm_grid=north');
+  end else begin
+    writeln(GEOfile,'set utm_grid=south');
+  end;
+  writeln(GEOfile,format('set utm_left=%1.1f',[Tile_L_Long]));
+  writeln(GEOfile,format('set utm_bottom=%1.1f',[Tile_B_Lat]));
+  writeln(GEOfile,format('set utm_right=%1.1f',[Tile_R_Long]));
+  writeln(GEOfile,format('set utm_top=%1.1f',[Tile_T_Lat]));
+
+//  writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\*.tif');
+  // cannot do *.tif when re-projection done; need to use for loop
+  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\*.tif'') do (');
+  writeln(GEOfile,'set sourceTiff=..\..\GeoDatabase\%%f');
+  writeln(GEOfile,'set destinationTiff='+TileList[TileIndex].TileName+'_%%f');
+  writeln(GEOfile,'if exist !destinationTiff! del !destinationTiff!'); // if already present
+  writeln(GEOfile,'rem for color table preservation, use - r near or -r min or -r max');
+  writeln(GEOfile,'gdalwarp.exe -r near -of GTiff -t_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% !sourcetiff! !destinationtiff!');
+  writeln(GEOfile,')'); // end for loop
+
+  // now combine the files
+  writeln(GEOfile,format('set destinationTiff=%s.tif',['UTMmap']));
+  writeln(GEOfile,'gdalwarp.exe '+TileList[TileIndex].TileName+'_*.tif %destinationTiff%');
+  writeln(GEOfile,'del '+TileList[TileIndex].TileName+'_*.tif');
+
+  writeln(GEOfile,'set destinationbmp='+bmpPath+bmpName);
+  case gType of
+    gGeneric: begin
+      writeln(GEOfile,'gdal_translate -of BMP %destinationTIFF% %destinationbmp%');
+    end;
+    else begin
+      // convert to bitmap with new Color Table from VRT
+      writeln(GEOfile,'rem convert to bitmap');
+      writeln(GEOfile,format('set sourceVRT=%s.vrt',[gName]));
+      writeln(GEOfile,'gdal_translate -of BMP %sourceVRT% %destinationbmp%');
+    end;
+  end;
+  writeln(GEOfile,'del %destinationTIFF%');
+
+  writeln(GEOfile,'endlocal');
+
+  // close the file
+  Close(GEOfile);
+
+  // also make the VRT file with the color table
+  Make_Dummy_VRT_File(FilePath, gName, Size, ColorTable);
+
+  MessageShow(FileName+' done.');
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure MakeGEO_GLC_Blank(TileIndex : integer;
+  gType : geoType; Size : integer);
+
+var
+  FilePath : string;
+  BatchFileName : string;
+  FileName : string;
+  gName : string;
+  bmpPath : string;
+  bmpName : string;
+
+begin
+  FilePath := GEOfolder +'\SourceTiles\'+ TileList[TileIndex].TileName;
+  BatchFileName := GEO_F_Name[ord(gType)];
+  case gType of
+    gV2coniferous: begin
+      gName := 'fsUTMmap';
+      bmpPath := '..\..\Terragen\ForestMaps\';
+      bmpName := 's'+TileList[TileIndex].TileName+'.bmp';
+    end;
+    else begin
+      Exit;
+    end;
+  end;
+
+  //open the file
+  FileName := BatchFileName+TileList[TileIndex].TileName+'.bat';
+  AssignFile(GEOfile, FilePath +'\'+ FileName);
+  Rewrite(GEOfile);
+
+  writeln(GEOfile,'echo off');
+  writeln(GEOfile,'setlocal');
+
+  writeln(GEOfile,'set sourceBMP='+FilePath+'\'+BMPpath+'sBlank.bmp');
+  writeln(GEOfile,'if not exist %sourceBMP% (echo ERROR: %sourceBMP% not found & pause & exit /b 9)');
+  writeln(GEOfile,'set destinationBMP='+FilePath+'\'+BMPpath+bmpName);
+  writeln(GEOfile,'copy %sourceBMP% %destinationBMP%');
+
+  writeln(GEOfile,'endlocal');
+
+  // close the file
+  Close(GEOfile);
+
+  MessageShow(FileName+' done.');
+end;
+
+// identify list of files to download
+//---------------------------------------------------------------------------
+Procedure MakeGEO_GLC_Wget;
+const
+  baseURL = 'https://storage.googleapis.com/earthenginepartners-hansen/GLCLU_2019/map/';
+
+var
+  i, j : integer;
+  Lat_Min, Lat_Max, Long_Min, Long_Max : double;
+  GLC_Lat_Min, GLC_Lat_Max, GLC_Long_Min, GLC_Long_Max : integer;
+  GEO_File : TextFile;
+  URL_File : TextFile;
+
+//---------------------------------------------------------------------------
+function GLC_Name(i,j : integer): string;
+var
+  S : string;
+begin
+  S := format('%2.2dN_%3.3dE',[abs(i),abs(j)]);
+  if (i < 0) then begin // if south replace N by S
+    S[3] := 'S';
+  end;
+  if (j < 0) then begin // if west replace E by W
+    S[8] := 'W';
+  end;
+  result := S;
+end;
+
+//---------------------------------------------------------------------------
+begin
+    // first, using lat/long extents, determine how many HGT tiles are needed
+    UTMtoLatLong(UTM_Top, UTM_Left, UTM_Zone, UTM_ZoneNS);
+    Lat_Max := uLatitude;
+    Long_Min := uLongitude;
+    UTMtoLatLong(UTM_Top, UTM_Right, UTM_Zone, UTM_ZoneNS);
+    if (Lat_Max < uLatitude) then begin
+      Lat_Max := uLatitude;
+    end;
+    Long_Max := uLongitude;
+    UTMtoLatLong(UTM_Bottom, UTM_Left, UTM_Zone, UTM_ZoneNS);
+    Lat_Min := uLatitude;
+    if (Long_min > uLongitude) then begin
+      Long_min := uLongitude;
+    end;
+    UTMtoLatLong(UTM_Bottom, UTM_Right, UTM_Zone, UTM_ZoneNS);
+    if (Lat_Min > uLatitude) then begin
+      Lat_Min := uLatitude;
+    end;
+    if (Long_Max < uLongitude) then begin
+      Long_Max := uLongitude;
+    end;
+
+    // every 10 deg
+    GLC_Lat_Min  := Ceil(Lat_Min/10);
+    GLC_Lat_Max  := Ceil(Lat_Max/10);
+    GLC_Long_Min := Floor(Long_Min/10);
+    GLC_Long_Max := Floor(Long_Max/10);
+
+    MessageShow('Files needed:');
+    AssignFile(URL_file, GEOFolder+'\GeoDatabase'+'\URLs.txt');
+    Rewrite(URL_file);
+    for i := GLC_Lat_Min to GLC_Lat_Max do begin
+      for j := GLC_Long_Min to GLC_Long_Max do begin
+        writeln(URL_file, baseURL+GLC_Name(i*10,j*10)+'.tif');
+        MessageShow(GLC_Name(i*10,j*10)+'.tif');
+      end;
+    end;
+    CloseFile(URL_file);
+
+    // a file to download the GLC files
+    // first check if alternate batch file is available
+    if (FileExists(ApplicationPath+'\Batch\GLC_WGET.bat')) then begin
+      CopyFile(pchar(ApplicationPath+'\Batch\GLC_Wget.bat'),
+        pchar(GEOFolder+'\GeoDatabase'+'\GLC_Wget.bat'),false);
+    end else begin
+      // create a file to download the HGT files
+      AssignFile(GEO_file, GEOFolder+'\GeoDatabase'+'\GLC_WGET.bat');
+      Rewrite(GEO_file);
+
+      writeln(GEO_file,'@echo off');
+//      writeln(GEO_file,'setlocal');
+      writeln(GEO_file,'setlocal EnableDelayedExpansion');
+//      writeln(GEO_file,'set PATH=%PATH%;c:\programs\wget');
+      writeln(GEO_file,'set PATH=%PATH%;'+WGETfolder);
+
+      writeln(GEO_file,'rem make sure needed programs exist');
+      writeln(GEO_file,'where wget 2>nul');
+      writeln(GEO_file,'IF %ERRORLEVEL% NEQ 0 (');
+      writeln(GEO_file,'   echo ERROR: '+WGETfolder+'\wget.exe not found & pause & exit /b 9)');
+
+      writeln(GEO_file,'rem goto directory where batch file is');
+      writeln(GEO_file,'cd /d %~dp0');
+
+      writeln(GEO_file, 'wget -i URLs.txt');
+
+      writeln(GEO_file, 'rem check files OK');
+      writeln(GEO_file, 'for /F %%G in (URLs.txt) DO (');
+      writeln(GEO_file, '  for /F "tokens=6 delims=/" %%a in ("%%G") do set "tifFile=%%a"');
+      writeln(GEO_file, '  if not exist !tifFile! (echo ERROR: !tifFile! is missing & pause & exit /b 9)');
+      writeln(GEO_file,')');
+
+//      writeln(GEO_file,'pause');
+      writeln(GEO_file,'endlocal');
+      // close the file
+      CloseFile(GEO_file);
+    end;
+
+end;
+
+{----------------------------------------------------------------------------}
+Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer);
+const
+  BlockSize : integer = 256;
+
+var
+  i :integer;
+  Greyscale_File : File of byte;
+  P : PByteArray;
+//  P : pRGBAlphaArray;
+  pColor : ColorConvert;
+  dSize : LongWord;
+
+begin
+    AssignFile(Greyscale_File,FileName);
+    Rewrite(Greyscale_File);
+    with BitmapHeader_8bitColor do begin
+      bDib.bPaletteColors := 256; // 8 bit greyscale
+      bDib.bWidth := Size;
+      bDib.bHeight := Size;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+      BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
+        sizeof(BitmapHeader_8bitColor));
+
+      try
+        P := AllocMem(256 * sizeof(TRGBQuad)); // block transfer
+        //write 256 color palette
+        //seek(GreyScale_File,sizeof(BMP_Header) + sizeof(BMP_DIB_Header));
+        pColor.ByteValue[3]:=0;
+        for i := 0 to 256-1 do begin //grey scale
+          pColor.ByteValue[0] := i;
+          pColor.ByteValue[1] := i;
+          pColor.ByteValue[2] := i;
+          pRGBAlphaArray(P)^[i] := pColor.cRGBA;
+        end;
+        BlockWrite(Greyscale_File,P^[0],256*sizeof(TRGBQuad));
+      finally
+        freemem(P);
+      end;
+
+      try
+        P := AllocMem(BlockSize); // block transfer
+        dSize := bDib.bHeight * bDib.bWidth;
+        while (dSize > BlockSize) do begin
+          BlockWrite(Greyscale_File,P^,BlockSize);
+          DEC(dSize, BlockSize);
+        end;
+        BlockWrite(Greyscale_File,P^,dSize);
+      finally
+        freemem(P);
+      end;
+
+    end;
+
+    Close(Greyscale_File);
+//    MessageShow('Greyscale bitmap created');
 end;
 
 {----------------------------------------------------------------------------}

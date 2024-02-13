@@ -49,7 +49,7 @@ var
   Tile_LT_Lat_save  : real;
   Tile_LT_Long_save : real;
 
-Procedure Make_QT_All_BatchFile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+Procedure Make_QT_All_BatchFile(epsg : integer; CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 
 Procedure CalcCorners(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 
@@ -106,7 +106,7 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
-Procedure Make_QT_All_BatchFile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
+Procedure Make_QT_All_BatchFile(epsg : integer; CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 var
   i,j : integer;
   FileName : string;
@@ -125,8 +125,14 @@ begin
   TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
 //  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
 
+  FileName := 'MAKE_ALL_';
+  if (epsg = 4326) then begin
+    FileName := format('%s_%d.bat',[FileName+TileName,epsg]);
+  end else begin
+    FileName := FileName+TileName+'.bat';
+  end;
+
   //open the file
-  FileName := 'MAKE_ALL_'+TileName+'.bat';
   AssignFile(QT_file, FilePath +'\'+ FileName);
   Rewrite(QT_file);
 
@@ -134,7 +140,11 @@ begin
   // use || to execute next command if previous one failed
   writeln(QT_file,'call Batch_Download_'+TileName+'.bat || exit /b 9');
   writeln(QT_file,'call Batch_Combine_'+TileName+'.bat || exit /b 9');
-  writeln(QT_file,'call GDAL_'+TileName+'_3857.bat || exit /b 9');
+  if (epsg = 4326) then begin
+    writeln(QT_file,'call GDAL_'+TileName+'_4326.bat || exit /b 9');
+  end else begin
+    writeln(QT_file,'call GDAL_'+TileName+'_3857.bat || exit /b 9');
+  end;
   writeln(QT_file,'call DDS_'+TileName+'.bat || exit /b 9');
 
   // close the file
