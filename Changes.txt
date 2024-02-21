@@ -317,6 +317,18 @@ v0.9.1 - Feb 2024
   - add support for creating hi-res runways	in AirportPlacer
   - allow showing runway on blank area if no terragen or no dds files
 
+v0.9.2 - Feb 2024
+  - add 'New' buttons for SimpleObjects
+  - save both .co and .c3d when saving .co
+  - improve control of paths in SimpleObjects
+  - make thermal map generation work with partial tiles
+  - allow thermal tile bitmap to be 8 or 24 bit color
+  - allow forest tile bitmap to be 8 or 24 bit color
+  - speed up thermal generation
+  - change make_GEO to use 'gdal_create' for new GDAL libraries
+  - Make-Forest for V2 partially works - can generate overall bitmap versions
+
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

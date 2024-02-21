@@ -37,7 +37,19 @@ The condor .FOR file (V1) is structured as follows:
     - by column
     - right column first
     - starting from the bottom
-  - 4 quadrant interleave - messy !  
+  - 4 quadrant interleave - messy !
+----------------------------------------------------------------------------}
+
+{----------------------------------------------------------------------------
+The condor .FOR files (V2) are structured as follows:
+- n bytes -> n = 2048 * 2048
+  - each byte value
+    - corresponds to one 11.25x11.25 metre squares
+    - byte contains bit0 - coniferous, bit1 decideous
+  - byte order in file
+    - by column
+    - right column first
+    - starting from the bottom
 ----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------
@@ -60,8 +72,6 @@ Type
 
 const
   ForestSize = 1;         // size of value in file in bytes
-//  fRows = tRows*2;        //twice resolution
-//  fColumns = tColumns*2;  //twice resolution
 
 var
   Memo_Message : TMemo;  // external TMemo for messages
@@ -70,7 +80,7 @@ var
   DestinationForestFolder : string; // external path for file
   ForestResolution : integer = 2;   // relative resolution with reference to tRows
 //  ForestGrid : array[0..fRows-1,0..fColumns-1] of byte;
-  ForestGrid : array of array of byte;
+  ForestGrid : array of array of byte; // [y,x]
 
   OverallForestDeciduous : array of byte;
   OverallForestConiferous : array of byte;
@@ -87,22 +97,24 @@ Procedure OverallForest_To_FOR(ForestFileName : string);
 Procedure Expand_x4_Save_V2(FOR_FilePath : string);
 
 // first step for V2 forest FOR to BMP
-Procedure V2_FOR_To_ForestGrid(ForestFileName : string);
-Procedure V2_2Color_WriteBitmapForestTile(Forest : ForestType;ForestFIleName : string);
-Procedure V2_16Color_Both_WriteBitmapForestTile(ForestFIleName : string);
-Procedure V2_GreyScale_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
-Procedure V2_24bit_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+Procedure V2_qFOR_To_ForestGrid(ForestFileName : string);
+Procedure V2_2Color_WriteBitmapForestQtile(Forest : ForestType;ForestFileName : string);
+Procedure V2_16Color_Both_WriteBitmapForestQtile(ForestFileName : string);
+Procedure V2_GreyScale_WriteBitmapForestQtile(Forest : ForestType; ForestFileName : string);
+Procedure V2_24bit_WriteBitmapForestQtile(Forest : ForestType; ForestFileName : string);
 
-Procedure V2_ForestGrid_To_FOR(ForestFileName : string);
+Procedure V2_ForestGrid_To_FOR(fSize : integer; ForestFileName : string);
+Procedure V2_ForestGrid_To_FOR_x16(ForestFileName : string);
 
 // not/no-longer supported by bitmap
-Procedure V2_4Color_Both_WriteBitmapForestTile(ForestFIleName : string);
+Procedure V2_4Color_Both_WriteBitmapForestQtile(ForestFileName : string);
 
 {============================================================================}
 IMPLEMENTATION
 
-uses forms, SysUtils, Windows,
-  {u_SceneryHDR,} u_TileList, u_BMP, u_Convolve;
+uses
+  forms, SysUtils, Windows,
+  u_TileList, u_BMP, u_Convolve, u_MakeForest;
 
 var
   Forest_File : File of byte;
@@ -124,65 +136,110 @@ bitmap format
 
 {----------------------------------------------------------------------------}
 function ReadForestBitmapTile(FileName:string; Combine : Boolean) : Boolean;
-// create an array of bytes 512x512 (V1) or 2048x2048 (V2)
+// using an array of bytes 512x512 (V1) or 2048x2048 (V2)
 // read each bitmap RGB and convert to forest presence
 const
   tRGB : ColorConvert = ( ColorValue: $00000000 );
 
 var
-  BitmapFile : File of byte;
-  i, j : integer;
+  Bitmap_File : File of byte;
+  Bitmap_Hdr : BMP_V1_Header;
+  Palette_8 : BMP_8bit_ColorTable;
+  x, y : integer;
+  P8  : pByteArray;
   P24  : pRGBArray;
   CurrentValue : byte;
 
 begin
-  //make sure bitmap is 24 bit color and 512x512 (V1) or 2048x2048 (V2)
-  Bitmap_GetWidthHeight(FileName);
-  if NOT ((BitmapWidth = tColumns*ForestResolution) AND (BitmapHeight = tRows*ForestResolution)) then begin
-    MessageShow('Bitmap file - wrong size');
-    ReadForestBitmapTile := false;
-//    Beep;
-  end else begin
-    try
-      P24 := AllocMem(tColumns*ForestResolution * 3); // one row at a time
-      AssignFile(BitmapFile,u_BMP.BMPfolder+'\'+FileName);
-      Reset(BitmapFile);
-      seek(BitmapFile,BitmapHeader_24bitColor.Bitmap24PixelOffset);
-      ProgressBar_Status.Max := tRows*ForestResolution;
-      for i := tRows*ForestResolution-1 downto 0 do begin // rows from bottom
-        BlockRead(BitmapFile,P24^,tColumns*ForestResolution * 3);
-        for j := 0 to tColumns*ForestResolution-1 do begin // columns from left
-           tRGB.cRGB := P24^[j]; // each pixel
-           if (Combine) then begin
-             CurrentValue := ForestGrid[i,j];
-           end else begin
-             CurrentValue := 0;
-           end;
-          // match color to a forest index
-          if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
-            ForestGrid[i,j] := CurrentValue OR 1;
+  Result := false; // assume for now
+  // make sure it exists
+  if (NOT FileExists(u_BMP.BMPfolder+'\'+FileName)) then begin
+    exit;
+  end;
+  //make sure bitmap is 8 or 24 bit color and 512x512 (V1) or 2048x2048 (V2)
+  AssignFile(Bitmap_File,u_BMP.BMPfolder+'\'+FileName);
+  Reset(Bitmap_File);
+  // read the file header
+  BlockRead(Bitmap_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+  // check for bitmap signature
+  if (Bitmap_Hdr.bH.bSignature <> $4D42) then begin
+    MessageShow('Error: not bitmap');
+    Close(Bitmap_File);
+    exit;
+  end;
+  // check for correct size
+  if ((Bitmap_Hdr.bDib.bWidth <> tColumns*ForestResolution) OR
+      (Bitmap_Hdr.bDib.bHeight <> tRows*ForestResolution) ) then begin
+    MessageShow(format('Error: bitmap size not %d',[tColumns*ForestResolution]));
+    Close(Bitmap_File);
+    exit;
+  end;
+  // now check the typ 8 or 24 bit color
+  case (Bitmap_Hdr.bDib.bColorBits) of
+    8: begin
+      // read the palette for the 8 bit main file to access colors
+      BlockRead(Bitmap_File,Palette_8,sizeof(BMP_8bit_ColorTable));
+    end;
+    24: begin
+    end;
+    else begin
+      MessageShow('Error: Not 8 or 24 bit color bitmap');
+      Close(Bitmap_File);
+      Exit;
+    end;
+  end;
+
+  // now go through every pixel
+  try
+    P8  := AllocMem(tColumns*ForestResolution * sizeof(Byte)); // one row at a time
+    P24 := AllocMem(tColumns*ForestResolution * sizeof(TRGBTriple)); // one row at a time
+    for y := tRows*ForestResolution-1 downto 0 do begin // rows from bottom
+      case (Bitmap_Hdr.bDib.bColorBits) of
+        8: begin
+          BlockRead(Bitmap_File,P8^,tColumns*ForestResolution * sizeof(Byte));
+        end;
+        24: begin
+          BlockRead(Bitmap_File,P24^,tColumns*ForestResolution * sizeof(TRGBTriple));
+        end;
+      end;
+      // check each pixel
+      for x := 0 to tColumns*ForestResolution-1 do begin // columns from left
+        case (Bitmap_Hdr.bDib.bColorBits) of
+          8: begin
+            tRGB.crgba := Palette_8[P8^[x]];
+          end;
+          24: begin
+            tRGB.crgb := P24^[x];
+          end;
+        end;
+        if (Combine) then begin
+          CurrentValue := ForestGrid[y,x];
+        end else begin
+          CurrentValue := 0;
+        end;
+        // match color to a forest index
+        if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
+          ForestGrid[y,x] := CurrentValue OR 1;
+        end else begin
+          if ( (tRGB.ColorValue = tConiferous.ColorValue) OR
+               (tRGB.ColorValue = tConiferous_LE.ColorValue) ) then begin
+            ForestGrid[y,x] := CurrentValue OR 2;
           end else begin
-            if (tRGB.ColorValue = tConiferous.ColorValue) then begin
-              ForestGrid[i,j] := CurrentValue OR 2;
+            if (tRGB.ColorValue = tBoth.ColorValue) then begin
+              ForestGrid[y,x] := CurrentValue OR 3;
             end else begin
-              if (tRGB.ColorValue = tBoth.ColorValue) then begin
-                ForestGrid[i,j] := CurrentValue OR 3;
-              end else begin
-                ForestGrid[i,j] := CurrentValue OR 0;
-              end;
+              ForestGrid[y,x] := CurrentValue OR 0;
             end;
           end;
         end;
-        ProgressBar_Status.StepIt;
-        Application.ProcessMessages;
       end;
-    finally
-      freemem(P24);
     end;
-    Close(BitmapFile);
-    ReadForestBitmapTile := true;
-    ProgressBar_Status.Position := 0;
+    Result := true; // success
+  finally
+    freemem(P24);
+    freemem(P8);
   end;
+  Close(Bitmap_File);
 end;
 
 {----------------------------------------------------------------------------}
@@ -219,7 +276,7 @@ end;
 {----------------------------------------------------------------------------}
 Procedure WriteForestTile(TileColumn,TileRow: integer);
 var
-  i,j : integer;
+  x,y : integer;
   FileIndex : longint;
   FileByte : byte;
   ColumnInterleave : integer;
@@ -234,7 +291,7 @@ begin
   ColumnInterleave := TileColumn * tColumns*ForestResolution;
 //  // row interleaving
 //  RowInterleave := TileRow * fRows;
-  for i := tColumns*ForestResolution-1 downto 0 do begin // columns from right
+  for x := tColumns*ForestResolution-1 downto 0 do begin // columns from right
     if (ColumnInterleave >= TileColumnCount*tColumns*ForestResolution div 2) then begin
       ColumnInterleave := ColumnInterleave - TileColumnCount*tColumns*ForestResolution div 2;
       InterleaveMask := InterleaveMask SHR 1;
@@ -242,7 +299,7 @@ begin
     TempMask := InterleaveMask;
     // row interleaving
     RowInterleave := TileRow * tRows*ForestResolution;
-    for j := tRows*ForestResolution-1 downto 0 do begin // rows from bottom
+    for y := tRows*ForestResolution-1 downto 0 do begin // rows from bottom
       if (RowInterleave >= TileRowCount*tRows*ForestResolution div 2) then begin
         RowInterleave := RowInterleave - TileRowCount*tRows*ForestResolution div 2;
         TempMask := TempMask SHR 2;
@@ -252,7 +309,7 @@ begin
       seek(Forest_File,FileIndex);
       read(Forest_File,FileByte); // needed because bits are interleaved
       seek(Forest_File,FileIndex); // needed to overwrite the byte
-      BitInterleave(FileByte,TempMask,ForestGrid[j,i]);
+      BitInterleave(FileByte,TempMask,ForestGrid[y,x]);
       // write each forest presence, 2 bits; for deciduous, coniferous
       write(Forest_File,FileByte);
       INC(RowInterleave,1);
@@ -279,7 +336,10 @@ var
 
 begin
   FilePath := DestinationForestFolder;
-  if (NOT FileExists(FilePath+'\'+ForestFileName)) then begin
+//  if (NOT FileExists(FilePath+'\'+ForestFileName)) then begin
+  if ( (NOT FileExists(FilePath+'\'+ForestFileName) ) OR
+       (u_MakeForest.Form_MakeForest.CheckBox_Erase.Checked)
+     ) then begin
     MessageShow('Creating Forest map...');
     AssignFile(Forest_File,FilePath+'\'+ForestFileName);
     Rewrite(Forest_File);
@@ -369,7 +429,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Function ByteToBit(Forest:ForestType;Grid:Array of byte; j:integer):byte;
+Function ByteToBit(Forest:ForestType;Grid:Array of byte; x:integer):byte;
 var
   FileByte : byte;
   k : integer;
@@ -383,7 +443,7 @@ begin
   end;
   FileByte := 0;
   for k := 0 to 8-1 do begin
-    if (Grid[j+k] AND BitMask = BitMask) then begin
+    if (Grid[x+k] AND BitMask = BitMask) then begin
       FileByte := FileByte SHL 1 +1;
     end else begin
       FileByte := FileByte SHL 1;
@@ -393,7 +453,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Function ByteTo2bits(Grid:Array of byte; j:integer):byte;
+Function ByteTo2bits(Grid:Array of byte; x:integer):byte;
 var
   FileByte : byte;
   k : integer;
@@ -404,13 +464,13 @@ begin
   BitMask := 3;
   for k := 0 to 4-1 do begin
     FileByte := FileByte SHL 2;
-    FileByte := FileByte OR (Grid[j+k] AND BitMask);
+    FileByte := FileByte OR (Grid[x+k] AND BitMask);
   end;
   ByteTo2bits := FileByte;
 end;
 
 {----------------------------------------------------------------------------}
-Function ByteTo4bits(Grid:Array of byte; j:integer):byte;
+Function ByteTo4bits(Grid:Array of byte; x:integer):byte;
 var
   FileByte : byte;
   k : integer;
@@ -421,7 +481,7 @@ begin
   BitMask := 3;
   for k := 0 to 2-1 do begin
     FileByte := FileByte SHL 4;
-    FileByte := FileByte OR (Grid[j+k] AND BitMask);
+    FileByte := FileByte OR (Grid[x+k] AND BitMask);
   end;
   ByteTo4bits := FileByte;
 end;
@@ -481,31 +541,55 @@ begin
   end;
 end;
 
+// 2 color - problem x versus y
 {----------------------------------------------------------------------------}
-Procedure WriteBitmapForestTile(Forest:ForestType;TileColumn,TileRow: integer);
+Procedure WriteForestBitmapTile(Forest:ForestType;TileColumn,TileRow: integer);
 var
-  i,j : integer;
+  x, y, k : integer;
   FileIndex : longint;
-  FileByte : byte;
+  cOffset, rOffset : integer;
+  P8  : pByteArray;
 
 begin
-//  FileIndex := BitmapHeader_1bitBW.BitmapBWPixelOffset +
+  // for partial tiles, need to crop
+  cOffset := 0;
+  if (((TileColumn+1) * tColumns) > ColumnCount) then begin
+    cOffset := ((TileColumn+1) * tColumns) - ColumnCount;
+  end;
+  rOffset := 0;
+  if (((TileRow+1) * tRows) > RowCount) then begin
+    rOffset := ((TileRow+1) * tRows) - RowCount;
+  end;
+
+////  FileIndex := BitmapHeader_1bitBW.BitmapBWPixelOffset +
+//  FileIndex := xBitmapHeader_1bitColor.bH.bPixelArrayOffset +
+//               xColor1Size * (TileRow*tRows*ForestResolution*((TileColumnCount*tColumns*ForestResolution) div 8) +
+//                              (((TileColumnCount-1)-TileColumn)*tColumns*ForestResolution div 8)
   FileIndex := xBitmapHeader_1bitColor.bH.bPixelArrayOffset +
-               xColor1Size * (TileRow*tRows*ForestResolution*((TileColumnCount*tColumns*ForestResolution) div 8) +
-                              (((TileColumnCount-1)-TileColumn)*tColumns*ForestResolution div 8)
+               xColor1Size * (TileRow*tRows*ForestResolution*(ColumnCount*(ForestResolution div 8)) +
+                             (ColumnCount-tColumns+cOffset - TileColumn*tColumns)*(ForestResolution div 8)
                              );
-  for i := tRows*ForestResolution-1 downto 0 do begin // rows from bottom
-    seek(Forest_File,FileIndex);
-    for j := 0 to (tColumns*ForestResolution div 8)-1 do begin // columns from left
-      //assemble 8 bits
-      FileByte := ByteToBit(Forest,ForestGrid[i],j*8);
-      // write each forest index, 2 color (BW)
-      write(Forest_File,FileByte);
+  try
+    // write each forest index
+    P8  := AllocMem(tColumns*ForestResolution div 8 * sizeof(Byte)); // one row at a time
+    for y := tRows*ForestResolution-1 downto rOffset*ForestResolution do begin // rows from bottom
+      seek(Forest_File,FileIndex);
+      k := 0;
+      for x := (cOffset*ForestResolution div 8) to (tColumns*ForestResolution div 8)-1 do begin // columns from left
+        //assemble 8 bits
+        p8^[k] := ByteToBit(Forest,ForestGrid[y],x*8);
+        // write each forest index, 2 color (BW)
+        INC(k);
+      end;
+      BlockWrite(Forest_File,P8^,(tColumns-cOffset) *ForestResolution div 8 * sizeof(Byte));
+      INC(FileIndex,(xColor1Size * (ColumnCount*ForestResolution) div 8));
     end;
-    INC(FileIndex,(xColor1Size * (TileColumnCount*tColumns*ForestResolution) div 8));
+  finally
+    freemem(P8);
   end;
 end;
 
+// 1 bit color (2 colors)
 {----------------------------------------------------------------------------}
 Procedure CreateForestBitmap(Shrink : Boolean; Forest : ForestType; ForestFileName : string);
 const
@@ -523,7 +607,9 @@ var
 
 begin
   FilePath := DestinationForestFolder;
-  if (NOT FileExists(FilePath+'\'+ForestFileName)) then begin
+  if ( (NOT FileExists(FilePath+'\'+ForestFileName) ) OR
+       (u_MakeForest.Form_MakeForest.CheckBox_Erase.Checked)
+     ) then begin
     MessageShow('Creating Forest bitmap...');
     AssignFile(Forest_File,FilePath+'\'+ForestFileName);
     Rewrite(Forest_File);
@@ -544,9 +630,7 @@ begin
     // create a default file for now
     try
       P := AllocMem(ColumnCount*ForestResolution*xColor1Size div 8); // one row; bytes are set to 0
-//      for i := 0 to (ColumnCount*2*xColor1Size div 8) div sizeof(word)-1 do begin
-//        P^[i] := $FFFF; //all no forest
-//      end;
+      // fill with inverse mask $FF
       FillChar(P^[0], ColumnCount*ForestResolution*xColor1Size div 8, $FF);
       for i := 0 to RowCount*ForestResolution-1 do begin       // tRows to do
         BlockWrite(Forest_File,P^,ColumnCount*ForestResolution*xColor1Size div 8);
@@ -569,36 +653,58 @@ begin
     for j := 0 to TileRowCount-1 do begin
       TileName := format('%2.2d%2.2d',[i,j]);
 
-      //first check if geoDatabase V1 format file is present
-      FileName := 'f'+TileName+'.bmp';
-//      FilePath := SourceForestFolder +'\Terragen\ForestMaps';
-      FilePath := SourceForestFolder +'\SourceTiles\'+TileName;
-      if (FileExists(FilePath+'\'+FileName)) then begin
-        //read the bitmap file
-        u_BMP.BMPfolder := FilePath;
-        if (Shrink) then begin
-          u_Convolve.ProgressBar_Status := ProgressBar_Status;
-          ForestBitmapShrink_File(FilePath+'\'+FileName, FilePath+'\'+'sf'+TileName+'.bmp');
-          FileName := 'sf'+TileName+'.bmp';
-        end;
-        if ReadForestBitmapTile(FileName, False) then begin
-          //write to Forest file
-          WriteBitmapForestTile(Forest,i,j);
-        end;
-      end else begin // look for original format file
-        FileName := TileName+'_f.bmp';
+      if (ForestResolution = 2) then begin
+        //first check if geoDatabase V1 format file is present
+        FileName := 'f'+TileName+'.bmp';
+//        FilePath := SourceForestFolder +'\Terragen\ForestMaps';
         FilePath := SourceForestFolder +'\SourceTiles\'+TileName;
         if (FileExists(FilePath+'\'+FileName)) then begin
           //read the bitmap file
           u_BMP.BMPfolder := FilePath;
           if (Shrink) then begin
             u_Convolve.ProgressBar_Status := ProgressBar_Status;
-            ForestBitmapShrink_File(FilePath+'\'+FileName, FilePath+'\'+TileName+'_f_s.bmp');
-            FileName := TileName+'_f_s.bmp';
+            ForestBitmapShrink_File(FilePath+'\'+FileName, FilePath+'\'+'sf'+TileName+'.bmp');
+            FileName := 'sf'+TileName+'.bmp';
           end;
           if ReadForestBitmapTile(FileName, False) then begin
             //write to Forest file
-            WriteBitmapForestTile(Forest,i,j);
+            WriteForestBitmapTile(Forest,i,j);
+          end;
+        end else begin // look for original format file
+          FileName := TileName+'_f.bmp';
+          FilePath := SourceForestFolder +'\SourceTiles\'+TileName;
+          if (FileExists(FilePath+'\'+FileName)) then begin
+            //read the bitmap file
+            u_BMP.BMPfolder := FilePath;
+            if (Shrink) then begin
+              u_Convolve.ProgressBar_Status := ProgressBar_Status;
+              ForestBitmapShrink_File(FilePath+'\'+FileName, FilePath+'\'+TileName+'_f_s.bmp');
+              FileName := TileName+'_f_s.bmp';
+            end;
+            if ReadForestBitmapTile(FileName, False) then begin
+              //write to Forest file
+              WriteForestBitmapTile(Forest,i,j);
+            end;
+          end;
+        end;
+      end else begin // V2
+        if (forest = fDeciduous) then begin
+          FileName := 'b'+TileName+'.bmp';
+        end else begin // coniferous
+          FileName := 's'+TileName+'.bmp';
+        end;
+        FilePath := SourceForestFolder +'\Terragen\ForestMaps';
+        if (FileExists(FilePath+'\'+FileName)) then begin
+          //read the bitmap file
+          u_BMP.BMPfolder := FilePath;
+          if (Shrink) then begin
+            u_Convolve.ProgressBar_Status := ProgressBar_Status;
+            ForestBitmapShrink_File(FilePath+'\'+FileName, FilePath+'\'+TileName+'_s.bmp');
+            FileName := TileName+'_s.bmp';
+          end;
+          if ReadForestBitmapTile(FileName, False) then begin
+            //write to Forest file
+            WriteForestBitmapTile(Forest,i,j);
           end;
         end;
       end;
@@ -609,10 +715,11 @@ begin
   end;
 
   Close(Forest_File);
-  MessageShow('Forest map done.');
+  MessageShow('Forest bitmap done.');
   ProgressBar_Status.Position := 0;
 end;
 
+// 24 bit color
 {----------------------------------------------------------------------------}
 Procedure CreateForestTileBitmap(ForestFileName : string);
 var
@@ -635,6 +742,7 @@ begin
       sizeof(xBitmapHeader_24bitColor));
     try
       P := AllocMem(tColumns*ForestResolution*Color24Size); // one row; bytes are set to 0
+      // init to all $00
       for i := 0 to tRows*ForestResolution-1 do begin       // fRows to do
         BlockWrite(BitmapFile,P^,tColumns*ForestResolution*Color24Size);
       end;
@@ -657,6 +765,7 @@ begin
 end;
 
 // Note: flip vertically for bitmap format
+// 8 bit color (256 color table or greyscale)
 {----------------------------------------------------------------------------}
 Procedure Byte_To_Greyscale_Bitmap(var Data : array of byte; Greyscale_FileName : string);
 const
@@ -881,7 +990,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_FOR_To_ForestGrid(ForestFileName : string);
+Procedure V2_qFOR_To_ForestGrid(ForestFileName : string);
 var
   x, y :integer;
   P : PByteArray;
@@ -891,27 +1000,27 @@ begin
     MessageShow('Forest file not found');
   end else begin
     ForestResolution := 8; // V2
-    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
+    setLength(ForestGrid,pRows*ForestResolution,pColumns*ForestResolution);
 
     AssignFile(Forest_File,ForestFileName);
     Reset(Forest_File);
       try
-        P := AllocMem(pColumns*ForestResolution); // one row of FOR at a time (one column of grid)
+        P := AllocMem(pColumns*ForestResolution); // one row of .FOR at a time (one column of grid)
 //        ProgressBar_Status.Max := pRows*ForestResolution;
 
-        for y := 0 to (pRows*ForestResolution)-1 do begin
+        for x := (pColumns*ForestResolution)-1 downto 0 do begin    // columns from the right
           BlockRead(Forest_File,P^,pColumns*ForestResolution);
-          for x := 0 to (pColumns*ForestResolution)-1 do begin
+          for y := 0 to (pRows*ForestResolution)-1 do begin
             // lsb is coniferous in V2, i.e. reverse
-            case P^[x] of
+            case P^[y] of
               1: begin
-                P^[x] := 2;
+                P^[y] := 2;
               end;
               2: begin
-                P^[x] := 1;
+                P^[y] := 1;
               end;
             end;
-            ForestGrid[pColumns*ForestResolution-1-x,pColumns*ForestResolution-1-y] := P^[x];
+            ForestGrid[(pRows*ForestResolution)-1-y,x] := P^[y];     // rows from the bottom
           end;
 
 //          ProgressBar_Status.StepIt;
@@ -927,53 +1036,122 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_ForestGrid_To_FOR(ForestFileName : string);
+Procedure V2_ForestGrid_To_FOR(fSize : integer; ForestFileName : string);
 var
   x, y :integer;
   P : PByteArray;
 
 begin
   begin
-    ForestResolution := 8; // V2
-    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
-
     AssignFile(Forest_File,ForestFileName);
     Rewrite(Forest_File);
-      try
-        P := AllocMem(pColumns*ForestResolution); // one row of FOR at a time (one column of grid)
-//        ProgressBar_Status.Max := pRows*ForestResolution;
-
-        for y := 0 to (pRows*ForestResolution)-1 do begin
-          for x := 0 to (pColumns*ForestResolution)-1 do begin
-             P^[x] := ForestGrid[pColumns*ForestResolution-1-x,pColumns*ForestResolution-1-y];
-            // lsb is coniferous in V2, i.e. reverse
-            case P^[x] of
-              1: begin
-                P^[x] := 2;
-              end;
-              2: begin
-                P^[x] := 1;
-              end;
+    try
+      P := AllocMem(fSize*ForestResolution); // one row of FOR at a time (one column of grid)
+//      ProgressBar_Status.Max := fSize*ForestResolution;
+      for x := (fSize*ForestResolution)-1 downto 0 do begin  // columns from right
+        for y := 0 to (fSize*ForestResolution)-1 do begin
+           P^[y] := ForestGrid[fSize*ForestResolution-1-y,x];   // rows from bottom
+          // lsb is coniferous in V2, i.e. reverse
+          case P^[y] of
+            1: begin
+              P^[y] := 2;
+            end;
+            2: begin
+              P^[y] := 1;
             end;
           end;
-          BlockWrite(Forest_File,P^,pColumns*ForestResolution);
-
-//          ProgressBar_Status.StepIt;
-          Application.ProcessMessages;
         end;
-
-      finally
-        freemem(P);
+        BlockWrite(Forest_File,P^,fSize*ForestResolution);
+//        ProgressBar_Status.StepIt;
+//        Application.ProcessMessages;
       end;
+    finally
+      freemem(P);
+    end;
 //    ProgressBar_Status.Position := 0;
     CloseFile(Forest_File);
   end;
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+Procedure V2_ForestGrid_To_FOR_Indexed(fSize : integer;
+  ForestFileName : string;
+  xOffset, yOffset : integer);
 var
-  i,j : integer;
+  x, y :integer;
+  P : PByteArray;
+
+begin
+  begin
+    AssignFile(Forest_File,ForestFileName);
+    Rewrite(Forest_File);
+    try
+      P := AllocMem(fSize*ForestResolution); // one row of FOR at a time (one column of grid)
+//      ProgressBar_Status.Max := fSize*ForestResolution;
+      for x := (fSize*ForestResolution)-1 downto 0 do begin  // columns from right
+        for y := 0 to (fSize*ForestResolution)-1 do begin
+           P^[y] := ForestGrid[yOffset+fSize*ForestResolution-1-y,xOffset+x];   // rows from bottom
+          // lsb is coniferous in V2, i.e. reverse
+          case P^[y] of
+            1: begin
+              P^[y] := 2;
+            end;
+            2: begin
+              P^[y] := 1;
+            end;
+          end;
+        end;
+        BlockWrite(Forest_File,P^,fSize*ForestResolution);
+//        ProgressBar_Status.StepIt;
+//        Application.ProcessMessages;
+      end;
+    finally
+      freemem(P);
+    end;
+//    ProgressBar_Status.Position := 0;
+    CloseFile(Forest_File);
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_ForestGrid_To_FOR_x16(ForestFileName : string);
+var
+  ErrorCode : integer;
+  FilePath : string;
+  FileName : string;
+  x, y :integer;
+  Column, Row : integer;
+
+begin
+  // extract FilePath
+  FilePath := ExtractFileDir(ForestFilename);
+  FileName := ExtractFileName(ForestFilename);
+  // extract Tile Column, Row
+  Val(copy(FileName,1,2),Column,ErrorCode);
+  // if errorcode or not in range -> error
+  if (ErrorCode <> 0) then begin
+    Exit;
+  end;
+  Val(copy(FileName,3,2),Row,ErrorCode);
+  // if errorcode or not in range -> error
+  if (ErrorCode <> 0) then begin
+    Exit;
+  end;
+  // create forest files
+  for y := 0 to 4-1 do begin    // for each row of 4, from bottom
+    for x := 0 to 4-1 do begin  // for each column of 4, from right
+      V2_ForestGrid_To_FOR_Indexed(pColumns,
+        format('%s\%2.2d%2.2d.for',[FilePath,Column*4+x,Row*4+y]),
+        (4-1-x)*tColumns div 4 *ForestResolution,
+        (4-1-y)*tRows div 4 *ForestResolution);
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure V2_WriteBitmapForestQtile(Forest : ForestType; ForestFileName : string);
+var
+  x,y : integer;
   FileIndex : longint;
   FileByte : byte;
 
@@ -1005,11 +1183,11 @@ begin
                xColor1Size * (TileRow*pRows*ForestResolution*((TileColumnCount*pColumns*ForestResolution) div 8) +
                               (((TileColumnCount-1)-TileColumn)*pColumns*ForestResolution div 8)
                              );
-  for i := pRows*ForestResolution-1 downto 0 do begin // rows from bottom
+  for y := pRows*ForestResolution-1 downto 0 do begin // rows from bottom
     seek(Forest_File,FileIndex);
-    for j := 0 to (pColumns*ForestResolution div 8)-1 do begin // columns from left
+    for x := 0 to (pColumns*ForestResolution div 8)-1 do begin // columns from left
       //assemble 8 bits
-      FileByte := ByteToBit(Forest,ForestGrid[i],j*8);
+      FileByte := ByteToBit(Forest,ForestGrid[y],x*8);
       // write each forest index, 2 color (BW)
       write(Forest_File,FileByte);
     end;
@@ -1018,11 +1196,11 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_2Color_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+Procedure V2_2Color_WriteBitmapForestQtile(Forest : ForestType; ForestFileName : string);
 const
   pix = 8; // 8 pixels per byte
 var
-  i,j : integer;
+  x, y : integer;
   FileByte : byte;
 
 begin
@@ -1042,10 +1220,10 @@ begin
   BlockWrite(Forest_File,xBMP_1bit_ForestColorTable,
     sizeof(xBMP_1bit_ForestColorTable));
 
-  for i := 0 to pRows*ForestResolution-1 do begin
-    for j := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
+  for y := pRows*ForestResolution-1 downto 0 do begin
+    for x := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
       //assemble 8 bits
-      FileByte := ByteToBit(Forest,ForestGrid[pRows*ForestResolution-1-i],j*pix); // from bottom
+      FileByte := ByteToBit(Forest,ForestGrid[y],x*pix);         // rows from bottom
       // write each forest index, 2 color
       write(Forest_File,FileByte);
     end;
@@ -1054,11 +1232,11 @@ end;
 
 // not/no-longer supported by bitmap
 {----------------------------------------------------------------------------}
-Procedure V2_4Color_Both_WriteBitmapForestTile(ForestFileName : string);
+Procedure V2_4Color_Both_WriteBitmapForestQtile(ForestFileName : string);
 const
   pix = 4; // 4 pixels per byte
 var
-  i,j : integer;
+  x, y : integer;
   FileByte : byte;
 
 begin
@@ -1079,10 +1257,10 @@ begin
   BlockWrite(Forest_File,xBMP_2bit_ForestColorTable,
     sizeof(xBMP_2bit_ForestColorTable));
 
-  for i := 0 to pRows*ForestResolution-1 do begin
-    for j := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
+  for y := pRows*ForestResolution-1 downto 0 do begin
+    for x := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
       //assemble 4 * 2 bits
-      FileByte := ByteTo2bits(ForestGrid[pRows*ForestResolution-1-i],j*pix); // from bottom
+      FileByte := ByteTo2bits(ForestGrid[x*pix],y); // from bottom
       // write each forest index, 4 color
       write(Forest_File,FileByte);
     end;
@@ -1090,11 +1268,11 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_16Color_Both_WriteBitmapForestTile(ForestFileName : string);
+Procedure V2_16Color_Both_WriteBitmapForestQtile(ForestFileName : string);
 const
   pix = 2; // 2 pixels per byte
 var
-  i, j : integer;
+  x, y : integer;
 //  FileByte : byte;
   P2pix  : pByteArray;
 
@@ -1118,10 +1296,10 @@ begin
 
   try
     P2pix := AllocMem(pColumns*ForestResolution div pix); // one row at a time
-    for i := 0 to pRows*ForestResolution-1 do begin
-      for j := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
+    for y := pRows*ForestResolution-1 downto 0 do begin            // rows from bottom
+      for x := 0 to (pColumns*ForestResolution div pix)-1 do begin // columns from left
         //assemble 2 * 4 bits
-        P2pix^[j] := ByteTo4bits(ForestGrid[pRows*ForestResolution-1-i],j*pix); // from bottom
+        P2pix^[x] := ByteTo4bits(ForestGrid[y],x*pix);
       end;
       // write each forest index, 4 color, 2 pix per byte
       BlockWrite(Forest_File,P2pix^,pColumns*ForestResolution div pix);
@@ -1132,9 +1310,9 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_GreyScale_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+Procedure V2_GreyScale_WriteBitmapForestQtile(Forest : ForestType; ForestFileName : string);
 var
-  i,j : integer;
+  i, x, y : integer;
 //  FileByte : byte;
   Pindex  : pByteArray;
   pColor : ColorConvert;
@@ -1165,10 +1343,10 @@ begin
 
   try
     Pindex := AllocMem(pColumns*ForestResolution); // one row at a time
-    for i := 0 to pRows*ForestResolution-1 do begin
-      for j := 0 to (pColumns*ForestResolution)-1 do begin // columns from left
+    for y := pRows*ForestResolution-1 downto 0 do begin    // rows from bottom
+      for x := 0 to (pColumns*ForestResolution)-1 do begin // columns from left
         // convert to BW
-        Pindex^[j] := ByteToGreyScale(Forest,ForestGrid[pRows*ForestResolution-1-i,j]); // from bottom
+        Pindex^[x] := ByteToGreyScale(Forest,ForestGrid[y,x]);
       end;
       // write each forest index, GreyScale, 1 pix per byte
       BlockWrite(Forest_File,Pindex^,pColumns*ForestResolution);
@@ -1179,9 +1357,9 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure V2_24bit_WriteBitmapForestTile(Forest : ForestType; ForestFileName : string);
+Procedure V2_24bit_WriteBitmapForestQtile(Forest : ForestType; ForestFileName : string);
 var
-  i, j : integer;
+  x, y : integer;
   P24  : pRGBArray;
 
 begin
@@ -1198,10 +1376,10 @@ begin
     sizeof(xBitmapHeader_24bitColor));
   try
     P24 := AllocMem(pColumns*ForestResolution * 3); // one row at a time
-    for i := 0 to pRows*ForestResolution-1 do begin
-      for j := 0 to (pColumns*ForestResolution)-1 do begin // columns from left
+    for y := pRows*ForestResolution-1 downto 0 do begin    // from bottom
+      for x := 0 to (pColumns*ForestResolution)-1 do begin // columns from left
         // convert from index to color
-        P24^[j] := ByteToColor(Forest,ForestGrid[pRows*ForestResolution-1-i,j]); // from bottom
+        P24^[x] := ByteToColor(Forest,ForestGrid[y,x]);
       end;
       // write each forest index, color that matches Landscape Editor
       BlockWrite(Forest_File,P24^,pColumns*ForestResolution * 3);
@@ -1226,5 +1404,4 @@ begin { Initialization }
 end.
 
 {--- End of File ------------------------------------------------------------}
-
 

@@ -1710,25 +1710,14 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-{
-function ForestMajority(i,j : integer): integer;
-begin
-  Result := 0;
-  if (ForestGrid[i*2,j*2] <> 0) then INC(result);
-  if (ForestGrid[i*2+1,j*2] <> 0) then INC(result);
-  if (ForestGrid[i*2,j*2+1] <> 0) then INC(result);
-  if (ForestGrid[i*2+1,j*2+1] <> 0) then INC(result);
-end;
-}
-{----------------------------------------------------------------------------}
-function ForestMajority(i,j : integer): integer;
+function ForestMajority(y, x : integer): integer;
 var
-  k, l : integer;
+  x_fm, y_fm : integer;
 begin
   Result := 0;
-  for k := 0 to ForestResolution-1 do begin
-    for l := 0 to ForestResolution-1 do begin
-      if (ForestGrid[i*ForestResolution+k,j*ForestResolution+l] <> 0) then INC(result);
+  for y_fm := 0 to ForestResolution-1 do begin
+    for x_fm := 0 to ForestResolution-1 do begin
+      if (ForestGrid[y*ForestResolution+y_fm,x*ForestResolution+x_fm] <> 0) then INC(result);
     end;
   end;
 end;
@@ -1736,17 +1725,18 @@ end;
 {----------------------------------------------------------------------------}
 Procedure ConvertForestMask(hDeciduous,hConiferous,hDefault : byte);
 var
-  i, j : integer;
+  x, y : integer;
 
-function ForestAverage(i,j : integer): integer;
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+function ForestAverage(y, x : integer): integer;
 var
-  k, l : integer;
+  x_fa, y_fa : integer;
 
 begin
   Result := 0;
-  for k := 0 to ForestResolution-1 do begin
-    for l := 0 to ForestResolution-1 do begin
-      case ForestGrid[i*ForestResolution+k,j*ForestResolution+l] of
+  for y_fa := 0 to ForestResolution-1 do begin
+    for x_fa := 0 to ForestResolution-1 do begin
+      case ForestGrid[y*ForestResolution+y_fa,x*ForestResolution+x_fa] of
         0: begin
           INC(Result,{200}hDefault); // default 78%
         end;
@@ -1764,13 +1754,14 @@ begin
   end;
 end;
 
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
 begin
-  for i := 0 to tRows-1 do begin
-    for j := 0 to tColumns-1 do begin
-      if (ForestMajority(i,j) >= (ForestResolution*ForestResolution div 2)) then begin  // at least 50% forest ?
-        ThermalGrid[i,j] := ForestAverage(i,j) div (ForestResolution*ForestResolution);
+  for y := 0 to tRows-1 do begin
+    for x := 0 to tColumns-1 do begin
+      if (ForestMajority(y,x) >= (ForestResolution*ForestResolution div 2)) then begin  // at least 50% forest ?
+        ThermalGrid[y,x] := ForestAverage(y,x) div (ForestResolution*ForestResolution);
       end else begin
-        ThermalGrid[i,j] := hDefault;
+        ThermalGrid[y,x] := hDefault;
       end;
     end;
   end;
@@ -1781,7 +1772,7 @@ Procedure ApplyForestMask;
 var
   NoColor : ColorConvert;
   mColor  : ColorConvert;
-  i, j : integer;
+  x, y : integer;
   pScanLine: pRGBArray;
 
 begin
@@ -1792,15 +1783,15 @@ begin
   Form_Graphic.ProgressBar_Status.Max := tRows;
   NoColor := tNone;
   mColor := tExclusion;
-  for i := 0 to tRows-1 do begin
-    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[i];
-    for j := 0 to tColumns-1 do begin
+  for y := 0 to tRows-1 do begin
+    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[y];
+    for x := 0 to tColumns-1 do begin
       // check for overwrite or pixel = tNone
       if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-//        (pScanLine^[j] = NoColor.cRGB)) then begin // can't compare like this
-           CompareMem(@pScanLine^[j],@NoColor.cRGB,3) ) then begin
-        if (ForestMajority(i,j) >= ForestResolution*ForestResolution div 2) then begin  // 50 %
-          pScanLine^[j] := mColor.cRGB;
+//        (pScanLine^[x] = NoColor.cRGB)) then begin // can't compare like this
+           CompareMem(@pScanLine^[x],@NoColor.cRGB,3) ) then begin
+        if (ForestMajority(y,x) >= ForestResolution*ForestResolution div 2) then begin  // 50 %
+          pScanLine^[x] := mColor.cRGB;
         end else begin
         end;
       end;
@@ -1822,7 +1813,7 @@ Procedure ApplyMask;
 var
   NoColor : ColorConvert;
   mColor  : ColorConvert;
-  i, j : integer;
+  x, y : integer;
   pScanLine: pRGBArray;
 
 begin
@@ -1832,14 +1823,14 @@ begin
   Form_Graphic.Image_Mask.Transparent := false; // must be done
   Form_Graphic.ProgressBar_Status.Max := tRows*ForestResolution;
   NoColor := tNone;
-  for i := 0 to tRows*ForestResolution-1 do begin
-    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[i];
-    for j := 0 to tColumns*ForestResolution-1 do begin
+  for y := 0 to tRows*ForestResolution-1 do begin
+    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[y];
+    for x := 0 to tColumns*ForestResolution-1 do begin
       // check for overwrite or pixel = tNone
       if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-//        (pScanLine^[j] = NoColor.cRGB)) then begin // can't compare like this
-           CompareMem(@pScanLine^[j],@NoColor.cRGB,3) ) then begin
-        case ForestGrid[i,j] of
+//        (pScanLine^[x] = NoColor.cRGB)) then begin // can't compare like this
+           CompareMem(@pScanLine^[x],@NoColor.cRGB,3) ) then begin
+        case ForestGrid[y,x] of
           1: begin
             mColor := tDeciduous;
           end;
@@ -1854,7 +1845,7 @@ begin
             mColor := tNone; // can overwrite to tNone
           end;
         end;
-        pScanLine^[j] := mColor.cRGB;
+        pScanLine^[x] := mColor.cRGB;
       end;
     end;
     Form_Graphic.ProgressBar_Status.StepIt;
@@ -1874,7 +1865,7 @@ Procedure ApplyThermalMask; // find scale. forest 512x512 or 2048x2048
 var
   NoColor : ColorConvert;
   mColor  : ColorConvert;
-  i, j : integer;
+  x, y : integer;
   pScanLine: pRGBArray;
 //  k, m : integer;
   scale : integer;
@@ -1889,17 +1880,17 @@ begin
     Form_Graphic.ProgressBar_Status.Max := tRows*ForestResolution;
     mColor := tExclusion;
     NoColor := tNone;
-    for i := 0 to tRows*Scale-1 do begin
-      pScanLine := Picture.Bitmap.ScanLine[i];
-      for j := 0 to tColumns*Scale-1 do begin
+    for y := 0 to tRows*Scale-1 do begin
+      pScanLine := Picture.Bitmap.ScanLine[y];
+      for x := 0 to tColumns*Scale-1 do begin
 
         // check for overwrite or pixel = tNone
         if ((Form_Graphic.CheckBox_Overwrite.checked) OR
-//          (pScanLine^[j] = NoColor.cRGB)) then begin // can't compare like this
-          CompareMem(@pScanLine^[j],@NoColor.cRGB,3) ) then begin
+//          (pScanLine^[x] = NoColor.cRGB)) then begin // can't compare like this
+          CompareMem(@pScanLine^[x],@NoColor.cRGB,3) ) then begin
           // all but 8 which is background default i.e. no specific thermal value
-          if (ThermalGrid[i div scale,j div scale] <> 8 {Heating[8]}) then begin
-            pScanLine^[j] := mColor.cRGB;
+          if (ThermalGrid[y div scale, x div scale] <> 8 {Heating[8]}) then begin
+            pScanLine^[x] := mColor.cRGB;
           end;
         end;
       end;
@@ -1920,8 +1911,6 @@ end;
 procedure TForm_Graphic.Button_ImportClick(Sender: TObject);
 begin
   if (Graphic_Mode = gmThermal) then begin
-    // only possible for V1 !
-    // need to make fRows, fColumns and ForestGrid adjustable to make this work
     u_BMP.BMPfolder := ExtractFilepath(mFileName);
     ReadForestBitmapTile(ExtractFilename(mFileName), False);
     ApplyForestMask;
@@ -1961,7 +1950,7 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_Graphic.Image_PaletteClick(Sender: TObject);
 var
-  i,j : integer;
+  i, j : integer;
   ColorRows, ColorColumns : integer;
   x : real;
 

@@ -56,7 +56,7 @@ type
     Button_OBJ_Import_CSV: TButton;
     Button_OBJ_Export_CSV: TButton;
     Label3: TLabel;
-    Button1: TButton;
+    Button_BMP_FOR: TButton;
     Button_FOR_BMP: TButton;
     Label16: TLabel;
     Button_APT_Import_CSV: TButton;
@@ -124,6 +124,7 @@ type
       Shift: TShiftState; X, Y: Integer);
     procedure Button_DDS_BMPClick(Sender: TObject);
     procedure V2_FOR_BMP(Sender: TObject);
+    procedure Button_BMP_FORClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -218,6 +219,7 @@ begin
   end;
 end;
 
+// read a bitmap and save as thermal (.TDM) file
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.Button_BMP_TDMClick(Sender: TObject);
 var
@@ -243,6 +245,7 @@ begin
   end;
 end;
 
+// read thermal (.TDM) file and save as bitmap
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.Button_TDM_BMPClick(Sender: TObject);
 var
@@ -268,6 +271,88 @@ begin
   end;
 end;
 
+// read bitmap file(s) and save as '.FOR' file(s)
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_BMP_FORClick(Sender: TObject);
+{
+//  case V1
+    ForestResolution := 2; // V1
+    // process a patch (pColumns) or a tile (tColumns) ?
+//    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
+    setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
+
+// case V2
+    ForestResolution := 8; // V2
+    // process a patch (pColumns) or a tile (tColumns) ?
+//    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
+    setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
+// option to read a small forest map (forest res 512) and save as .FOR file
+//    V2_ForestGrid_To_FOR(pColumns,path?+FileName+'.for');
+// set the forest res to 2048 and setlength of ForestGrid
+// with the file name, if prefix b or s, then read both, else just read the one combined one
+// read file(s), combine into ForestGrid
+   //ReadForestBitmapTile(FileName:string; Combine : Boolean) : Boolean;
+// cut into 16 pieces and save into 16 .FOR files into ForestMaps or ForestMaps_im ?
+// or into Working\ForestMaps or Working\ForestMaps_im ?
+//   for each piece
+//    V2_ForestGrid_To_FOR(Pcolumns,path?+FileName+'.for');
+}
+var
+  Filename : String;
+  File_Folder : String;
+  File_Name : String;
+  File_Name_NoExt : String;
+  Dest_File_Path : String;
+  i : integer;
+
+begin
+  if (opVersion = 'V1') then begin
+    beep; exit;
+  end;
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder+'\Working\Terragen\ForestMaps';
+  OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    ForestResolution := 8; // V2
+//    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
+//    setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
+    setLength(ForestGrid,tRows*ForestResolution,tColumns*ForestResolution);
+    with OpenDialog1.Files do begin
+      try
+        ProgressBar_Status.Max := Count;
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
+
+        for i := 0 to Count - 1 do begin
+          FileName := Strings[i];
+          File_Folder := ExtractFileDir(FileName);
+          File_Name := ExtractFileName(FileName);
+          File_Name_NoExt := copy(File_Name,1,pos('.bmp',File_Name)-1);
+//          Dest_File_Path := File_Folder+'\..\Working\ForestMaps';
+//          Dest_File_Path := File_Folder+'\..\Working\ForestMaps_Import';
+          Dest_File_Path := Initial_Folder+'\Working\ForestMaps_Import';
+          ForceDirectories(Dest_File_Path);
+          // read forest bitmap into forestGrid
+          u_BMP.BMPfolder := File_Folder; // why u_BMP???
+          if (ReadForestBitmapTile(File_Name, false) ) then begin
+//            // if 512, it is a patch
+//            V2_ForestGrid_To_FOR(tcolumns,Dest_File_Path+'\'+File_Name+'.for');
+            // if 2048, it is a tile, can be split into 16
+            V2_ForestGrid_To_FOR_x16(Dest_File_Path+'\'+File_Name+'.for');
+          end;
+          ProgressBar_Status.StepIt; Application.ProcessMessages;
+        end;
+      finally
+        Screen.Cursor := crDefault;  // no longer busy
+        ProgressBar_Status.Position := 0;
+        MessageShow('Conversion done.');
+      end;
+    end;
+  end;
+end;
+
+// read '.FOR' file and save as bitmap
+// option to recombine 16 patches into one terragen ?
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.V2_FOR_BMP(Sender: TObject);
 var
@@ -284,6 +369,9 @@ begin
   OpenDialog1.Filter := 'FOR files (*.FOR)|*.FOR|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
+    ForestResolution := 8; // V2
+//    setLength(ForestGrid,pColumns*ForestResolution,pRows*ForestResolution);
+    setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
     with OpenDialog1.Files do begin
       try
         ProgressBar_Status.Max := Count * 3;  // 3 files exported
@@ -295,24 +383,25 @@ begin
           File_Name := ExtractFileName(FileName);
           File_Name_NoExt := copy(File_Name,1,pos('.for',File_Name)-1);
 //          Dest_File_Path := File_Folder+'\..\Working\ForestMaps';
-          Dest_File_Path := File_Folder+'\..\Working\ForestMaps_Export';
+//          Dest_File_Path := File_Folder+'\..\Working\ForestMaps_Export';
+          Dest_File_Path := Working_Folder+'\ForestMaps_Export';
           ForceDirectories(Dest_File_Path);
           // convert
-          V2_FOR_To_ForestGrid(FileName);
-    //      V2_ForestGrid_To_FOR(FileName+'.xxx'); // testing
-//          V2_2Color_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
-//          V2_2Color_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
-//          V2_GreyScale_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
-//          V2_GreyScale_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
+          V2_qFOR_To_ForestGrid(FileName);
+          V2_ForestGrid_To_FOR(pcolumns,FileName+'.xxx'); // re-convert 'patch' for testing
+//          V2_2Color_WriteBitmapForestQtile(fDeciduous,Dest_File_Path+'\bbb'+File_Name_NoExt+'.bmp');
+//          V2_2Color_WriteBitmapForestQtile(fConiferous,Dest_File_Path+'\sss'+File_Name_NoExt+'.bmp');
+//          V2_GreyScale_WriteBitmapForestQtile(fDeciduous,Dest_File_Path+'\bb'+File_Name_NoExt+'.bmp');
+//          V2_GreyScale_WriteBitmapForestQtile(fConiferous,Dest_File_Path+'\ss'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
-          // b and s must be 24bit for Landscape Editor
-          V2_24bit_WriteBitmapForestTile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
+          // b and s must be 24bit for Landscape Editor (?)
+          V2_24bit_WriteBitmapForestQtile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
-          V2_24bit_WriteBitmapForestTile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
+          V2_24bit_WriteBitmapForestQtile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
           // also show a combined version
-//          V2_4Color_Both_WriteBitmapForestTile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+//          V2_4Color_Both_WriteBitmapForestQtile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
-          V2_16Color_Both_WriteBitmapForestTile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+          V2_16Color_Both_WriteBitmapForestQtile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
         end;
       finally
         Screen.Cursor := crDefault;  // no longer busy

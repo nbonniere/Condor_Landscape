@@ -170,6 +170,7 @@ type
 var
   Form_AirportPlacer : TForm_AirportPlacer;
 
+  Memo_Message : TMemo;  // external TMemo for messages
   CurrentLandscape : string;
   apVersion : string;
 
@@ -227,6 +228,14 @@ procedure TForm_AirportPlacer.MyScrollHorz(Sender: TObject);
 begin
   cX := (ScrollBox_Image.HorzScrollBar.Position + (ScrollBox_Image.ClientWidth div 2))
         / (ScrollBox_Image.HorzScrollBar.Range);
+end;
+
+{----------------------------------------------------------------------------}
+Procedure MessageShow(Info : string);
+begin
+  if (Memo_Message <> nil) then begin
+    Memo_Message.lines.add(Info);
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -858,6 +867,7 @@ var
   FileName : string;
   Temp : longint;
   DDS_Size : longint;
+  OutOfResources : boolean;
 
 begin
   if (ItemIndex <> -1) then begin
@@ -867,6 +877,7 @@ begin
       Button_Delete.Enabled := false;
       Button_HiResRunway.Enabled := false;
     end;
+    OutOfResources := false;
     BitmapAvail := false; // assume for now
     with Airport_List[ItemIndex] do begin
       Edit_AirportName.Text := apName;
@@ -944,6 +955,15 @@ begin
             DDS_Size := 512; // choose a default size
           end;
 
+          // show a blank background if files are too large for 32 bit system
+          // i.e. avoid crashing Condor_Tiles
+          // could load next level Mip instead - TBD
+          if (DDS_Size > 8192) then begin
+            MessageShow('DDS file too large');
+            OutOfResources := true;
+            DDS_Size := 512; // choose a default size
+          end;
+
           with Image_Tile.Picture.Bitmap do begin
             Image_Tile.Align := alClient;
             Image_Tile.AutoSize := true;
@@ -953,53 +973,58 @@ begin
             Image_Tile_Clear;
           end;
 
-          // load 4 dds tiles and draw onto Image_Tile
-          for i := 0 to 2-1 do begin
-            for j := 0 to 2-1 do begin
-              FileName := format('%sTextures\t%2.2d%2.2d.dds',[lAirportFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
-              if (NOT FileExists(FileName)) then begin
-//              BitmapAvail := false; // change - allow even if no files
-                // blank image
-                Screen.Cursor := crDefault;  // no longer busy
-          //      Image_Tile_Clear;
-          //      exit;
-                continue;
-              end;
-              FilePicture := TPicture.Create;
-              try
-                FilePicture.LoadFromFile(FileName);
-                if (apVersion = 'V1') then begin
-                  //rotate 180 deg
-                  Rotate_180(FilePicture.Bitmap);
+          if (OutOfResources) then begin
+            Screen.Cursor := crDefault;  // no longer busy
+            beep; exit;
+          end else begin
+            // load 4 dds tiles and draw onto Image_Tile
+            for i := 0 to 2-1 do begin
+              for j := 0 to 2-1 do begin
+                FileName := format('%sTextures\t%2.2d%2.2d.dds',[lAirportFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                if (NOT FileExists(FileName)) then begin
+//                BitmapAvail := false; // change - allow even if no files
+                  // blank image
+                  Screen.Cursor := crDefault;  // no longer busy
+            //      Image_Tile_Clear;
+            //      exit;
+                  continue;
                 end;
+                FilePicture := TPicture.Create;
                 try
-                  with Image_Tile.Picture.Bitmap do begin
-             {
-                    if ((i = 0) AND (j=0)) then begin
-                      Image_Tile.Align := alClient;
-                      Image_Tile.AutoSize := true;
-//                      Width := FilePicture.Width * 2;
-                      Width := DDS_Size * 2;
-//                      Height := FilePicture.Width * 2;
-                      Height := DDS_Size * 2;
-                      Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+                  FilePicture.LoadFromFile(FileName);
+                  if (apVersion = 'V1') then begin
+                    //rotate 180 deg
+                    Rotate_180(FilePicture.Bitmap);
+                  end;
+                  try
+                    with Image_Tile.Picture.Bitmap do begin
+              {
+                      if ((i = 0) AND (j=0)) then begin
+                        Image_Tile.Align := alClient;
+                        Image_Tile.AutoSize := true;
+//                        Width := FilePicture.Width * 2;
+                        Width := DDS_Size * 2;
+//                        Height := FilePicture.Width * 2;
+                        Height := DDS_Size * 2;
+                        Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+                      end;
+               }
+//                      Image_Tile.Canvas.CopyMode := cmSrcCopy;
+//                      Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
+//                        (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
+                      Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
+                        (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
                     end;
-             }
-//                    Image_Tile.Canvas.CopyMode := cmSrcCopy;
-//                    Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
-//                      (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
-                    Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
-                      (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
+                  finally
                   end;
                 finally
+                  FilePicture.Free;
                 end;
-              finally
-                FilePicture.Free;
               end;
             end;
           end;
 
-          BitmapAvail := true;
+          BitmapAvail := true; // although it could be blank
           ZoomRestore(Sender); // after load/reload of tile
           CentreAirport;
 //          DrawRunway(AirportTileIndex);
@@ -1014,14 +1039,11 @@ begin
           apY := 1 - ({Unit_Graphics.}yCoord/T_Range);
           apRange := T_Range; // metres
           Label_Tile.Caption := TileList[AirportTileIndex].TileName;
-          if (LoadTileBitmap(TileList[AirportTileIndex].TileName)) then begin
-      {
-            BitmapAvail := true;
-            ZoomRestore(Sender); // after load/reload of tile
-            CentreAirport;
-//            DrawRunway(0);
-            DrawObjects(0);
-      }
+          // check if file are too large for 32 bit system
+          // i.e. avoid crashing Condor_Tiles
+          // could shrink the picture as it loads instead - TBD
+          if (LoadTileBitmap(TileList[AirportTileIndex].TileName) ) then begin
+            // bitmap loaded
           end else begin
             // blank image
             Image_Tile_Clear;
@@ -1030,7 +1052,7 @@ begin
             Image_Tile.Picture.Bitmap.Height := 512;
           end;
           // change - allow even if no file
-          BitmapAvail := true;
+          BitmapAvail := true; // although it could be blank
           ZoomRestore(Sender); // after load/reload of tile
           CentreAirport;
 //          DrawRunway(0);
@@ -1117,9 +1139,15 @@ end;
 //---------------------------------------------------------------------------
 function TForm_AirportPlacer.LoadTileBitmap(TileName : string) : boolean;
 begin
+  result := false; // assume at first
   if (NOT Unit_Main.Form_Main.GetTileFile(TileName)) then begin
-    result := false;
+    Exit;
   end else begin
+    // check if too large to load - avoid crash
+    if (BMP_ImageWidth(tFileName) > 32768) then begin
+      MessageShow('Terragen bitmap too large');
+      beep; Exit;
+    end;
     // set image to auto take its size from picture 1:1 and fit in window
     Image_Tile.Align := alClient;
     Image_Tile.AutoSize := true;
@@ -1806,9 +1834,9 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.Button_HiResRunwayClick(Sender: TObject);
 const
-  Margin : single = 25.0;    // meters
+  Margin : single = 30.0;    // meters
   EarthRadius = 6371000.0;  // metres
-  Zoom_Level_Airport = '19';
+  Zoom_Level_Airport = '20';
 
 var
   i : integer;
@@ -1941,6 +1969,12 @@ begin
   FileName := 'Airport.px';
   Make_Px_Airport(FilePath, FileName,
     Airport_G_Corners,Airport_Corners);
+
+  // zoom_level control - TBD  
+  // Y_pix/m = (256 * 2^ZoomLevel * cos(lat)) / (earthRadius*2*Pi)
+  // if Y_Extent * (Y_pix/m) > 16384 pix -> ZoomLevel-=1
+  // X_pix/m = (256 * 2^ZoomLevel) / (earthRadius*2*Pi)
+  // if X_Extent * (X_pix/m) > 16384 pix -> ZoomLevel-=1
 
   // get centre of airport lat/long coords
   Airport_Longitude := strtofloat(Edit_Longitude.Text);

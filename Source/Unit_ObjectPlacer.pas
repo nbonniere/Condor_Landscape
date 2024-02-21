@@ -125,6 +125,7 @@ type
 var
   Form_ObjectPlacer : TForm_ObjectPlacer;
 
+  Memo_Message : TMemo;  // external TMemo for messages
   CurrentLandscape : string;
   opVersion : string;
 
@@ -173,6 +174,14 @@ procedure TForm_ObjectPlacer.MyScrollHorz(Sender: TObject);
 begin
   cX := (ScrollBox_Image.HorzScrollBar.Position + (ScrollBox_Image.ClientWidth div 2))
         / (ScrollBox_Image.HorzScrollBar.Range);
+end;
+
+{----------------------------------------------------------------------------}
+Procedure MessageShow(Info : string);
+begin
+  if (Memo_Message <> nil) then begin
+    Memo_Message.lines.add(Info);
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -388,6 +397,7 @@ var
   FileName : string;
   Temp : longint;
   DDS_Size : longint;
+  OutOfResources : boolean;
 
 
 begin
@@ -398,6 +408,7 @@ begin
     end else begin
       Button_Delete.Enabled := false;
     end;
+    OutOfResources := false;
     BitmapAvail := false; // assume for now
     with Object_List[ItemIndex] do begin
       Edit_FileName.Text := coName;
@@ -421,6 +432,7 @@ begin
           exit;
         end;
 
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
         // if DDS textures available, use 4 closest, otherwise use terragen tile
         if (RadioButton_DDS.Checked = true) then begin
           Find_DDS_Tiles(ObjectEasting, ObjectNorthing, DDS_Col, DDS_Row);
@@ -435,43 +447,79 @@ begin
               end;
             end;
           end;
-          // load 4 dds tiles and draw onto Image_Tile
-          for i := 0 to 2-1 do begin
-            for j := 0 to 2-1 do begin
-              FileName := format('%sTextures\t%2.2d%2.2d.dds',[lObjectFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
-              if (NOT FileExists(FileName)) then begin
-//              BitmapAvail := false;
-                // blank image
-                Image_Tile_Clear;
-                exit;
-              end;
-              FilePicture := TPicture.Create;
-              try
-                FilePicture.LoadFromFile(FileName);
-                if (opVersion = 'V1') then begin
-                  //rotate 180 deg
-                  Rotate_180(FilePicture.Bitmap);
+          // show a blank background if no files
+          if (DDS_Size = 0) then begin
+            DDS_Size := 512; // choose a default size
+          end;
+
+          // show a blank background if files are too large for 32 bit system
+          // i.e. avoid crashing Condor_Tiles
+          // could load next level Mip instead - TBD
+          if (DDS_Size > 8192) then begin
+            MessageShow('DDS file too large');
+            OutOfResources := true;
+            DDS_Size := 512; // choose a default size
+          end;
+
+          with Image_Tile.Picture.Bitmap do begin
+            Image_Tile.Align := alClient;
+            Image_Tile.AutoSize := true;
+            Width := DDS_Size * 2;
+            Height := DDS_Size * 2;
+            Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+            Image_Tile_Clear;
+          end;
+
+          // show a blank background if files are too large for 32 bit system
+          // i.e. avoid crashing Condor_Tiles
+          // could shrink the picture as it loads instead - TBD
+          if (OutOfResources) then begin
+            Screen.Cursor := crDefault;  // no longer busy
+            beep; exit;
+          end else begin
+            // load 4 dds tiles and draw onto Image_Tile
+            for i := 0 to 2-1 do begin
+              for j := 0 to 2-1 do begin
+                FileName := format('%sTextures\t%2.2d%2.2d.dds',[lObjectFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                if (NOT FileExists(FileName)) then begin
+//                BitmapAvail := false; // change - allow even if no files
+                  // blank image
+                  Screen.Cursor := crDefault;  // no longer busy
+            //      Image_Tile_Clear;
+            //      exit;
+                  continue;
                 end;
+                FilePicture := TPicture.Create;
                 try
-                  with Image_Tile.Picture.Bitmap do begin
-                    if ((i = 0) AND (j=0)) then begin
-                      Image_Tile.Align := alClient;
-                      Image_Tile.AutoSize := true;
-//                      Width := FilePicture.Width * 2;
-                      Width := DDS_Size * 2;
-//                      Height := FilePicture.Width * 2;
-                      Height := DDS_Size * 2;
-                      Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+                  FilePicture.LoadFromFile(FileName);
+                  if (opVersion = 'V1') then begin
+                    //rotate 180 deg
+                    Rotate_180(FilePicture.Bitmap);
+                  end;
+                  try
+                    with Image_Tile.Picture.Bitmap do begin
+              {
+                      if ((i = 0) AND (j=0)) then begin
+                        Image_Tile.Align := alClient;
+                        Image_Tile.AutoSize := true;
+//                        Width := FilePicture.Width * 2;
+                        Width := DDS_Size * 2;
+//                        Height := FilePicture.Width * 2;
+                        Height := DDS_Size * 2;
+                        Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+                      end;
+               }
+//                      Image_Tile.Canvas.CopyMode := cmSrcCopy;
+//                      Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
+//                        (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
+                      Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
+                        (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
                     end;
-//                    Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
-//                      (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
-                    Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
-                      (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
+                  finally
                   end;
                 finally
+                  FilePicture.Free;
                 end;
-              finally
-                FilePicture.Free;
               end;
             end;
           end;
@@ -500,17 +548,26 @@ begin
           opRange := T_Range; // metres
 //          TileName := format('%2.2d%2.2d',[trunc(coEasting/T_Range),trunc(coNorthing/T_Range)]);
           Label_Tile.Caption := TileList[TileIndex].TileName;
-          if (LoadTileBitmap(TileList[TileIndex].TileName)) then begin
-            BitmapAvail := true;
-            ZoomRestore(Sender); // after load/reload of tile
-            CentreObject;
-//            DrawObject(TileIndex);
-            DrawObject(0);
+          // check if file are too large for 32 bit system
+          // i.e. avoid crashing Condor_Tiles
+          // could shrink the picture as it loads instead - TBD
+          if (LoadTileBitmap(TileList[TileIndex].TileName) ) then begin
+            // bitmap loaded
           end else begin
             // blank image
             Image_Tile_Clear;
+            // default size
+            Image_Tile.Picture.Bitmap.Width :=  512;
+            Image_Tile.Picture.Bitmap.Height := 512;
           end;
+          // change - allow even if no file
+          BitmapAvail := true; // although it could be blank
+          ZoomRestore(Sender); // after load/reload of tile
+          CentreObject;
+//          DrawObject(TileIndex);
+          DrawObject(0);
         end;
+        Screen.Cursor := crDefault;  // no longer busy
       end else begin
         // blank image
         Image_Tile_Clear;
@@ -578,9 +635,15 @@ end;
 //---------------------------------------------------------------------------
 function TForm_ObjectPlacer.LoadTileBitmap(TileName : string) : boolean;
 begin
+  result := false; // assume at first
   if (NOT Unit_Main.Form_Main.GetTileFile(TileName)) then begin
-    result := false;
+    Exit;
   end else begin
+    // check if too large to load - avoid crash
+    if (BMP_ImageWidth(tFileName) > 32768) then begin
+      MessageShow('Terragen bitmap too large');
+      beep; Exit;
+    end;
     // set image to auto take its size from picture 1:1 and fit in window
     Image_Tile.Align := alClient;
     Image_Tile.AutoSize := true;

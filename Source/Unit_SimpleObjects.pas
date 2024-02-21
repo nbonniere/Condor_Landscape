@@ -42,9 +42,9 @@ type
     Label_Length: TLabel;
     Edit_Width: TEdit;
     Edit_Height: TEdit;
-    Button_Open: TButton;
-    Button_Exit: TButton;
-    Button_SaveAs: TButton;
+    Button_S_Open: TButton;
+    Button_S_Exit: TButton;
+    Button_S_SaveAs: TButton;
     ComboBox_Type: TComboBox;
     Edit_Peak: TEdit;
     Edit_Length: TEdit;
@@ -63,18 +63,21 @@ type
     Button_C_Exit: TButton;
     Button_C_Open: TButton;
     Button_C_Save: TButton;
-    Button_Remove: TButton;
-    ButtonAdd: TButton;
+    Button_C_Remove: TButton;
+    Button_C_Add: TButton;
     Label_TextureFileName: TLabel;
     Label_T_Type: TLabel;
     ComboBox_T_Type: TComboBox;
     Label_Coords: TLabel;
     ComboBox_Size: TComboBox;
     Label_Size: TLabel;
+    Button_C_New: TButton;
+    Button_S_New: TButton;
+    Button_T_New: TButton;
     procedure FormCreate(Sender: TObject);
-    procedure Button_OpenClick(Sender: TObject);
-    procedure Button_ExitClick(Sender: TObject);
-    procedure Button_SaveAsClick(Sender: TObject);
+    procedure Button_S_OpenClick(Sender: TObject);
+    procedure Button_S_ExitClick(Sender: TObject);
+    procedure Button_S_SaveAsClick(Sender: TObject);
     procedure ComboBox_TypeChange(Sender: TObject);
     procedure Button_T_ExitClick(Sender: TObject);
     procedure Button_C_ExitClick(Sender: TObject);
@@ -84,8 +87,8 @@ type
     procedure Button_T_OpenClick(Sender: TObject);
     procedure Button_C_OpenClick(Sender: TObject);
     procedure Button_C_SaveClick(Sender: TObject);
-    procedure ButtonAddClick(Sender: TObject);
-    procedure Button_RemoveClick(Sender: TObject);
+    procedure Button_C_AddClick(Sender: TObject);
+    procedure Button_C_RemoveClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Image_TextureMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
@@ -97,6 +100,9 @@ type
     procedure StringGrid_CompositeDblClick(Sender: TObject);
     procedure StringGrid_CompositeMouseMove(Sender: TObject;
       Shift: TShiftState; X, Y: Integer);
+    procedure Button_S_NewClick(Sender: TObject);
+    procedure Button_T_NewClick(Sender: TObject);
+    procedure Button_C_NewClick(Sender: TObject);
   private
     { Private declarations }
     procedure InitDetailGrid;
@@ -195,22 +201,25 @@ end;
 //----------------------------------------------------------------------------
 Procedure SetDefault_Image(dSize : integer);
 begin
-  // set default size
-  BitMap_Texture.Width := dSize;
-  BitMap_Texture.Height := dSize;
-  Bitmap_Texture.PixelFormat := pf24bit;
-  Bitmap_Clear(BitMap_Texture, clSilver{clBlue});
-
   with Form_SimpleObjects do begin
+    // no selection
+    ComboBox_T_Type.Text := 'none';
+    // set default size
+    BitMap_Texture.Width := dSize;
+    BitMap_Texture.Height := dSize;
+    Bitmap_Texture.PixelFormat := pf24bit;
+    Bitmap_Clear(BitMap_Texture, clSilver{clBlue});
+
     ComboBoxMatchString(ComboBox_Size, IntToStr(dSize));
 
     Image_Texture.Picture.Bitmap.Create;
     Image_Texture.Stretch := true;
     Image_Texture.Picture.Bitmap.Width := dSize;
     Image_Texture.Picture.Bitmap.Height := dSize;
+    Bitmap_Clear(Image_Texture.Picture.Bitmap, clSilver{clBlue});
 //    Image_Texture.Picture.Bitmap.Canvas.Draw(0,0,BitMap_Texture);
     // update the bitmap and the outlines
-    ComboBox_T_TypeChange(nil);
+//    ComboBox_T_TypeChange(nil);
   end;
 end;
 
@@ -284,7 +293,7 @@ end;
 //- TAB - Simple Object -----------------------------------------------------
 
 //---------------------------------------------------------------------------
-procedure TForm_SimpleObjects.Button_ExitClick(Sender: TObject);
+procedure TForm_SimpleObjects.Button_S_ExitClick(Sender: TObject);
 begin
   Close;
 end;
@@ -329,10 +338,11 @@ var
 //---------------------------------------------------------------------------
 Procedure Enable_Edits(Select : integer);
 begin
-  if (Select = -1) then begin
-    Select := 0;
-  end;
   with Form_SimpleObjects do begin
+    if (Select = -1) then begin
+      Select := 0;
+      ComboBox_Type.text := 'none';
+    end;
     Edit_Width.{enabled}Visible  := (Select AND 1) = 1;
     Edit_Length.{enabled}Visible := (Select AND 2) = 2;
     Edit_Height.{enabled}Visible := (Select AND 4) = 4;
@@ -360,20 +370,22 @@ procedure TForm_SimpleObjects.Edit_TextureFileNameDblClick(
   Sender: TObject);
 begin
   // dialog to select input file - must be .BMP or .DDS extension
-  // could also be .PNG .TGA ...
-  imFileFilterString := 'Texture files (*.BMP *.DDS)|*.BMP;*.DDS|All files (*.*)|*.*';
+  // could also be .TGA .PNG
+  imFileFilterString := 'Texture files (*.BMP *.DDS *.TGA *.PNG)| *.BMP;*.DDS;*.TGA;*.PNG | All files (*.*)|*.*';
   imFileName := '';
-  imInitialDir := objFolder+'\Textures';
+//  imInitialDir := objFolder+'\Textures';
+  imInitialDir := ObjectFolder+'\Textures';
   if (OpenDialog) then begin
 //    // assume a Textures folder - let user fix it if not correct
 //    Edit_TextureFileName.Text := 'Textures\'+ExtractFileName(imFileName);
 //    Edit_TextureFileName.Text := ExtractRelativePath(objFolder+'\', imFileName)
     Edit_TextureFileName.Text := ExtractFileName(imFileName);
+    // keep path somehow so texture file can be copied automatically ?
   end;
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_SimpleObjects.Button_OpenClick(Sender: TObject);
+procedure TForm_SimpleObjects.Button_S_OpenClick(Sender: TObject);
 var
   SO_File : TextFile;
   TempSTR : string;
@@ -388,9 +400,8 @@ begin
     end;
     soFileName := imFileName;
     Label_FileName.Caption := ExtractFileName(imFileName);
-    ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
     //remember folder for this session
-    objFolder := ObjectFolder;
+    objFolder := ExtractFileDir(imFileName);     // no trailing '\'
 
     // read in the SO file
     if (FileExists(imFileName)) then begin
@@ -415,12 +426,142 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_SimpleObjects.Button_SaveAsClick(Sender: TObject);
+procedure TForm_SimpleObjects.Button_S_SaveAsClick(Sender: TObject);
 var
   SO_File : TextFile;
   oFileName : string;
   oFileExt : string;
   W, L, H, P : single;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Procedure Save_S_C3D(FileName : string);
+  begin
+    // select the simple object
+    with ComboBox_Type do begin
+      ComboBoxMatchString(ComboBox_Type, ComboBox_Type.Text);
+      if (ItemIndex = -1) then begin
+        // MessageShow('Invalid Object type');
+        exit;
+      end;
+      // read the simple object file
+      oFileName := ApplicationPath+'\SimpleObjects\'+oObject.oFile[ComboBox_Type.ItemIndex];
+      if (NOT FileExists(oFileName)) then begin
+        // MessageShow('Object not available');
+        Beep; Exit;
+      end;
+      ReadCondorXfile(oFileName, false);
+      // read the parameters
+      W := strtofloat(Edit_Width.text); // need validation to avoid exception !
+      L := strtofloat(Edit_Length.text);
+      H := strtofloat(Edit_Height.text);
+      P := strtofloat(Edit_Peak.text);
+  // modify the Object
+      // find the FTM and set the parameters
+      Reset_FTM_Unity;
+      case ComboBox_Type.ItemIndex of
+        0: begin // flat roof
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          FTM[10] := H;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        1: begin // peak roof
+          // two FTM matrices to do!
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          FTM[10] := H;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          FTM[10] := P;
+          FTM[11] := H;
+          UpdateFTM('FTM_1',FTM);
+          UpdateTF('TF_1',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        2: begin // dome
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          FTM[10] := H;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        3: begin // pole
+          FTM[ 0] := W;
+          FTM[ 5] := W;
+          FTM[10] := H;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+        end;
+        4: begin // windsock
+          // calc triangle corners, and set height
+          // windsock length is 100x the radius of the equilateral triangle
+          // default triangle is 1m, i.e. radius=0.01
+          FTM[ 0] := L;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          FTM[11] := H;
+          UpdateFTM('FTM_0',FTM);
+        end;
+        5: begin // windsock2
+          // calc triangle corners, and set height
+          // windsock length is 100x the radius of the equilateral triangle
+          // default triangle is 1m, i.e. radius=0.01
+          FTM[ 0] := L;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          FTM[11] := H;
+          UpdateFTM('FTM_0',FTM);
+        end;
+        6: begin // windsock3
+          // calc triangle corners, and set height
+          // windsock length is 100x the radius of the equilateral triangle
+          // default triangle is 1m, i.e. radius=0.01
+          FTM[ 0] := L;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          FTM[11] := H;
+          UpdateFTM('FTM_0',FTM);
+        end;
+        7: begin // asphalt
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          // adjust texture coord ratio !
+          TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
+          TC[1] := TC[0];
+          UpdateTC('tc_Asphalt', TC);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        8: begin // grass
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          // adjust texture coord ratio !
+          TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
+          TC[1] := TC[0];
+          UpdateTC('tc_Grass', TC);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        else begin
+          // MessageShow('Invalid Object type'');
+          exit;
+        end;
+      end;
+    end;
+    // now save the object
+    WriteCondorObjectFile(FileName,None,false);
+  end;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
   // dialog to select output file - must be .SO or C3D extension
   exFileFilterString := 'Object files (*.SO *.C3D)|*.SO;*.C3D|All files (*.*)|*.*';
@@ -430,9 +571,8 @@ begin
   exFileName := soFileName;
   exInitialDir := objFolder;
   if (SaveDialog) then begin
-    ObjectFolder := ExtractFileDir(exFileName);  // not including trailing '\'
     //remember folder for this session
-    objFolder := ObjectFolder;
+    objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
 
     oFileExt := ExtractFileExt(exFileName);
     if (uppercase(oFileExt) = '.SO') then begin
@@ -451,132 +591,12 @@ begin
         Edit_TextureFilePath.Text
           ]));
       CloseFile(SO_file);
+      // also save C3D
+      Save_S_C3D(copy(exFileName,1,length(exFileName)-length(oFileExt))+'.c3d');
     end else begin
       if ((uppercase(oFileExt) = '.C3D') OR
           (uppercase(oFileExt) = '.PX')) then begin
-        // select the simple object
-        with ComboBox_Type do begin
-          ComboBoxMatchString(ComboBox_Type, ComboBox_Type.Text);
-          if (ItemIndex = -1) then begin
-            // MessageShow('Invalid Object type');
-            exit;
-          end;
-          // read the simple object file
-          oFileName := ApplicationPath+'\SimpleObjects\'+oObject.oFile[ComboBox_Type.ItemIndex];
-          if (NOT FileExists(oFileName)) then begin
-            // MessageShow('Object not available');
-            Beep; Exit;
-          end;
-          ReadCondorXfile(oFileName, false);
-          // read the parameters
-          W := strtofloat(Edit_Width.text); // need validation to avoid exception !
-          L := strtofloat(Edit_Length.text);
-          H := strtofloat(Edit_Height.text);
-          P := strtofloat(Edit_Peak.text);
-          // modify the Object
-          // find the FTM and set the parameters
-          Reset_FTM_Unity;
-          case ComboBox_Type.ItemIndex of
-            0: begin // flat roof
-              FTM[ 0] := W;
-              FTM[ 5] := L;
-              FTM[10] := H;
-              //FTM[11] := 0.0;
-              UpdateFTM('FTM_0',FTM);
-              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
-            end;
-            1: begin // peak roof
-              // two FTM matrices to do!
-              FTM[ 0] := W;
-              FTM[ 5] := L;
-              FTM[10] := H;
-              //FTM[11] := 0.0;
-              UpdateFTM('FTM_0',FTM);
-              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
-              FTM[ 0] := W;
-              FTM[ 5] := L;
-              FTM[10] := P;
-              FTM[11] := H;
-              UpdateFTM('FTM_1',FTM);
-              UpdateTF('TF_1',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
-            end;
-            2: begin // dome
-              FTM[ 0] := W;
-              FTM[ 5] := L;
-              FTM[10] := H;
-              //FTM[11] := 0.0;
-              UpdateFTM('FTM_0',FTM);
-              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
-            end;
-            3: begin // pole
-              FTM[ 0] := W;
-              FTM[ 5] := W;
-              FTM[10] := H;
-              //FTM[11] := 0.0;
-              UpdateFTM('FTM_0',FTM);
-            end;
-            4: begin // windsock
-              // calc triangle corners, and set height
-              // windsock length is 100x the radius of the equilateral triangle
-              // default triangle is 1m, i.e. radius=0.01
-              FTM[ 0] := L;
-              FTM[ 5] := L;
-              //FTM[10] := 0.0;
-              FTM[11] := H;
-              UpdateFTM('FTM_0',FTM);
-            end;
-            5: begin // windsock2
-              // calc triangle corners, and set height
-              // windsock length is 100x the radius of the equilateral triangle
-              // default triangle is 1m, i.e. radius=0.01
-              FTM[ 0] := L;
-              FTM[ 5] := L;
-              //FTM[10] := 0.0;
-              FTM[11] := H;
-              UpdateFTM('FTM_0',FTM);
-            end;
-            6: begin // windsock3
-              // calc triangle corners, and set height
-              // windsock length is 100x the radius of the equilateral triangle
-              // default triangle is 1m, i.e. radius=0.01
-              FTM[ 0] := L;
-              FTM[ 5] := L;
-              //FTM[10] := 0.0;
-              FTM[11] := H;
-              UpdateFTM('FTM_0',FTM);
-            end;
-            7: begin // asphalt
-              FTM[ 0] := W;
-              FTM[ 5] := L;
-              //FTM[10] := 0.0;
-              //FTM[11] := 0.0;
-              UpdateFTM('FTM_0',FTM);
-              // adjust texture coord ratio !
-              TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
-              TC[1] := TC[0];
-              UpdateTC('tc_Asphalt', TC);
-              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
-            end;
-            8: begin // grass
-              FTM[ 0] := W;
-              FTM[ 5] := L;
-              //FTM[10] := 0.0;
-              //FTM[11] := 0.0;
-              UpdateFTM('FTM_0',FTM);
-              // adjust texture coord ratio !
-              TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
-              TC[1] := TC[0];
-              UpdateTC('tc_Grass', TC);
-              UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
-            end;
-            else begin
-              // MessageShow('Invalid Object type'');
-              exit;
-            end;
-          end;
-        end;
-        // now save the object
-        WriteCondorObjectFile(exFileName,None,false);
+        Save_S_C3D(exFileName);
       end;
     end;
   end;
@@ -746,9 +766,8 @@ begin
     if (OpenDialog) then begin
       stFileName := imFileName;
       Label_TextureFileName.Caption := ExtractFileName(imFileName);
-      ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
       //remember folder for this session
-      objFolder := ObjectFolder;
+      objFolder := ExtractFileDir(imFileName);     // no trailing '\'
 
       Image_Texture.Stretch := true;
 //     use Objects ShowBitmap instead ? --> modify
@@ -783,6 +802,7 @@ var
   oFileName : string;
   oFileExt : string;
   W, L, H, P : single;
+
 begin
   // dialog to select output file - must be .BMP extension
   exFileFilterString := 'Object files (*.BMP)|*.BMP|All files (*.*)|*.*';
@@ -794,9 +814,8 @@ begin
   if (SaveDialog) then begin
     stFileName := exFileName;
     Label_FileName.Caption := ExtractFileName(exFileName);
-    ObjectFolder := ExtractFileDir(exFileName);  // not including trailing '\'
     //remember folder for this session
-    objFolder := ObjectFolder;
+    objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
 
     oFileExt := ExtractFileExt(exFileName);
     if (uppercase(oFileExt) = '.BMP') then begin
@@ -821,12 +840,11 @@ begin
     imInitialDir := objFolder;
     if (OpenDialog) then begin
       Label_TextureFileName.Caption := ExtractFileName(imFileName);
-      ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
       //remember folder for this session
-      objFolder := ObjectFolder;
+      objFolder := ExtractFileDir(imFileName);     // no trailing '\'
 
       Image_Texture.Stretch := true;
- //     ??? fix bitmap first ???
+ //     ??? fix bitmap first - some bitmaps have incorrect format ???
       Bitmap_Section.LoadFromFile(imFileName);
       // if 256 color bitmap, drawing on top of bitmap will use the 256 color palette !
       // any color will use the closest color in palette -> approx color
@@ -885,7 +903,7 @@ begin
   with Form_SimpleObjects.StringGrid_Composite do begin
     FirstRow := FixedRows;
 //    MaxRows := 25;
-    RowCount := 1+FirstRow;
+    RowCount := 1+FirstRow; // need to enable one blank row
     ColCount := 5;
 //    {Canvas.}Font.Name := 'Terminal';  // Design time selection doesn't work
 //    {Canvas.}Font.Size := 6;           // 5,6,9,12,14
@@ -896,10 +914,15 @@ begin
     cells[ 3,0] := 'Northing';
     cells[ 4,0] := 'Angle';
     colWidths[ 0] := 10;
-    colWidths[ 1] := 200;
-    colWidths[ 2] := 50;
-    colWidths[ 3] := 50;
-    colWidths[ 4] := 50;
+    colWidths[ 1] := 320;
+    colWidths[ 2] := 46;
+    colWidths[ 3] := 46;
+    colWidths[ 4] := 46;
+    // in case of prev values
+    cells[ 1,RowCount-1] := '';
+    cells[ 2,RowCount-1] := '';
+    cells[ 3,RowCount-1] := '';
+    cells[ 4,RowCount-1] := '';
 //    // turn off highlight when not focused
 //    Options := Options - [goDrawFocusSelected];
   end;
@@ -930,6 +953,8 @@ procedure TForm_SimpleObjects.StringGrid_CompositeDblClick(
 var
   sg_Row, sg_Col : Longint;
   str_pos : integer;
+  CurrentFolder : string;
+
 begin
  if (filecount > 0) then begin
   // find where clicked and action if needed
@@ -938,9 +963,25 @@ begin
     // dialog to select input file - must be .C3D extension
     imFileFilterString := 'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
     imFileName := '';
-    imInitialDir := objFolder;
+    if (ssCtrl in sg_Shift) then begin
+    // point to ObjectRepository
+      imInitialDir := ObjectFolder;
+    end else begin
+      // if contains file already, use that path
+      currentFolder := ExtractFileDir(StringGrid_Composite.Cells[sg_Col, sg_Row]);
+      if (CurrentFolder <> '') then begin
+        // relative to WorkingFolder
+        imInitialDir := WorkingFolder+'\'+CurrentFolder;
+      end else begin
+        // point to current landscape object folder
+        imInitialDir := objFolder;
+      end;
+    end;
     if (OpenDialog) then begin
-      StringGrid_Composite.Cells[sg_Col, sg_Row] := ExtractRelativePath(objFolder+'\', imFileName)
+//      StringGrid_Composite.Cells[sg_Col, sg_Row] := ExtractRelativePath(objFolder+'\', imFileName);
+      // relative path is a problem - relative to what ? objfolder which could change ?
+      // make raltive to WOrkingFolder which should not change
+      StringGrid_Composite.Cells[sg_Col, sg_Row] := ExtractRelativePath(WorkingFolder+'\', imFileName);
     end;
   end;
  end; 
@@ -962,9 +1003,8 @@ begin
     end;
     coFileName := imFileName;
     Label_CompositeFileName.Caption := ExtractFileName(imFileName);
-    ObjectFolder := ExtractFileDir(imFileName);     // no trailing '/'
     //remember folder for this session
-    objFolder := ObjectFolder;
+    objFolder := ExtractFileDir(imFileName);     // no trailing '\'
 
     // read in the CO file
     if (FileExists(imFileName)) then begin
@@ -1001,47 +1041,25 @@ var
   oFileExt : string;
   i : Integer;
   X, Y, A : single;
-begin
-  // dialog to select output file - must be .CO or C3D extension
-  exFileFilterString := 'Object files (*.CO *.C3D)|*.CO;*.C3D|All files (*.*)|*.*';
-  if (coFileName = '') then begin
-    coFileName := 'C_Object-1.co';
-  end;
-  exFileName := coFileName;
-  exInitialDir := objFolder;
-  if (SaveDialog) then begin
-    ObjectFolder := ExtractFileDir(exFileName);  // not including trailing '\'
-    //remember folder for this session
-    objFolder := ObjectFolder;
+  FileSuffix : string;
 
-    oFileExt := ExtractFileExt(exFileName);
-    if (uppercase(oFileExt) = '.CO') then begin
-      coFileName := exFileName;
-      Label_CompositeFileName.Caption := ExtractFileName(coFileName);
-      with Form_SimpleObjects.StringGrid_Composite do begin
-        // save the CO file
-        AssignFile(CO_file, exFileName);
-        Rewrite(CO_file);
-        for i := 0 to FileCount-1 do begin
-          writeln(CO_File,format('%s,%s,%s,%s',[
-          cells[ 1,i+FirstRow],
-          cells[ 2,i+FirstRow],
-          cells[ 3,i+FirstRow],
-          cells[ 4,i+FirstRow]
-          ]));
-        end;
-        CloseFile(CO_file);
-      end;
-    end else begin
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Procedure Save_C_C3D(FileName : string);
+  var
+    i : Integer;
+
+  begin
       try
         Reset_FTM_Unity;   // only once as the same values are changed
         InjectFTM := True; // for all files
         for i := 0 to FileCount-1 do begin
-          if ((uppercase(oFileExt) = '.C3D') OR
-              (uppercase(oFileExt) = '.PX')) then begin
+          begin
             with Form_SimpleObjects.StringGrid_Composite do begin
               oFileName := cells[ 1,i+FirstRow];
-              if (uppercase(ExtractFileExt(oFileName)) = '.C3D') then begin
+              oFileExt := uppercase(ExtractFileExt(oFileName));
+              if ( (oFileExt = '.C3D') OR
+                   (oFileExt = '.PX')
+                ) then begin
                 X := strtofloat(cells[ 2,i+FirstRow]);
                 Y := strtofloat(cells[ 3,i+FirstRow]);
                 A := strtofloat(cells[ 4,i+FirstRow]);
@@ -1051,26 +1069,90 @@ begin
                 FTM[5] := FTM[0];
                 FTM[3] := X;
                 FTM[7] := Y;
-                if (FileExists(objFolder +'\'+ oFilename)) then begin
-                  ReadCondorC3Dfile(objFolder +'\'+ oFileName, (i <> 0));
+                // relative to WorkingFolder
+                if (FileExists(WorkingFolder +'\'+ oFilename)) then begin
+//                  ReadCondorC3Dfile(WorkingFolder +'\'+ oFileName, (i <> 0));
+                  if (oFileExt = '.C3D') then begin
+                    ReadCondorC3Dfile(WorkingFolder +'\'+ oFileName, (i <> 0));
+                  end else begin // must be .PX
+                    ReadCondorXfile(WorkingFolder +'\'+ oFileName, (i <> 0));
+                  end;
                 end else begin
                   MessageDlg(oFileName + ' Not found.', mtInformation, [mbOk], 0);
                   Exit;
                 end;
+              end else begin
+                MessageDlg(oFileName + ' un-supported file type.', mtInformation, [mbOk], 0);
+                Exit;
               end;
             end;
           end;
         end;
-        WriteCondorObjectFile(exFileName,None,false);
+        WriteCondorObjectFile(FileName,None,false);
       finally
         InjectFTM := False;
+      end;
+  end;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  Function GetDeepestDir(const aFilename:string):string;
+  begin
+    Result := extractFileName(ExtractFileDir(afilename));
+  end;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  // dialog to select output file - must be .CO or C3D extension
+  exFileFilterString := 'Object files (*.CO *.C3D)|*.CO;*.C3D|All files (*.*)|*.*';
+  if (coFileName = '') then begin
+    coFileName := 'C_Object-1.co';
+  end;
+  exFileName := coFileName;
+  exInitialDir := objFolder;
+  if (SaveDialog) then begin
+    //remember folder for this session
+    objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
+
+    oFileExt := ExtractFileExt(exFileName);
+    if (uppercase(oFileExt) = '.CO') then begin
+      coFileName := exFileName;
+      Label_CompositeFileName.Caption := ExtractFileName(coFileName);
+      // only save the .c3d, not the .co, if the folder is 'Airports'
+      // and it is an O or G file.
+      FileSuffix := upperCase(copy(coFileName,length(coFileName)-length(oFileExt),1));
+      if ( (upperCase(GetDeepestDir(coFileName)) = 'AIRPORTS') AND
+           ( (FileSuffix = 'G') OR (FileSuffix = 'O') )
+         ) then begin
+        // do nothing
+      end else begin
+        // save the CO file
+        AssignFile(CO_file, coFileName);
+        Rewrite(CO_file);
+        with Form_SimpleObjects.StringGrid_Composite do begin
+          for i := 0 to FileCount-1 do begin
+            writeln(CO_File,format('%s,%s,%s,%s',[
+            cells[ 1,i+FirstRow],
+            cells[ 2,i+FirstRow],
+            cells[ 3,i+FirstRow],
+            cells[ 4,i+FirstRow]
+            ]));
+          end;
+        end;
+        CloseFile(CO_file);
+      end;
+      // also save C3D
+      Save_C_C3D(copy(exFileName,1,length(exFileName)-length(oFileExt))+'.c3d');
+    end else begin
+      if ((uppercase(oFileExt) = '.C3D') OR
+          (uppercase(oFileExt) = '.PX')) then begin
+        Save_C_C3D(exFileName);
       end;
     end;
   end;
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_SimpleObjects.ButtonAddClick(Sender: TObject);
+procedure TForm_SimpleObjects.Button_C_AddClick(Sender: TObject);
 begin
   INC(FileCount);
   with Form_SimpleObjects.StringGrid_Composite do begin
@@ -1090,7 +1172,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_SimpleObjects.Button_RemoveClick(Sender: TObject);
+procedure TForm_SimpleObjects.Button_C_RemoveClick(Sender: TObject);
 var
  i : Integer;
 begin
@@ -1129,6 +1211,31 @@ begin
   // cannot use onclick, because need X, Y
   // OnMouseUp by itself gets false triggers when a dialog on top gets double-cliked
   MouseDown_Flag := true;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.Button_S_NewClick(Sender: TObject);
+begin
+  soFileName := '';
+  Label_FileName.Caption := '------';
+  Enable_Edits(-1);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.Button_T_NewClick(Sender: TObject);
+begin
+  stFileName := '';
+  Label_Coords.Caption := '------';
+  Label_TextureFileName.Caption := '------';
+  SetDefault_Image(1024);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.Button_C_NewClick(Sender: TObject);
+begin
+  coFileName := '';
+  Label_CompositeFileName.Caption := '------';
+  Form_SimpleObjects.InitDetailGrid;
 end;
 
 //---------------------------------------------------------------------------

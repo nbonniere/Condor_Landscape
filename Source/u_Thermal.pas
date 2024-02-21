@@ -46,13 +46,12 @@ If a tile doesn't exist that area of the thermal map is unchanged.
 //===========================================================================
 INTERFACE
 
-uses StdCtrls, comctrls,
+uses
+  StdCtrls, comctrls,
   u_SceneryHDR;
 
 const
   ThermalSize = 1; // size of value in file in bytes
-//  tRows = 256;     //thermal tile height
-//  tColumns = 256;  //thermal tile width
   ThermalHeader : record
     ThermalWidthOffset : longint;
     ThermalHeightOffset : longint;
@@ -73,7 +72,7 @@ var
   SourceThermalFolder : string; // external path for file
   DestinationThermalFolder : string; // external path for file
   ThermalResolution : integer = 1;   // relative resolution with reference to tRows
-  ThermalGrid : array[0..tRows-1,0..tColumns-1] of byte;
+  ThermalGrid : array[0..tRows-1,0..tColumns-1] of byte; // [y,x]
   Heating : Array[0..8] of byte;
   TDM_Header : TDM_Header_Type;
 
@@ -84,6 +83,7 @@ function ReadThermalBitmapTileIndexes(FileName:string) : boolean;
 Procedure ClearThermalGrid;
 Procedure TDM_To_Greyscale_Bitmap(TDM_FileName,Greyscale_FileName : string);
 Procedure Greyscale_Bitmap_To_TDM(Greyscale_FileName,TDM_FileName : string);
+// for merging
 Procedure WriteTDMHeader(TDM_FileName : string);
 //Procedure ForceTDMsize(TDM_FileName : string);
 Procedure ForceTDMsize(TDM_FileName : string; Default_Value : integer);
@@ -94,8 +94,9 @@ procedure Merge_TDM_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongIn
 //===========================================================================
 IMPLEMENTATION
 
-uses forms, SysUtils, Graphics,
-  {u_SceneryHDR,} u_TileList, u_BMP, u_MakeThermal, u_Forest, Unit_Graphics;
+uses
+  forms, Windows, SysUtils, Graphics,
+  u_TileList, u_BMP, u_MakeThermal, u_Forest, Unit_Graphics;
 
 var
   Thermal_File : File of byte;
@@ -111,12 +112,12 @@ end;
 {----------------------------------------------------------------------------}
 Procedure ClearThermalGrid;
 var
-  i, j : integer;
+  x, y : integer;
 
 begin
-  for i := 0 to tRows-1 do begin
-    for j := 0 to tColumns-1 do begin
-      ThermalGrid[i,j] := 0;
+  for y := 0 to tRows-1 do begin
+    for x := 0 to tColumns-1 do begin
+      ThermalGrid[y,x] := 0;
     end;
   end;
 end;
@@ -134,60 +135,112 @@ const
   tRGB : ColorConvert = ( ColorValue: $00000000 );
 
 var
-  BitmapFile : File of byte;
-  i,j : integer;
+  Bitmap_File : File of byte;
+  Bitmap_Hdr : BMP_V1_Header;
+  Palette_8 : BMP_8bit_ColorTable;
+  Color_Index_8 : byte;
+  x, y : integer;
+  P8  : pByteArray;
+  P24  : pRGBArray;
 
 begin
   Result := false; // assume for now
-  //make sure bitmap is 24 bit color and 256x256
-  Bitmap_GetWidthHeight(FileName);
-  if NOT ((BitmapWidth = tColumns) AND (BitmapHeight = tRows)) then begin
-    MessageShow('Bitmap file needs to be 256x256, 24 bit color');
-    Beep;
-  end else begin
-    AssignFile(BitmapFile,u_BMP.BMPfolder+'\'+FileName);
-    Reset(BitmapFile);
-    seek(BitmapFile,BitmapHeader_24bitColor.Bitmap24PixelOffset);
-    for i := tRows-1 downto 0 do begin // rows from bottom
-      for j := 0 to tColumns-1 do begin // columns from left
-        // read each pixel
-        BlockRead(BitmapFile,tRGB.cRGB,sizeof(tRGB.cRGB));
+  // make sure it exists
+  if (NOT FileExists(u_BMP.BMPfolder+'\'+FileName)) then begin
+    exit;
+  end;
+  //make sure bitmap is 8 or 24 bit color and 256x256
+  AssignFile(Bitmap_File,u_BMP.BMPfolder+'\'+FileName);
+  Reset(Bitmap_File);
+  // read the file header
+  BlockRead(Bitmap_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+  // check for bitmap signature
+  if (Bitmap_Hdr.bH.bSignature <> $4D42) then begin
+    MessageShow('Error: not bitmap');
+    Close(Bitmap_File);
+    exit;
+  end;
+  // check for correct size
+  if ((Bitmap_Hdr.bDib.bWidth <> tColumns) OR
+      (Bitmap_Hdr.bDib.bHeight <> tRows) ) then begin
+    MessageShow('Error: bitmap size not 256');
+    Close(Bitmap_File);
+    exit;
+  end;
+  // now check the type 8 or 24 bit color
+  case (Bitmap_Hdr.bDib.bColorBits) of
+    8: begin
+      // read the palette for the 8 bit main file to access colors
+      BlockRead(Bitmap_File,Palette_8,sizeof(BMP_8bit_ColorTable));
+    end;
+    24: begin
+    end;
+    else begin
+      MessageShow('Error: Not 8 or 24 bit color bitmap');
+      Close(Bitmap_File);
+      Exit;
+    end;
+  end;
+
+  // now go through every pixel
+  try
+    P8  := AllocMem(tColumns * sizeof(Byte)); // one row at a time
+    P24 := AllocMem(tColumns * sizeof(TRGBTriple)); // one row at a time
+    for y := tRows-1 downto 0 do begin // rows from bottom
+      case (Bitmap_Hdr.bDib.bColorBits) of
+        8: begin
+          BlockRead(Bitmap_File,P8^,tColumns * sizeof(Byte));
+        end;
+        24: begin
+          BlockRead(Bitmap_File,P24^,tColumns * sizeof(tRGB.cRGB));
+        end;
+      end;
+      // check each pixel
+      for x := 0 to tColumns-1 do begin // columns from left
+        case (Bitmap_Hdr.bDib.bColorBits) of
+          8: begin
+            tRGB.crgba := Palette_8[P8^[x]];
+          end;
+          24: begin
+            tRGB.crgb := P24^[x];
+          end;
+        end;
         // match color to a thermal index
         if (tRGB.ColorValue = tWater.ColorValue) then begin
-          ThermalGrid[i,j] := {1}Heating[3]; //0.5%
+          ThermalGrid[y,x] := {1}Heating[3]; //0.5%
         end else begin
           if (tRGB.ColorValue = tSwamp.ColorValue) then begin
-            ThermalGrid[i,j] := {217}Heating[2]; //85%
+            ThermalGrid[y,x] := {217}Heating[2]; //85%
           end else begin
             if (tRGB.ColorValue = tSand.ColorValue) then begin
-              ThermalGrid[i,j] := {230}Heating[7];  //90%
+              ThermalGrid[y,x] := {230}Heating[7];  //90%
             end else begin
               if (tRGB.ColorValue = tYellowFields.ColorValue) then begin
-                ThermalGrid[i,j] := {192}Heating[6]; //70%
+                ThermalGrid[y,x] := {192}Heating[6]; //70%
               end else begin
                 if (tRGB.ColorValue = tGreenFields.ColorValue) then begin
-                  ThermalGrid[i,j] := {153}Heating[5]; //60%
+                  ThermalGrid[y,x] := {153}Heating[5]; //60%
                 end else begin
                   if (tRGB.ColorValue = tDarkFields.ColorValue) then begin
-                    ThermalGrid[i,j] := {230}Heating[4]; //90%
+                    ThermalGrid[y,x] := {230}Heating[4]; //90%
                   end else begin
                     if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
-                      if (ThermalGrid[i,j] = 0) then begin // not already done
-                        ThermalGrid[i,j] := {1} Heating[1];
+                      if (ThermalGrid[y,x] = 0) then begin // not already done
+                        ThermalGrid[y,x] := {1} Heating[1];
                       end;
                     end else begin
                       if (tRGB.ColorValue = tConiferous.ColorValue) then begin
-                        if (ThermalGrid[i,j] = 0) then begin // not already done
-                          ThermalGrid[i,j] := {2} Heating[2];
+                        if (ThermalGrid[y,x] = 0) then begin // not already done
+                          ThermalGrid[y,x] := {2} Heating[2];
                         end;
                       end else begin
                         if (tRGB.ColorValue = tBoth.ColorValue) then begin
-                          if (ThermalGrid[i,j] = 0) then begin // not already done
-                            ThermalGrid[i,j] := {2} (Heating[1] + Heating[2]) div 2;
+                          if (ThermalGrid[y,x] = 0) then begin // not already done
+                            ThermalGrid[y,x] := {2} (Heating[1] + Heating[2]) div 2;
                           end;
                         end else begin
-                          if (ThermalGrid[i,j] = 0) then begin // if no forest, or no forest tile
-                            ThermalGrid[i,j] := {200}Heating[8]; //assume default (green fields)
+                          if (ThermalGrid[y,x] = 0) then begin // if no forest, or no forest tile
+                            ThermalGrid[y,x] := {200}Heating[8]; //assume default (green fields)
                           end else begin
                             //leave as is
                           end;
@@ -202,9 +255,12 @@ begin
         end;
       end;
     end;
-    Close(BitmapFile);
-    Result := true;
+    Result := true; // success
+  finally
+    freemem(P24);
+    freemem(P8);
   end;
+  Close(Bitmap_File);
 end;
 
 {----------------------------------------------------------------------------
@@ -220,67 +276,114 @@ const
   tRGB : ColorConvert = ( ColorValue: $00000000 );
 
 var
-  BitmapFile : File of byte;
-  i,j : integer;
+  Bitmap_File : File of byte;
+  Bitmap_Hdr : BMP_V1_Header;
+  Palette_8 : BMP_8bit_ColorTable;
+  Color_Index_8 : byte;
+  x, y : integer;
+  P8  : pByteArray;
   P24  : pRGBArray;
 
 begin
   Result := false; // assume for now
-  //make sure bitmap is 24 bit color and 256x256
-  Bitmap_GetWidthHeight(FileName);
-  if NOT ((BitmapWidth = tColumns) AND (BitmapHeight = tRows)) then begin
-    MessageShow('Bitmap file needs to be 256x256, 24 bit color');
-    Beep;
-  end else begin
-    try
-      P24 := AllocMem(tColumns*ForestResolution * 3); // one row at a time
-      AssignFile(BitmapFile,u_BMP.BMPfolder+'\'+FileName);
-      Reset(BitmapFile);
-      seek(BitmapFile,BitmapHeader_24bitColor.Bitmap24PixelOffset);
-      ProgressBar_Status.Max := tRows;
-      for i := tRows-1 downto 0 do begin // rows from bottom
-        BlockRead(BitmapFile,P24^,tColumns * 3);
-        for j := 0 to tColumns-1 do begin // columns from left
-//          // read each pixel
-//          BlockRead(BitmapFile,tRGB.cRGB,sizeof(tRGB.cRGB));
-          tRGB.cRGB := P24^[j]; // each pixel
-          // match color to a thermal index
-          if (tRGB.ColorValue = tWater.ColorValue) then begin
-            ThermalGrid[i,j] := 3 {Heating[3]};
+  // make sure it exists
+  if (NOT FileExists(u_BMP.BMPfolder+'\'+FileName)) then begin
+    exit;
+  end;
+  //make sure bitmap is 8 or 24 bit color and 256x256
+  AssignFile(Bitmap_File,u_BMP.BMPfolder+'\'+FileName);
+  Reset(Bitmap_File);
+  // read the file header
+  BlockRead(Bitmap_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+  // check for bitmap signature
+  if (Bitmap_Hdr.bH.bSignature <> $4D42) then begin
+    MessageShow('Error: not bitmap');
+    Close(Bitmap_File);
+    exit;
+  end;
+  // check for correct size
+  if ((Bitmap_Hdr.bDib.bWidth <> tColumns) OR
+      (Bitmap_Hdr.bDib.bHeight <> tRows) ) then begin
+    MessageShow('Error: bitmap size not 256');
+    Close(Bitmap_File);
+    exit;
+  end;
+  // now check the type 8 or 24 bit color
+  case (Bitmap_Hdr.bDib.bColorBits) of
+    8: begin
+      // read the palette for the 8 bit main file to access colors
+      BlockRead(Bitmap_File,Palette_8,sizeof(BMP_8bit_ColorTable));
+    end;
+    24: begin
+    end;
+    else begin
+      MessageShow('Error: Not 8 or 24 bit color bitmap');
+      Close(Bitmap_File);
+      Exit;
+    end;
+  end;
+
+  // now go through every pixel
+  try
+    P8  := AllocMem(tColumns * sizeof(Byte)); // one row at a time
+    P24 := AllocMem(tColumns * sizeof(TRGBTriple)); // one row at a time
+    for y := tRows-1 downto 0 do begin // rows from bottom
+
+//      ProgressBar_Status.Max := tRows;
+      case (Bitmap_Hdr.bDib.bColorBits) of
+        8: begin
+          BlockRead(Bitmap_File,P8^,tColumns * sizeof(Byte));
+        end;
+        24: begin
+          BlockRead(Bitmap_File,P24^,tColumns * sizeof(tRGB.cRGB));
+        end;
+      end;
+      // check each pixel
+      for x := 0 to tColumns-1 do begin // columns from left
+        case (Bitmap_Hdr.bDib.bColorBits) of
+          8: begin
+            tRGB.crgba := Palette_8[P8^[x]];
+          end;
+          24: begin
+            tRGB.crgb := P24^[x];
+          end;
+        end;
+        // match color to a thermal index
+        if (tRGB.ColorValue = tWater.ColorValue) then begin
+          ThermalGrid[y,x] := 3 {Heating[3]};
+        end else begin
+          if (tRGB.ColorValue = tSwamp.ColorValue) then begin
+           ThermalGrid[y,x] := 2 {Heating[2]};
           end else begin
-            if (tRGB.ColorValue = tSwamp.ColorValue) then begin
-              ThermalGrid[i,j] := 2 {Heating[2]};
+            if (tRGB.ColorValue = tSand.ColorValue) then begin
+              ThermalGrid[y,x] := 7 {Heating[7]};
             end else begin
-              if (tRGB.ColorValue = tSand.ColorValue) then begin
-                ThermalGrid[i,j] := 7 {Heating[7]};
+              if (tRGB.ColorValue = tYellowFields.ColorValue) then begin
+                ThermalGrid[y,x] := 6 {Heating[6]};
               end else begin
-                if (tRGB.ColorValue = tYellowFields.ColorValue) then begin
-                  ThermalGrid[i,j] := 6 {Heating[6]};
+                if (tRGB.ColorValue = tGreenFields.ColorValue) then begin
+                  ThermalGrid[y,x] := 5 {Heating[5]};
                 end else begin
-                  if (tRGB.ColorValue = tGreenFields.ColorValue) then begin
-                    ThermalGrid[i,j] := 5 {Heating[5]};
+                  if (tRGB.ColorValue = tDarkFields.ColorValue) then begin
+                    ThermalGrid[y,x] := 4 {Heating[4]};
                   end else begin
-                    if (tRGB.ColorValue = tDarkFields.ColorValue) then begin
-                      ThermalGrid[i,j] := 4 {Heating[4]};
+                    if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
+                      if (ThermalGrid[y,x] = 0) then begin // not already done
+                        ThermalGrid[y,x] := 1 {Heating[1]};
+                      end;
                     end else begin
-                      if (tRGB.ColorValue = tDeciduous.ColorValue) then begin
-                        if (ThermalGrid[i,j] = 0) then begin // not already done
-                          ThermalGrid[i,j] := 1 {Heating[1]};
+                      if (tRGB.ColorValue = tConiferous.ColorValue) then begin
+                        if (ThermalGrid[y,x] = 0) then begin // not already done
+                          ThermalGrid[y,x] := 2 {Heating[2]};
                         end;
                       end else begin
-                        if (tRGB.ColorValue = tConiferous.ColorValue) then begin
-                          if (ThermalGrid[i,j] = 0) then begin // not already done
-                            ThermalGrid[i,j] := 2 {Heating[2]};
+                        if (tRGB.ColorValue = tBoth.ColorValue) then begin
+                          if (ThermalGrid[y,x] = 0) then begin // not already done
+                            ThermalGrid[y,x] := 2 {Heating[2]};
                           end;
                         end else begin
-                          if (tRGB.ColorValue = tBoth.ColorValue) then begin
-                            if (ThermalGrid[i,j] = 0) then begin // not already done
-                              ThermalGrid[i,j] := 2 {Heating[2]};
-                            end;
-                          end else begin
-                            if (ThermalGrid[i,j] = 0) then begin // if no forest, or no forest tile
-                              ThermalGrid[i,j] := 8  {Heating[8]}; //assume default
-                             end;
+                          if (ThermalGrid[y,x] = 0) then begin // if no forest, or no forest tile
+                            ThermalGrid[y,x] := 8  {Heating[8]}; //assume default
                           end;
                         end;
                       end;
@@ -291,16 +394,17 @@ begin
             end;
           end;
         end;
-        ProgressBar_Status.StepIt;
-        Application.ProcessMessages;
+//        ProgressBar_Status.StepIt;
+//        Application.ProcessMessages;
       end;
-    finally
-     freemem(P24);
     end;
-    Close(BitmapFile);
-    Result := true;
-    ProgressBar_Status.Position := 0;
+    Result := true; // success
+  finally
+    freemem(P24);
+    freemem(P8);
   end;
+  Close(Bitmap_File);
+//  ProgressBar_Status.Position := 0;
 end;
 
 {----------------------------------------------------------------------------}
@@ -315,26 +419,22 @@ begin
   Result := false;
   TileName := format('%2.2d%2.2d',[i,j]);
   tFileName := TileName+'_t.bmp';
+  // need to pick correct one for V1 or V2 !  ???  and correct path too !
   fFileName := TileName+'_f.bmp';
   FilePath := SourceThermalFolder +'\SourceTiles\'+TileName;
   u_BMP.BMPfolder := FilePath;
 
   //get forest data first
-  if (FileExists(FilePath+'\'+fFileName)) then begin
+  if ReadForestBitmapTile(fFileName, False) then begin
+    ConvertForestMask(Heating[0],Heating[1],Heating[8]);
     Result := true;
-    //read the bitmap file
-    if ReadForestBitmapTile(fFileName, False) then begin
-    end;
-      ConvertForestMask(Heating[0],Heating[1],Heating[8]);
   end else begin
     ClearThermalGrid;
   end;
 
-  if (FileExists(FilePath+'\'+tFileName)) then begin
+  //then read the thermal bitmap file
+  if ReadThermalBitmapTile(tFileName) then begin
     Result := true;
-    //read the thermal bitmap file
-    if ReadThermalBitmapTile(tFileName) then begin
-    end;
   end;
 end;
 
@@ -346,7 +446,8 @@ var
   FileIndex : longint;
   FileByte : byte;
 //  ThermalValue : word;
-  i, j : integer;
+  x, y : integer;
+  cOffset, rOffset : integer;
 
 begin
   if (u_MakeThermal.Form_MakeThermal.RadioButton_SunnySlopes.Checked) then begin
@@ -358,23 +459,34 @@ begin
     AssignFile(SlopeBitmapFile,SlopeFileName);
     Reset(SlopeBitmapFile);
 
+    // for partial tiles, need to crop
+    cOffset := 0;
+    if (((TileColumn+1) * tColumns) > ColumnCount) then begin
+      cOffset := ((TileColumn+1) * tColumns) - ColumnCount;
+    end;
+    rOffset := 0;
+    if (((TileRow+1) * tRows) > RowCount) then begin
+      rOffset := ((TileRow+1) * tRows) - RowCount;
+    end;
+
+    // skip header and palette, assume correct
     FileIndex := 54+(256*4) +
-      {Color8Size *} (TileRow*tRows*(TileColumnCount*tColumns) +
-                      (((TileColumnCount-1)-TileColumn)*tColumns)
+      {Color8Size *} (TileRow*tRows*(ColumnCount) +
+                       (ColumnCount-tColumns+cOffset - TileColumn*tColumns)
                      );
-    for i := tRows-1 downto 0 do begin // rows from bottom
+    for y := tRows-1 downto rOffset do begin // rows from bottom
       seek(SlopeBitmapFile,FileIndex);
-      for j :=  0 to tColumns-1 do begin // columns from left
+      for x :=  cOffset to tColumns-1 do begin // columns from left
         // write each thermal index
         read(SlopeBitmapFile,FileByte);
-//        ThermalValue := FileByte * ThermalGrid[i,j];
-//        ThermalValue := ThermalValue{(FileByte * ThermalGrid[i,j])} div 255;
-//        ThermalGrid[i,j] := ThermalValue;
-        ThermalGrid[i,j] := (FileByte * ThermalGrid[i,j]) div 255;
-//        ThermalGrid[i,j] := FileByte; // for testing
-//        ThermalGrid[i,j] := 0; // for testing
+//        ThermalValue := FileByte * ThermalGrid[y,x];
+//        ThermalValue := ThermalValue{(FileByte * ThermalGrid[y,x])} div 255;
+//        ThermalGrid[y,x] := ThermalValue;
+        ThermalGrid[y,x] := (FileByte * ThermalGrid[y,x]) div 255;
+//        ThermalGrid[y,x] := FileByte; // for testing
+//        ThermalGrid[y,x] := 0; // for testing
       end;
-      INC(FileIndex,(TileColumnCount*tColumns){*Color8Size});
+      INC(FileIndex,ColumnCount{*Color8Size});
     end;
     close(SlopeBitmapFile);
   end;
@@ -383,20 +495,40 @@ end;
 {----------------------------------------------------------------------------}
 Procedure WriteThermalTile(TileColumn,TileRow: integer);
 var
-  i,j : integer;
+  x, y, k : integer;
   FileIndex : longint;
+  cOffset, rOffset : integer;
+  P8  : pByteArray;
 
 begin
+  // for partial tiles, need to crop
+  cOffset := 0;
+  if (((TileColumn+1) * tColumns) > ColumnCount) then begin
+    cOffset := ((TileColumn+1) * tColumns) - ColumnCount;
+  end;
+  rOffset := 0;
+  if (((TileRow+1) * tRows) > RowCount) then begin
+    rOffset := ((TileRow+1) * tRows) - RowCount;
+  end;
+
   FileIndex := ThermalHeader.ThermalPixelOffset +
-               ThermalSize * ((TileRow * tRows * (TileColumnCount*tColumns)) +
+               ThermalSize * ((TileRow * tRows * ColumnCount) +
                               (TileColumn * tColumns) );
-  for i := tRows-1 downto 0 do begin      // rows from bottom
-    seek(Thermal_File,FileIndex);
-    for j := tColumns-1 downto 0 do begin // columns from right
-      // write each thermal index
-      write(Thermal_File,ThermalGrid[i,j]);
+  try
+    // write each thermal index
+    P8  := AllocMem(tColumns * sizeof(Byte)); // one row at a time
+    for y := tRows-1 downto rOffset do begin      // rows from bottom
+      seek(Thermal_File,FileIndex);
+      k := 0;
+      for x := tColumns-1 downto cOffset do begin // columns from right
+        p8^[k]:= ThermalGrid[y,x];
+        INC(k);
+      end;
+      BlockWrite(Thermal_File,P8^,(tColumns-cOffset) * sizeof(Byte));
+      INC(FileIndex,(ColumnCount) * ThermalSize);
     end;
-    INC(FileIndex,(TileColumnCount*tColumns) * ThermalSize);
+  finally
+    freemem(P8);
   end;
 end;
 
@@ -418,11 +550,12 @@ var
   SlopeBitmapFile : File of byte;
   SlopeFileName : string;
   i, j :integer;
-  tFileName : string;
-  fFileName : string;
+//  tFileName : string;
+//  fFileName : string;
   FilePath : string;
   FileByte : byte;
-  TileName : string;
+  FileByte_1 : byte;
+//  TileName : string;
   ByteCount : longint;
 //  P : PLongwordArray;  //??? doesn't work ???
   P : PWordArray;
@@ -430,17 +563,19 @@ var
 
 begin
   FilePath := DestinationThermalFolder;
-  if (NOT FileExists(FilePath+'\'+ThermalFileName)) then begin
+  if ( (NOT FileExists(FilePath+'\'+ThermalFileName) ) OR
+       (u_MakeThermal.Form_MakeThermal.CheckBox_Erase.Checked)
+     ) then begin
     MessageShow('Creating Thermal map...');
     AssignFile(Thermal_File,FilePath+'\'+ThermalFileName);
     Rewrite(Thermal_File);
     // create a header
-    FileByte := HI(ColumnCount);
-    Write(Thermal_File,ZeroByte,FileByte,ZeroByte,ZeroByte);
-    FileByte := HI(RowCount);
-    Write(Thermal_File,ZeroByte,FileByte,ZeroByte,ZeroByte);
+    FileByte := HI(ColumnCount); FileByte_1 := LO(ColumnCount);
+    Write(Thermal_File,FileByte_1,FileByte,ZeroByte,ZeroByte);
+    FileByte := HI(RowCount); FileByte_1 := LO(RowCount);
+    Write(Thermal_File,FileByte_1,FileByte,ZeroByte,ZeroByte);
 
-    // create a default file for now
+    // create a default file to start
     // SunnySlopes or uniform?
     if (u_MakeThermal.Form_MakeThermal.RadioButton_SunnySlopes.Checked) then begin
       SlopeFileName := SourceThermalFolder+'\ThermalMap\SunnySlopes.bmp';
@@ -450,46 +585,46 @@ begin
       end;
       AssignFile(SlopeBitmapFile,SlopeFileName);
       Reset(SlopeBitmapFile);
+      // skip header and palette, assume correct
       seek(SlopeBitmapFile,54+(256*4));
 
-    try
-      P := AllocMem(ColumnCount); // one row at a time
-      ProgressBar_Status.Max := RowCount;
-      for i := 0 to RowCount-1 do begin            // rows from top
+      try
+        P := AllocMem(ColumnCount); // one row at a time
+        ProgressBar_Status.Max := RowCount;
+        for i := 0 to RowCount-1 do begin            // rows from top
 { doesn't work on 64 bit system ? - don't use seek to adjust filesize.
-        for j := 0 to ColumnCount-1 do begin       // columns from left
-          Read(SlopeBitmapFile,FileByte);
-          seek(Thermal_File,ThermalHeader.ThermalPixelOffset+
-            (i*ColumnCount)+(ColumnCount-1-j)); // columns from right
-          write(Thermal_File,FileByte);
-        end;
+          for j := 0 to ColumnCount-1 do begin       // columns from left
+            Read(SlopeBitmapFile,FileByte);
+            seek(Thermal_File,ThermalHeader.ThermalPixelOffset+
+              (i*ColumnCount)+(ColumnCount-1-j)); // columns from right
+            write(Thermal_File,FileByte);
+          end;
 }
-        BlockRead(SlopeBitmapFile,P^,ColumnCount);
-        SwapBlockEndToEnd(PByteArray(P),ColumnCount);
-        BlockWrite(Thermal_File,P^,ColumnCount);
+          BlockRead(SlopeBitmapFile,P^,ColumnCount);
+          SwapBlockEndToEnd(PByteArray(P),ColumnCount);
+          BlockWrite(Thermal_File,P^,ColumnCount);
 
-        ProgressBar_Status.StepIt;
-        Application.ProcessMessages;
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
       end;
-    finally
-      freemem(P);
-    end;
-
+      ProgressBar_Status.Position := 0;
       Close(SlopeBitmapFile);
     end else begin // uniform
       ByteCount := ColumnCount * RowCount;
-      ProgressBar_Status.Max := ByteCount div 256;
+      ProgressBar_Status.Max := ByteCount div (256*sizeof(word));
       try
-        P := AllocMem(256); // block of 256 bytes; bytes are set to 0
+        P := AllocMem(256*sizeof(word)); // block of 256; set to $FF
   //      for i := 0 to 256 div sizeof(longword)-1 do begin
   //        P^[i] := $FFFFFFFF; //all max thermal
-//        for i := 0 to 256 div sizeof(word)-1 do begin
-        for i := 0 to (256 div sizeof(p^[0]))-1 do begin
+        for i := 0 to 256-1 do begin
           P^[i] := $FFFF; //all max thermal
         end;
-        While ByteCount > 256  do begin
-          BlockWrite(Thermal_File,P^,256);
-          DEC(ByteCount,256);
+        While ByteCount > 256*sizeof(word)  do begin
+          BlockWrite(Thermal_File,P^,256*sizeof(word));
+          DEC(ByteCount,256*sizeof(word));
           ProgressBar_Status.StepIt;
           Application.ProcessMessages;
         end;
@@ -497,23 +632,23 @@ begin
       finally
         freemem(P);
       end;
+      ProgressBar_Status.Position := 0;
     end;
 
     MessageShow('Thermal map created');
-    ProgressBar_Status.Position := 0;
   end else begin
     AssignFile(Thermal_File,FilePath+'\'+ThermalFileName);
     Reset(Thermal_File);
     MessageShow('Thermal map opened');
   end;
 
+  // update map with each tile map
   u_BMP.Memo_Message := Memo_Message;
   //for each tile look for the Thermal file and open if present or skip it if not
-//  TileRowCount := RowCount div 256;
-//  TileColumnCount := ColumnCount div 256;
-  ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
+  ProgressBar_Status.Max := TileColumnCount*TileRowCount;
   for i := 0 to TileColumnCount-1 do begin
     for j := 0 to TileRowCount-1 do begin
+      MessageShow(format('%2.2d%2.2d',[i,j]));
       //see if forest and/or thermal files are present
       if (ThermalTileUpdate(i,j)) then begin
         //scale by sunny slope if wanted
@@ -537,21 +672,43 @@ end;
 {----------------------------------------------------------------------------}
 Procedure WriteThermalBitmapTile(TileColumn,TileRow: integer);
 var
-  i,j : integer;
+  x, y, k : integer;
   FileIndex : longint;
+  cOffset, rOffset : integer;
+  P24 : pRGBArray;
 
 begin
+  // for partial tiles, need to crop
+  cOffset := 0;
+  if (((TileColumn+1) * tColumns) > ColumnCount) then begin
+    cOffset := ((TileColumn+1) * tColumns) - ColumnCount;
+  end;
+  rOffset := 0;
+  if (((TileRow+1) * tRows) > RowCount) then begin
+    rOffset := ((TileRow+1) * tRows) - RowCount;
+  end;
+
   FileIndex := BitmapHeader_24bitColor.Bitmap24PixelOffset +
-               Color24Size * (TileRow*tRows*(TileColumnCount*tColumns) +
-                              (((TileColumnCount-1)-TileColumn)*tColumns)
+               Color24Size * (TileRow*tRows*ColumnCount +
+                               (ColumnCount-tColumns+cOffset - TileColumn*tColumns)
                              );
-  for i := tRows-1 downto 0 do begin // rows from bottom
-    seek(Thermal_File,FileIndex);
-    for j := 0 to tColumns-1 do begin // columns from left
-      // write each thermal index, greyscale
-      write(Thermal_File,ThermalGrid[i,j],ThermalGrid[i,j],ThermalGrid[i,j]);
+  try
+    // write each thermal index
+    P24 := AllocMem(tColumns * Color24Size); // one row at a time
+    for y := tRows-1 downto rOffset do begin      // rows from bottom
+      seek(Thermal_File,FileIndex);
+      k := 0;
+      for x := cOffset to tColumns-1 do begin // columns from left
+        p24^[k].rgbtBlue :=  ThermalGrid[y,x];
+        p24^[k].rgbtGreen := ThermalGrid[y,x];
+        p24^[k].rgbtRed :=   ThermalGrid[y,x];
+        Inc(k);
+      end;
+      BlockWrite(Thermal_File,P24^,(tColumns-cOffset) * Color24Size);
+      INC(FileIndex,(ColumnCount) * Color24Size);
     end;
-    INC(FileIndex,(TileColumnCount*tColumns) * Color24Size);
+  finally
+    freemem(P24);
   end;
 end;
 
@@ -571,11 +728,17 @@ var
 //  TileName : string;
   ByteCount : longint;
   P : PWordArray;
-  TileUpdate : boolean;
+//  TileUpdate : boolean;
+  Palette_8 : BMP_8bit_ColorTable;
+  pColor : ColorConvert;
+  P8  : pAlphaArray;
+  P24 : pRGBArray;
 
 begin
   FilePath := {SourceThermalFolder} DestinationThermalFolder;
-  if (NOT FileExists(FilePath+'\'+ThermalFileName)) then begin
+  if ( (NOT FileExists(FilePath+'\'+ThermalFileName) ) OR
+       (u_MakeThermal.Form_MakeThermal.CheckBox_Erase.Checked)
+     ) then begin
     MessageShow('Creating Thermal bitmap...');
     AssignFile(Thermal_File,FilePath+'\'+ThermalFileName);
     Rewrite(Thermal_File);
@@ -589,7 +752,7 @@ begin
     BlockWrite(Thermal_File,xBitmapHeader_24bitColor,
       sizeof(xBitmapHeader_24bitColor));
 
-    // create a default file
+    // create a default file to start
     if (u_MakeThermal.Form_MakeThermal.RadioButton_SunnySlopes.Checked) then begin
       SlopeFileName := SourceThermalFolder+'\ThermalMap\SunnySlopes.bmp';
       if (NOT FileExists(SlopeFileName)) then begin
@@ -598,30 +761,42 @@ begin
       end;
       AssignFile(SlopeBitmapFile,SlopeFileName);
       Reset(SlopeBitmapFile);
-      seek(SlopeBitmapFile,54+(256*4));
+      seek(SlopeBitmapFile,54); // skip header, assume correct
+      // read the palette for the 8 bit file to access colors
+      BlockRead(SlopeBitmapFile,Palette_8,sizeof(BMP_8bit_ColorTable));
+
       ProgressBar_Status.Max := RowCount;
-      for i := 0 to RowCount-1 do begin      // rows from bottom
-        for j := 0 to ColumnCount-1 do begin // Columns from left
-          Read(SlopeBitmapFile,FileByte);
-//          seek(Thermal_File,54+(i*3*ColumnCount)+3*(j)); // Columns from left
-          write(Thermal_File,FileByte,FileByte,FileByte);
-        end;
-        ProgressBar_Status.StepIt;
-        Application.ProcessMessages;
+      try
+          P8  := AllocMem(ColumnCount * Color8Size);  // one row at a time
+          P24 := AllocMem(ColumnCount * Color24Size); // one row at a time
+          for i := 0 to RowCount-1 do begin
+            BlockRead(SlopeBitmapFile,P8^,ColumnCount * sizeof(Byte));
+            for j := 0 to ColumnCount-1 do begin
+              pColor.cRGBA := Palette_8[P8^[j]]; // read 8 bit palette entry instead ?
+              P24^[j] := pColor.cRGB;
+            end;
+            BlockWrite(Thermal_File,P24^,ColumnCount * sizeof(TRGBTriple));
+            ProgressBar_Status.StepIt;
+            Application.ProcessMessages;
+          end;
+      finally
+        freemem(P24);
+        freemem(P8);
       end;
+      ProgressBar_Status.Position := 0;
       Close(SlopeBitmapFile);
     end else begin
 //      ByteCount := ColumnCount * RowCount;
       ByteCount := xBitmapHeader_24bitColor.bDib.bImageByteSize;
-      ProgressBar_Status.Max := ByteCount div 256;
+      ProgressBar_Status.Max := ByteCount div (256*sizeof(word));
       try
-        P := AllocMem(256); // block of 256 bytes; bytes are set to 0
-        for i := 0 to 256 div sizeof(word)-1 do begin
+        P := AllocMem(256*sizeof(word)); // block of 256; set to $FF
+        for i := 0 to 256-1 do begin
           P^[i] := $FFFF; //all max thermal
         end;
-        While ByteCount > 256  do begin
-          BlockWrite(Thermal_File,P^,256);
-          DEC(ByteCount,256);
+        While (ByteCount > 256*sizeof(word)) do begin
+          BlockWrite(Thermal_File,P^,256*sizeof(word));
+          DEC(ByteCount,256*sizeof(word));
           ProgressBar_Status.StepIt;
           Application.ProcessMessages;
         end;
@@ -629,9 +804,8 @@ begin
       finally
         freemem(P);
       end;
+      ProgressBar_Status.Position := 0;
     end;
-
-    ProgressBar_Status.Position := 0;
     MessageShow('Thermal bitmap created');
   end else begin
     AssignFile(Thermal_File,FilePath+'\'+ThermalFileName);
@@ -644,6 +818,7 @@ begin
   ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
   for i := 0 to TileColumnCount-1 do begin
     for j := 0 to TileRowCount-1 do begin
+      MessageShow(format('%2.2d%2.2d',[i,j]));
       //see if forest and/or thermal files are present
       if (ThermalTileUpdate(i,j)) then begin
         //scale by sunny slope if wanted
@@ -694,7 +869,7 @@ begin
     MessageShow('Thermal tile bitmap created');
 end;
 
-// Note: TDM has data reversed in horizontal direction 
+// Note: TDM has data reversed in horizontal direction
 {----------------------------------------------------------------------------}
 Procedure TDM_To_Greyscale_Bitmap(TDM_FileName,Greyscale_FileName : string);
 const
@@ -743,24 +918,6 @@ begin
         pColor.ByteValue[2] := i;
         BlockWrite(Greyscale_File,pColor.ColorValue,sizeof(pColor));
       end;
-{
-      ByteCount := bDib.bImageByteSize;
-      ProgressBar_Status.Max := ByteCount div 256;
-      try
-        P := AllocMem(256); // block of 256 bytes; bytes are set to 0
-        While ByteCount > 256  do begin
-          BlockRead(TDM_File,P^,256);
-          BlockWrite(Greyscale_File,P^,256);
-          DEC(ByteCount,256);
-          ProgressBar_Status.StepIt;
-          Application.ProcessMessages;
-        end;
-        BlockRead(TDM_File,P^,ByteCount);
-        BlockWrite(Greyscale_File,P^,ByteCount);
-      finally
-        freemem(P);
-      end;
-}
       try
         P := AllocMem(TDM_Header.Width); // one row at a time
         ProgressBar_Status.Max := TDM_Header.Height;
@@ -775,13 +932,12 @@ begin
       finally
         freemem(P);
       end;
-
+      ProgressBar_Status.Position := 0;
     end;
 
     Close(TDM_File);
     Close(Greyscale_File);
     MessageShow('TDM to greyscale bitmap created');
-    ProgressBar_Status.Position := 0;
   end;
 end;
 
@@ -843,14 +999,13 @@ begin
       finally
         freemem(P);
       end;
-
+      ProgressBar_Status.Position := 0;
       end;
     end;
 
     Close(Greyscale_File);
     Close(TDM_File);
     MessageShow('Greyscale bitmap to TDM file created');
-    ProgressBar_Status.Position := 0;
   end;
 end;
 
@@ -968,26 +1123,27 @@ begin
   BlockRead(TDM_File_a,TDM_Header,sizeof(TDM_Header));
 
   with TDM_Header do begin
-    // need a buffer
-    P := AllocMem(Width);
-
-    ProgressBar_Status.Max := Height;
-    for i := 0 to Height-1 do begin
-      BlockRead(TDM_File_a,P^,Width);
-      FileIndex := sizeof(TDM_Header) +
-        (i + Offset_Y) * cWidth +
-        -Offset_X;
-      seek(TDM_File,FileIndex);
-      BlockWrite(TDM_File,P^,Width);
-      ProgressBar_Status.StepIt;
-      Application.ProcessMessages;
+    try
+      // need a buffer
+      P := AllocMem(Width);
+      ProgressBar_Status.Max := Height;
+      for i := 0 to Height-1 do begin
+        BlockRead(TDM_File_a,P^,Width);
+        FileIndex := sizeof(TDM_Header) +
+          (i + Offset_Y) * cWidth +
+          -Offset_X;
+        seek(TDM_File,FileIndex);
+        BlockWrite(TDM_File,P^,Width);
+        ProgressBar_Status.StepIt;
+        Application.ProcessMessages;
+      end;
+    finally
+      Freemem(P);
     end;
-    Freemem(P);
+    ProgressBar_Status.Position := 0;
   end;
-
   CloseFile(TDM_File_a);
   CloseFile(TDM_File);
-  ProgressBar_Status.Position := 0;
 end;
 
 {----------------------------------------------------------------------------}

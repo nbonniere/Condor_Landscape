@@ -25,6 +25,12 @@ GEO database shapefile.
 - first create and convert a bitmap to GeoTIFF to embed the corner coordinates
   - UTM extents come from the header file
   - size can be 1024, 2048, 4096, 8192
+- for GDAL prior to version 3.x the first run of gdal_rasterize fails but
+creates a blank tif filethat is used thesecond time
+- an alternate is to create a blank bitmap and use gdal_translate to add the
+geo-referenced data
+- For GDAL from 3.x, there's a gdal-create function that can be used to create
+a geo-referenced balnk tif.
 ----------------------------------------------------------------------------}
 interface
 
@@ -69,7 +75,8 @@ Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
 Procedure MakeGEO_GLC_batchFile(TileIndex: integer;
   gType : geoType; Size : integer);
 Procedure MakeGEO_GLC_Wget;
-Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer);
+Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer; value : byte);
+Procedure MakeGEO_Blank_24bit(FileName : string; Size : integer; value : byte);
 Procedure MakeGEO_GLC_Blank(TileIndex : integer;
   gType : geoType; Size : integer);
 
@@ -174,6 +181,53 @@ begin
   end;
 end;
 
+//-------------------------------------------------------------------------------------
+Procedure Make_OGRinfo;
+var
+  Name : string;
+  FilePath : string;
+  FileName : string;
+
+begin
+  case GeoDatabaseType of
+    CanVec: begin
+      Name := 'CanVec'
+    end;
+    OSM: begin
+      Name := 'CanVec'
+    end;
+    else begin
+    end;
+  end;
+  if (GeoDatabaseType = GLC) then begin
+    exit;
+  end;
+  FilePath := GEOFolder +'\GeoDatabase';
+  //open the file
+  FileName := 'OGR_info_'+Name+'.bat';
+  AssignFile(GEOfile, FilePath +'\'+ FileName);
+  Rewrite(GEOfile);
+
+  writeln(GEOfile,'echo off');
+  // enable delayed expansion for for loops
+  writeln(GEOfile,'setlocal enabledelayedexpansion');
+  writeln(GEOfile,'set PATH=%PATH%;"'+GDALlibraryFolder+'"');
+//  writeln(GEOfile,'set GDAL_DATA='+GDALlibraryFolder+'\..\share\epsg_csv');
+
+  if (GeoDatabaseType = CanVec) then begin
+    writeln(GEOfile,'ogrinfo fme.ogr\dataset\canvec.gdb > OGR.txt');
+  end else begin // OSM
+    writeln(GEOfile,'del OGR.txt');
+    writeln(GEOfile,'for /F %%f in (''dir /b *.shp'') do (');
+    writeln(GEOfile,'ogrinfo -so %%f >> OGR.txt');
+    writeln(GEOfile,')');
+  end;
+  writeln(GEOfile,'more OGR.txt');
+  writeln(GEOfile,'endlocal');
+  // close the file
+  Close(GEOfile);
+end;
+
 {----------------------------------------------------------------------------}
 Procedure Init_Sql;
 begin
@@ -260,6 +314,7 @@ Procedure Init;
 var
   i : integer;
 begin
+  Make_OGRinfo;
   case GeoDatabaseType of
     OSM: begin
       // for generic OSM shape file
@@ -323,9 +378,10 @@ var
 begin
   // create a folder if necessary
   FilePath := GEOFolder +'\GeoDatabase';
-  if (NOT DirectoryExists(FilePath)) then begin
-    mkdir(FilePath);
-  end;
+//  if (NOT DirectoryExists(FilePath)) then begin
+//    mkdir(FilePath);
+//  end;
+//    ForceDirectories(FilePath);
 
   //create thermal batch file
   BatchFileName := 'GO_t.bat';
@@ -446,6 +502,23 @@ begin
 
 end;
 
+{
+- using a dummy fail run the first time
+  - set destTiff=tUTMmap.tif
+  - set sourcevec=../../GeoDatabase/'+DBfolderName
+  -gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%
+- using a blank BMP of right size to start
+  - set destTiff=tUTMmap.tif
+  - set sourcetiff=..\..\Blank_correctsize.bmp
+  - gdal_translate.exe -r near -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%
+- using a blank BMP of arbitrary size to start - more flexible
+  - set destTiff=tUTMmap.tif
+  - set sourcetiff=..\..\Blank_256_blk.bmp
+  - gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%
+- using new gdal_create i.e if (fileExists(GDALlibraryFolder+'\gdal_create.exe'))
+  - set destTiff=tUTMmap.tif
+  - gdal_create -of GTiff -outsize %image_width% %image_height% -bands 3 -burn 0 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%
+}
 //-------------------------------------------------------------------------------------
 Procedure MakeGEObatchFile(TileIndex : integer);
 
@@ -520,12 +593,27 @@ begin
 //  writeln(GEOfile,'set destTiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
   writeln(GEOfile,'set destTiff=gUTMmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-//  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
-  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 3 -burn 0 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%');
+  end else begin
+{
+    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
+    writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_blk.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
 
   // loop through all ShapeFiles
   writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
@@ -628,12 +716,27 @@ begin
 //  writeln(GEOfile,'set destTiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
   writeln(GEOfile,'set destTiff=fUTMmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-//  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
-  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 3 -burn 0 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%');
+//    writeln(GEOfile,'gdalinfo tUTMmap.tif > info.txt');
+  end else begin
+{    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
+    writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_blk.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
 
   // loop through all ShapeFiles
   writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
@@ -742,13 +845,28 @@ begin
 //  writeln(GEOfile,'set destTiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
   writeln(GEOfile,'set destTiff=bUTMmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-//  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
-  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
-
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 3 -burn 0 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%');
+//    writeln(GEOfile,'gdalinfo tUTMmap.tif > info.txt');
+  end else begin
+{    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
+    writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_blk.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
+  
   // loop through all ShapeFiles
   writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
 //  writeln(GEOfile,'echo %%f');
@@ -853,12 +971,27 @@ begin
 //  writeln(GEOfile,'set destTiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
   writeln(GEOfile,'set destTiff=sUTMmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-//  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
-  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 3 -burn 0 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%');
+//    writeln(GEOfile,'gdalinfo tUTMmap.tif > info.txt');
+  end else begin
+{    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
+    writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_blk.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
 
 if (FeatureCount_250K > 1) then begin // if there are any coniferous forests
   // loop through all ShapeFiles
@@ -969,13 +1102,28 @@ begin
 //  writeln(GEOfile,'set destTiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
   writeln(GEOfile,'set destTiff=tUTMmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-//  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=../../GeoDatabase/%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
-  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
-
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 3 -burn 0 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%');
+//    writeln(GEOfile,'gdalinfo tUTMmap.tif > info.txt');
+  end else begin
+{    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=../../GeoDatabase/%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
+    writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_blk.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
+  
   // loop through all ShapeFiles
   writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
 //  writeln(GEOfile,'echo %%f');
@@ -1030,7 +1178,7 @@ end;
 // with direct UTM rasterize
 // not as good since lines are 'warped' to UTM after
 //-------------------------------------------------------------------------------------
-Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
+Procedure xMakeGEO_V2_Water_batchFile(TileIndex : integer);
 
 const
   ExtraDist = 0.1;  // extra 100 metres on each edge
@@ -1094,13 +1242,28 @@ begin
   writeln(GEOfile,'set real_bottom='+format('%1.8f',[Tile_B_Lat - Ysize]));
   writeln(GEOfile,'set destTiff=gEPSGmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-  writeln(GEOfile,'gdal_rasterize -init 255 -ot Byte -ts %image_width% %image_height% -te %real_left% %real_bottom% %real_right% %real_top% -of GTiff -a_srs EPSG:4326 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 1 -burn 255 -a_srs EPSG:4326 -a_ullr %real_left% %real_top% %real_right% %real_bottom% %destTiff%');
+//    writeln(GEOfile,'gdalinfo tUTMmap.tif > info.txt');
+  end else begin
+{    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+    writeln(GEOfile,'gdal_rasterize -init 255 -ot Byte -ts %image_width% %image_height% -te %real_left% %real_bottom% %real_right% %real_top% -of GTiff -a_srs EPSG:4326 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_wht.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs EPSG:4326 -a_ullr %real_left% %real_top% %real_right% %real_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
 
   // loop through all ShapeFiles
-  writeln(GEOfile,'rem loop through all *.SHP folders');
+//  writeln(GEOfile,'rem loop through all database folders');
   writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
   writeln(GEOfile,'set sourcevec=../../GeoDatabase/%%f'+DBfolderName);
   writeln(GEOfile,'echo ^!sourcevec^!');
@@ -1160,7 +1323,7 @@ end;
 // with direct UTM rasterize
 // not as good since lines are 'warped' to UTM after
 //-------------------------------------------------------------------------------------
-Procedure xMakeGEO_V2_Water_batchFile(TileIndex : integer);
+Procedure MakeGEO_V2_Water_batchFile(TileIndex : integer);
 
 var
   i : integer;
@@ -1214,13 +1377,28 @@ begin
 //  writeln(GEOfile,'set destTiff='+TileList[TileIndex].TileName+'\'+'UTMmap.tif');
   writeln(GEOfile,'set destTiff=gUTMmap.tif');
 
-  writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
-//  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
-  writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
-  writeln(GEOfile,'echo ^!sourcevec^!');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
-//  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
-  writeln(GEOfile,'gdal_rasterize -init 255 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+  // if new GDAL libary, use gdal_create
+  if (fileExists(GDALlibraryFolder+'\gdal_create.exe')) then begin
+    writeln(GEOfile,'rem create tif file');
+    writeln(GEOfile,'gdal_create -of GTiff -outsize %image_width% %image_height% -bands 1 -burn 255 -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %destTiff%');
+//    writeln(GEOfile,'gdalinfo tUTMmap.tif > info.txt');
+  end else begin
+{    // use old way with 'dummy' that creates the file
+    writeln(GEOfile,'rem it doesn''t work the first time, but the file is created');
+  //  writeln(GEOfile,'set sourcevec=../../GeoDatabase/'+DBfolderName);
+    writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (if not defined sourcevec set "sourcevec=..\..\GeoDatabase\%%f'+DBfolderName+'")');
+    writeln(GEOfile,'echo ^!sourcevec^!');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy %sourcevec% %destTiff%');
+  //  writeln(GEOfile,'gdal_rasterize -init 0 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -burn 255 -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+    writeln(GEOfile,'gdal_rasterize -init 255 -ot Byte -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% -of GTiff -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -burn 255 -l dummy ^!sourcevec^! %destTiff%');
+}
+//    // create a blank bitmap in GEO folder
+//    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_wht.bmp', 256, 255);
+    writeln(GEOfile,'rem create tif file from a blank bmp file');
+    writeln(GEOfile,'set sourcetiff=..\..\GeoDatabase\Blank_256_wht.bmp');
+    writeln(GEOfile,'gdal_translate.exe -r near -of GTiff -outsize %image_width% %image_height% -a_srs "+proj=utm +zone=%utm_zone% +datum=WGS84" -a_ullr %utm_left% %utm_top% %utm_right% %utm_bottom% %sourcetiff% %destTiff%');
+  end;
+//  writeln(GEOfile,'gdalinfo %destTiff% > info.txt');
 
   // loop through all ShapeFiles
   writeln(GEOfile,'for /F %%f in (''dir /b ..\..\GeoDatabase\'+DBfolderExt+''') do (');
@@ -1233,8 +1411,8 @@ begin
     with FeatureList_Water[i] do begin
 //      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn '+fColor[0]+' -burn '+fColor[1]+' -burn '+fColor[2]+' -l '+fDesc + fSql +' %sourcevec% %destTiff%');
 //      writeln(GEOfile,'gdal_rasterize -b 1 -b 2 -b 3 -burn '+fColor[0]+' -burn '+fColor[1]+' -burn '+fColor[2]+' -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%');
-//      writeln(GEOfile,'gdal_rasterize -b 1 -burn 0 -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%');  // full transparency
-      writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%'); // half transparency
+      writeln(GEOfile,'gdal_rasterize -b 1 -burn 0 -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%');  // full transparency
+//      writeln(GEOfile,'gdal_rasterize -b 1 -burn 191 -l '+fDesc + fSql +' ^!sourcevec^! %destTiff%'); // half transparency
     end;
   end;
 
@@ -1600,7 +1778,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer);
+Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer; value : byte);
 const
   BlockSize : integer = 256;
 
@@ -1642,6 +1820,11 @@ begin
 
       try
         P := AllocMem(BlockSize); // block transfer
+        if (value <> 0) then begin
+          for i := 0 to BlockSize-1 do begin
+            P^[i] := value;
+          end;
+        end;
         dSize := bDib.bHeight * bDib.bWidth;
         while (dSize > BlockSize) do begin
           BlockWrite(Greyscale_File,P^,BlockSize);
@@ -1656,6 +1839,47 @@ begin
 
     Close(Greyscale_File);
 //    MessageShow('Greyscale bitmap created');
+end;
+
+{----------------------------------------------------------------------------}
+Procedure MakeGEO_Blank_24bit(FileName : string; Size : integer; value : byte);
+var
+  i :integer;
+  Bitmap_File : File of byte;
+  P : pRGBArray;
+
+begin
+    AssignFile(Bitmap_File,FileName);
+    Rewrite(Bitmap_File);
+    // create a header
+    with xBitmapHeader_24bitColor do begin
+      bDib.bWidth := Size;
+      bDib.bHeight := Size;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+    end;
+    BlockWrite(Bitmap_File,xBitmapHeader_24bitColor,
+      sizeof(xBitmapHeader_24bitColor));
+
+    try
+      P := AllocMem(Size * sizeof(TRGBTriple)); // block of 0's
+      if (value <> 0) then begin
+        P^[0].rgbtBlue := value;
+        P^[0].rgbtGreen := value;
+        P^[0].rgbtRed := value;
+        for i := 1 to Size-1 do begin
+          P^[i] := p^[0];
+        end;
+      end;
+      for i := 0 to Size-1 do begin
+        BlockWrite(Bitmap_File,P^,Size * sizeof(TRGBTriple));
+      end;
+    finally
+      freemem(P);
+    end;
+
+    Close(Bitmap_File);
+//    MessageShow('bitmap created');
 end;
 
 {----------------------------------------------------------------------------}

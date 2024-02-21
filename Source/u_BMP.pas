@@ -38,7 +38,8 @@ offset: $22, size 4 bytes, image size in bytes
 //===========================================================================
 INTERFACE
 
-uses Windows, StdCtrls, Graphics, comctrls, SysUtils;
+uses
+  Windows, StdCtrls, Graphics, comctrls, SysUtils;
 
 type    // For scanline simplification
   TRGBArray = ARRAY[0..32767] OF TRGBTriple;
@@ -250,7 +251,7 @@ const
   );
 
   xBMP_1bit_ForestColorTable : array[0..2-1] of Longword =
-    ($0000BE00, $00000000);  // why reversed ?
+    ($0000FF00, $00000000);  // why reversed ?
 
   xBMP_2bit_ForestColorTable : array[0..4-1] of Longword =
     ($00000000, $0000FF00, $004080FF, $00FF8040);
@@ -395,6 +396,7 @@ var
   GradientArray : array of HeightColorGradient;
   GradientFile : file of HeightColorGradient;
 
+function BMP_ImageWidth(FileName : String) : Longint;
 Procedure Bitmap_GetWidthHeight(FileName:string);
 //function ColorMatch(tColor1,tColor2 : longword):boolean;
 //function xColorMatch(tColor1,tColor2 : TColor):boolean;
@@ -535,6 +537,28 @@ begin
     end;
     Close(BitmapFile);
   end;
+end;
+
+{----------------------------------------------------------------------------}
+function BMP_ImageWidth(FileName : String) : Longint;
+var
+  Bitmap_Hdr : BMP_V1_Header;
+begin
+  Result := -1; // assume at first
+  if (NOT fileExists(FileName)) then begin
+    exit;
+  end;
+  AssignFile(BitmapFile,FileName);
+  Reset(BitmapFile);
+  BlockRead(BitmapFile,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+  // check for bitmap signature
+  if (Bitmap_Hdr.bH.bSignature <> $4D42) then begin
+     Close(BitmapFile);
+    exit;
+  end;
+  // get width
+  result := Bitmap_Hdr.bDib.bWidth;
+  Close(BitmapFile);
 end;
 
 {----------------------------------------------------------------------------}

@@ -778,6 +778,7 @@ begin
       // skip over first MipMap
       seek (DDS_File_In, Sizeof(t_DDS_Header)+ (xWidth div 4)*(yHeight div 4)*sizeOf(DDS_BlockIn));
 
+   // slow - improve - do more than one block at a time !!!
       While NOT EOF(DDS_File_In) do begin
         BlockRead(DDS_File_In,DDS_BlockIn,sizeof(DDS_BlockIn));
         DDS_BlockOut := DDS_BlockIn;
@@ -848,12 +849,6 @@ end;
 
 {----------------------------------------------------------------------------}
 begin { Initialization }
-//  dxt_Path := 'DDS';
-//  dxt_FileName := 't0832.dds';
-//  DXT_Rotate_180;
-//  dxt_Path := 'DDS';
-//  dxt_FileName := 't0832.dds';
-//  DXT_Reduce;
 end.
 
 {--- End of File ------------------------------------------------------------}

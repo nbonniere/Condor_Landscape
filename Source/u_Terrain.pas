@@ -915,7 +915,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure CreateSlopeGradientBitmap(TerrainFileName,SlopeGradientFileName : string);
+Procedure xCreateSlopeGradientBitmap(TerrainFileName,SlopeGradientFileName : string);
 const
   ZeroByte : byte = 0;
   SunAngle = 30.0/180*PI; //from vertical
@@ -979,6 +979,91 @@ begin
         end;
         ProgressBar_Status.StepIt;
         Application.ProcessMessages;
+      end;
+    end;
+
+    Close(Terrain_File);
+    Close(CG_File);
+    MessageShow('Thermal sunny slope bitmap created');
+    ProgressBar_Status.Position := 0;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure CreateSlopeGradientBitmap(TerrainFileName,SlopeGradientFileName : string);
+const
+  ZeroByte : byte = 0;
+  SunAngle = 30.0/180*PI; //from vertical
+  SunMin = 64; // 25% of 256
+
+var
+  i, j :integer;
+  FileByte : byte;
+  PreviousHeight : integer;
+  Angle : single;
+  pColor : ColorConvert;
+  P : PWordArray;
+
+begin
+  if (NOT FileExists(TerrainFileName)) then begin
+    MessageShow('Terrain file not found');
+  end else begin
+    MessageShow('Creating thermal sunny slope bitmap...');
+    AssignFile(CG_File,{FilePath+'\'+}SlopeGradientFileName);
+    Rewrite(CG_File);
+    // create a header
+    with BitmapHeader_8bitColor do begin
+      bDib.bWidth := ColumnCount;
+      bDib.bHeight := RowCount;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+      BlockWrite(CG_File,BitmapHeader_8bitColor,
+        sizeof(BitmapHeader_8bitColor));
+
+      //write 256 color palette
+      //seek(CG_File,sizeof(BMP_Header) + sizeof(BMP_DIB_Header));
+      pColor.ByteValue[3]:=0;
+      for i := 0 to 256-1 do begin //grey scale
+//        Write(CG_File,byte(i),byte(i),byte(i),ZeroByte);
+        pColor.ByteValue[0] := i;
+        pColor.ByteValue[1] := i;
+        pColor.ByteValue[2] := i;
+        BlockWrite(CG_File,pColor.ColorValue,sizeof(pColor));
+      end;
+
+// create a bitmap and savetofile instead? faster?
+
+      AssignFile(Terrain_File,TerrainFileName);
+      Reset(Terrain_File);
+      seek(Terrain_File,sizeof(CondorTerrainHeader));
+      ProgressBar_Status.Max := ColumnCount;
+
+      try
+        P := AllocMem(RowCount*2); // one row at a time
+        // write dummy last byte to force filesize
+        seek(CG_File,bH.bPixelArrayOffset+(ColumnCount*RowCount)-1);
+        Write(CG_File,p^[0]);
+        for i := 0 to ColumnCount-1 do begin
+          BlockRead(Terrain_File,P^,RowCount*2);
+          for j := 0 to RowCount-1 do begin
+            if (j <> 0) then begin
+              Angle := ARCTAN2(P^[j]-PreviousHeight,90);
+              FileByte := trunc(SunMin + (255-SunMin) * cos(Angle-SunAngle));
+              seek(CG_File,bH.bPixelArrayOffset+((j-1)*ColumnCount)+(ColumnCount-1-i));
+              Write(CG_File,FileByte);
+            end;
+            if (j = RowCount-1) then begin
+              seek(CG_File,bH.bPixelArrayOffset+((j)*ColumnCount)+(ColumnCount-1-i));
+              Write(CG_File,FileByte);
+            end else begin
+              PreviousHeight := P^[j];
+            end;
+          end;
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
       end;
     end;
 

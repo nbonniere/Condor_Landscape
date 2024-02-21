@@ -33,7 +33,7 @@ type
     CheckBox_ThermalBitmap: TCheckBox;
     Button_Proceed: TButton;
     Button_Cancel: TButton;
-    CheckBox_Changed: TCheckBox;
+    CheckBox_Erase: TCheckBox;
     GroupBox_BaseThermalMap: TGroupBox;
     RadioButton_UniformHeating: TRadioButton;
     RadioButton_SunnySlopes: TRadioButton;

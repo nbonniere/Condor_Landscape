@@ -864,6 +864,9 @@ begin
     ForceDirectories(WorkingPathName+'\Terragen\ForestMaps');
     ForceDirectories(WorkingPathName+'\Terragen\WaterMaps');
     ForceDirectories(WorkingPathName+'\GeoDatabase');
+    // create a blank bitmap in GEO folder
+    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256, 0);
+    MakeGEO_Blank_Greyscale(GEOFolder+'\GeoDatabase\Blank_256_wht.bmp', 256, 255);
 
     TileName := ComboBox_Single.text;
     if (TileName = '') then begin // default blank -> all
@@ -898,7 +901,7 @@ begin
     if (ComboBox_GEO.Text = 'GLC') then begin
       // show files needed
       MakeGEO_GLC_Wget;
-      MakeGEO_Blank_GreyScale(WorkingPathName+'\Terragen\ForestMaps\sBlank.bmp', gfV2Size);
+      MakeGEO_Blank_GreyScale(WorkingPathName+'\Terragen\ForestMaps\sBlank.bmp', gfV2Size, 0);
     end;
   end;
 end;
@@ -1174,6 +1177,10 @@ var
 begin
   if (ComboBox_Version.text = 'V1') then begin
     ForestResolution := 2;
+  end else begin
+    ForestResolution := 8;
+  end;
+  begin
     setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
     if (HeaderOpen) then begin
 //      Form_MakeForest.Position := poDefault;
@@ -1191,27 +1198,20 @@ begin
         if (form_MakeForest.CheckBox_Forest.checked) then begin
           CreateForestMap(form_MakeForest.CheckBox_Shrink.checked, CondorLandscapeName+'.for');
         end;
-        u_Forest.DestinationForestFolder := WorkingPathName+'\ForestMaps';
-        if (NOT DirectoryExists(WorkingPathName+'\ForestMaps')) then begin
-          mkdir(WorkingPathName+'\ForestMaps');
-        end;
+        u_Forest.DestinationForestFolder := WorkingPathName+'\ForestMap';
+        ForceDirectories(u_Forest.DestinationForestFolder);
         if (form_MakeForest.CheckBox_Coniferous.checked) then begin
           CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fConiferous,'ConiferousMap.bmp');
         end;
         if (form_MakeForest.CheckBox_Deciduous.checked) then begin
           CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fDeciduous,'DeciduousMap.bmp');
         end;
-        Beep; //all done
+//        Beep; //all done
       end;
     end else begin
       Memo_Info.Lines.Add('Need Header file first');
       Beep;
     end;
-  end else begin
-    ForestResolution := 8;
-    setLength(ForestGrid,tColumns*ForestResolution,tRows*ForestResolution);
-    Memo_Info.Lines.Add('Only possible for V1');
-    Beep;
   end;
 end;
 
@@ -1224,9 +1224,11 @@ begin
   if (HeaderOpen) then begin
     if (ComboBox_Version.text = 'V1') then begin
       form_MakeThermal.RadioButton_SunnySlopes.enabled := true;
+      ForestResolution := 2;
     end else begin // V2
       form_MakeThermal.RadioButton_SunnySlopes.enabled := false;
       form_MakeThermal.RadioButton_UniformHeating.checked := true;
+      ForestResolution := 8;
     end;
 //    Form_MakeThermal.Position := poDefault;
     // offset to be able to see status and progressbar
@@ -1236,22 +1238,21 @@ begin
     Application.ProcessMessages;
     if (u_MakeThermal.ActionRequest) then begin
 
-    //get thermal heating values
-    with u_MakeThermal.Form_MakeThermal.StringGrid_ThermalHeating do begin
-      for i := 0 to high(Heating) do begin
-        Heating[i] := ClampByte(Round(StrToFloat(Cells[1,i+1])*255/100));
+      //get thermal heating values
+      with u_MakeThermal.Form_MakeThermal.StringGrid_ThermalHeating do begin
+        for i := 0 to high(Heating) do begin
+          Heating[i] := ClampByte(Round(StrToFloat(Cells[1,i+1])*255/100));
+        end;
       end;
-    end;
 
       // create a Thermal file
       u_Thermal.Memo_Message := Memo_Info;
       u_Thermal.ProgressBar_Status := ProgressBar_Status;
       u_Thermal.SourceThermalFolder := WorkingPathName;
       u_Thermal.DestinationThermalFolder := WorkingPathName+'\..';
-
-      if (NOT DirectoryExists(WorkingPathName+'\ThermalMap')) then begin
-        mkdir(WorkingPathName+'\ThermalMap');
-      end;
+//      if (NOT DirectoryExists(WorkingPathName+'\ThermalMap')) then begin
+//        mkdir(WorkingPathName+'\ThermalMap');
+//      end;
       //skip if .trn file not changed and
       //if SunnySlopes.bmp not changed
       if (form_MakeThermal.RadioButton_SunnySlopes.checked) then begin
@@ -1260,17 +1261,19 @@ begin
           u_Terrain.ProgressBar_Status := ProgressBar_Status;
           CreateSlopeGradientBitmap(WorkingPathName+'\..\'+CondorLandscapeName+'.trn',
             WorkingPathName+'\ThermalMap\SunnySlopes.bmp');
+        end else begin
+          Memo_Info.Lines.Add('SunnySlopes.bmp already exists');
         end;
       end;
-
       if (form_MakeThermal.CheckBox_Thermal.checked) then begin
         CreateThermalMap(CondorLandscapeName+'.tdm');
       end;
       u_Thermal.DestinationThermalFolder := WorkingPathName+'\ThermalMap';
+      ForceDirectories(u_Thermal.DestinationThermalFolder);
       if (form_MakeThermal.CheckBox_ThermalBitmap.checked) then begin
         CreateThermalBitmap('ThermalMap.bmp');
       end;
-      Beep; //all done
+//      Beep; //all done
     end;
   end else begin
     Memo_Info.Lines.Add('Need Header file first');
@@ -1485,6 +1488,11 @@ begin
         Memo_Info.Lines.Add('Terragen Bitmap File Not Found');
         Beep;
       end else begin
+        // check if too large to load - avoid crash
+        if (BMP_ImageWidth(tFileName) > 32768) then begin
+          Memo_Info.Lines.Add('Terragen bitmap too large');
+          Beep; Exit;
+        end;
         // set image to auto take its size from picture 1:1 and fit in window
         Form_Graphic.Image_Tile.Align := alClient;
         Form_Graphic.Image_Tile.AutoSize := true;
@@ -1597,6 +1605,11 @@ begin
         Memo_Info.Lines.Add('Terragen Bitmap File Not Found');
         Beep;
       end else begin
+        // check if too large to load - avoid crash
+        if (BMP_ImageWidth(tFileName) > 32768) then begin
+          Memo_Info.Lines.Add('Terragen bitmap too large');
+          Beep; Exit;
+        end;
         // set image to auto take its size from picture 1:1 and fit in window
         Form_Graphic.Image_Tile.Align := alClient;
         Form_Graphic.Image_Tile.AutoSize := true;
@@ -1742,6 +1755,7 @@ begin
       Screen.Cursor := crDefault;  // no longer busy
       Unit_ObjectPlacer.CurrentLandscape := CondorLandscapeName;
       Unit_ObjectPlacer.opVersion:= ComboBox_Version.text;
+      Unit_ObjectPlacer.Memo_Message := Memo_Info;
     end else begin
     end;
 //    Form_ObjectPlacer.Position := poDefault;
@@ -1772,6 +1786,7 @@ begin
       Form_AirportPlacer.Initialize(Sender);
       Unit_AirportPlacer.CurrentLandscape := CondorLandscapeName;
       Unit_AirportPlacer.apVersion:= ComboBox_Version.text;
+      Unit_AirportPlacer.Memo_Message := Memo_Info;
     end else begin
     end;
     // for HiResRunway
@@ -2050,11 +2065,16 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_Main.Button_SimpleObjectsClick(Sender: TObject);
 begin
+  if ( NOT DirectoryExists(ApplicationPathName+'\SimpleObjects')) then begin
+    Form_Main.Memo_Info.Lines.Add('SimpleObjects folder not found');
+    Beep; Exit;
+  end;
   Unit_SimpleObjects.ApplicationPath := ApplicationPathName;
-//  soFolder := WorkingPathName;
+  Unit_SimpleObjects.ObjectFolder := ApplicationPathName+'\SimpleObjects';
   if (HeaderOpen) AND (TileOpen) then begin
     if (Unit_SimpleObjects.objFolder = '') then begin
-      Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes\' + CondorLandscapeName;
+      Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes\'+CondorLandscapeName+'\Working\Objects';
+      ForceDirectories(Unit_SimpleObjects.objFolder);
     end;
   end else begin
     Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes';

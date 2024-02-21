@@ -34,7 +34,7 @@ type
     CheckBox_Coniferous: TCheckBox;
     Button_Proceed: TButton;
     Button_Cancel: TButton;
-    CheckBox_Changed: TCheckBox;
+    CheckBox_Erase: TCheckBox;
     CheckBox_Shrink: TCheckBox;
     procedure Button_CancelClick(Sender: TObject);
     procedure Button_ProceedClick(Sender: TObject);
