@@ -334,11 +334,11 @@ begin
           ForceDirectories(Dest_File_Path);
           // read forest bitmap into forestGrid
           u_BMP.BMPfolder := File_Folder; // why u_BMP???
-          if (ReadForestBitmapTile(File_Name, false) ) then begin
+          if (ForestBitmap_To_ForestGrid(File_Name, false) ) then begin
 //            // if 512, it is a patch
 //            V2_ForestGrid_To_FOR(tcolumns,Dest_File_Path+'\'+File_Name+'.for');
             // if 2048, it is a tile, can be split into 16
-            V2_ForestGrid_To_FOR_x16(Dest_File_Path+'\'+File_Name+'.for');
+            ForestGrid_To_V2_FOR_x16(Dest_File_Path+'\'+File_Name+'.for');
           end;
           ProgressBar_Status.StepIt; Application.ProcessMessages;
         end;
@@ -388,20 +388,22 @@ begin
           ForceDirectories(Dest_File_Path);
           // convert
           V2_qFOR_To_ForestGrid(FileName);
-          V2_ForestGrid_To_FOR(pcolumns,FileName+'.xxx'); // re-convert 'patch' for testing
-//          V2_2Color_WriteBitmapForestQtile(fDeciduous,Dest_File_Path+'\bbb'+File_Name_NoExt+'.bmp');
-//          V2_2Color_WriteBitmapForestQtile(fConiferous,Dest_File_Path+'\sss'+File_Name_NoExt+'.bmp');
-//          V2_GreyScale_WriteBitmapForestQtile(fDeciduous,Dest_File_Path+'\bb'+File_Name_NoExt+'.bmp');
-//          V2_GreyScale_WriteBitmapForestQtile(fConiferous,Dest_File_Path+'\ss'+File_Name_NoExt+'.bmp');
+//          V2_ForestGrid_To_FOR(pcolumns,FileName+'.xxx'); // re-convert 'patch' for testing
+//          ForestGrid_To_2Color_Bitmap(pColumns, fDeciduous, Dest_File_Path+'\bbb'+File_Name_NoExt+'.bmp');
+//          ForestGrid_To_2Color_Bitmap(pColumns, fConiferous, Dest_File_Path+'\sss'+File_Name_NoExt+'.bmp');
+//          ForestGrid_To_GreyScale_Bitmap(pColumns,fDeciduous,Dest_File_Path+'\bb'+File_Name_NoExt+'.bmp');
+//          ForestGrid_To_GreyScale_Bitmap(pColumns,fConiferous,Dest_File_Path+'\ss'+File_Name_NoExt+'.bmp');
+//          ForestGrid_To_256Color_Bitmap(pColumns,fDeciduous,Dest_File_Path+'\bb'+File_Name_NoExt+'.bmp');
+//          ForestGrid_To_256Color_Bitmap(pColumns,fConiferous,Dest_File_Path+'\ss'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
           // b and s must be 24bit for Landscape Editor (?)
-          V2_24bit_WriteBitmapForestQtile(fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
+          ForestGrid_To_24bit_Bitmap(pColumns,fDeciduous,Dest_File_Path+'\b'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
-          V2_24bit_WriteBitmapForestQtile(fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
+          ForestGrid_To_24bit_Bitmap(pColumns,fConiferous,Dest_File_Path+'\s'+File_Name_NoExt+'.bmp');
           // also show a combined version
-//          V2_4Color_Both_WriteBitmapForestQtile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+//          ForestGrid_To_4Color_Both_Bitmap(pColumns,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
           ProgressBar_Status.StepIt; Application.ProcessMessages;
-          V2_16Color_Both_WriteBitmapForestQtile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+          ForestGrid_To_16Color_Both_Bitmap(pColumns,Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
         end;
       finally
         Screen.Cursor := crDefault;  // no longer busy
@@ -569,7 +571,9 @@ begin
     TMS := TMStype;
     // extra distance around edges to make sure
     Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
-    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+//    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+    Xsize := Ysize*cos(TileList[0].TileLatBottom*Pi/180);
+
     // calc tile numbers from top left (corner[3]) and bottom right (corner[0])
     // top left
     lat_deg := f_Maximum(TileList[(Row_T)*(TileColumnCount+1)+Col_R].TileLatBottom,
@@ -795,7 +799,8 @@ begin
     TMS := true;
     // extra distance around edges to make sure
     Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
-    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+//    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+    Xsize := Ysize*cos(TileList[0].TileLatBottom*Pi/180);
     // calc tile numbers from top left (corner[3]) and bottom right (corner[0])
     // top left
     lat_deg := f_Maximum(CornerList[2].TileLatBottom, CornerList[3].TileLatBottom) + Ysize;
@@ -953,10 +958,10 @@ const
 var
   VFRdate : string;
   httpReference : string;
-  FileName : string;
+//  FileName : string;
   FilePath : string;
   GDALfile : TextFile;
-  i : integer;
+//  i : integer;
   Xsize,Ysize : real;
 
   Tile_Top_Lat  : real;
@@ -979,7 +984,8 @@ begin
     TMS := true;
     // extra distance around edges to make sure
     Ysize := arctan(ExtraDist/earthRadius)*180.0/Pi;
-    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+//    Xsize := Ysize*cos(CornerList[0].TileLatBottom*Pi/180);
+    Xsize := Ysize*cos(TileList[0].TileLatBottom*Pi/180);
     // calc tile numbers from top left (corner[3]) and bottom right (corner[0])
     Tile_Bottom_Lat := f_Minimum(CornerList[0].TileLatBottom, CornerList[1].TileLatBottom);
     Tile_Top_Lat :=    f_Maximum(CornerList[2].TileLatBottom, CornerList[3].TileLatBottom);
@@ -1031,6 +1037,7 @@ begin
     end;
 
     CloseFile(GDALfile);
+    MessageShow('Working\SourceTiles\VFRmap\VFRmap.umd generated');
 
   end else begin
     MessageShow('Need Header file first');
@@ -1041,7 +1048,7 @@ end;
 {-------------------------------------------------------------------------------------
 Reference: https://www.gdal.org/gdaldem.html
 Steps to create a map with elevation contour lines
-1) use a DEM elevation file to create a contaour shape file
+1) use a DEM elevation file to create a contour shape file
 2) draw this shape file onto a map
 Geo information can be extracted from DEM TIFF to apply to a bitmap, or
 can be applied as UTM coordinates
@@ -1112,9 +1119,11 @@ begin
     writeln(GDALfile,'call Generate_Contour.bat');
 
     Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-    Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+//    Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+    Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
     Tile_L_Long  := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-    Tile_R_Long  := Tile_L_Long + 23040 * TileColumnCount;
+//    Tile_R_Long  := Tile_L_Long + 23040 * TileColumnCount;
+    Tile_R_Long  := Tile_L_Long + Resolution * ColumnCount;
 
     writeln(GDALfile,'rem convert bitmap to tiff and add geo data');
     writeln(GDALfile,format('set left=%1.1f',[Tile_L_Long]));
@@ -1198,9 +1207,9 @@ begin
     writeln(GDALfile,'gdal_contour -i 100.0 %l_DEM% %l_SHP%');
 
     Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-    Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+    Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
     Tile_L_Long  := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-    Tile_R_Long  := Tile_L_Long + 23040 * TileColumnCount;
+    Tile_R_Long  := Tile_L_Long + Resolution * ColumnCount;
 
     writeln(GDALfile,'rem convert bitmap to tiff and add geo data');
     writeln(GDALfile,format('set left=%1.1f',[Tile_L_Long]));
@@ -1257,7 +1266,7 @@ begin
     // close the file
     CloseFile(GDALfile);
 
-    MessageShow('Working/SourceTiles/Contour/Make_ColourRelief.bat generated');
+    MessageShow('Working\SourceTiles\Contour/Make_ColourRelief.bat generated');
     MessageShow('Adjust Color_Table.txt elevations and colors as desired');
 
     // if not already created,
@@ -1329,7 +1338,7 @@ var
   ErrorCode : integer;
   TileName : string;
   qColumn, qRow : integer;
-  column, row, TileIndex : integer;
+  column, row{, TileIndex} : integer;
   offset_Column, offset_Row : integer;
 
 begin
@@ -1524,13 +1533,13 @@ procedure TForm_Utilities.Button_OBJ_Import_CSVClick(Sender: TObject);
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
-    lObjectFolderName := Initial_Folder+'\';
-    lObjectFileName := LandscapeName+'.obj';
-    if (FileExists(lObjectFolderName+'Working\'+lObjectFileName+'.csv')) then begin
+    Object_FolderName := Initial_Folder;
+    Object_FileName := LandscapeName+'.obj';
+    if (FileExists(Object_FolderName+'\Working\'+Object_FileName+'.csv')) then begin
       ImportCSV_ObjectFile;
       MessageShow('File imported from Working folder');
     end else begin
-      MessageShow('File '+'Working\'+lObjectFileName+'.csv'+' not found');
+      MessageShow('File '+'Working\'+Object_FileName+'.csv'+' not found');
       Beep;
     end;
   end else begin
@@ -1544,14 +1553,14 @@ procedure TForm_Utilities.Button_OBJ_Export_CSVClick(Sender: TObject);
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
-    lObjectFolderName := Initial_Folder+'\';
-    lObjectFileName := LandscapeName+'.obj';
-    if (FileExists(lObjectFolderName+lObjectFileName)) then begin
+    Object_FolderName := Initial_Folder;
+    Object_FileName := LandscapeName+'.obj';
+    if (FileExists(Object_FolderName+'\'+Object_FileName)) then begin
       ReadObjectFile;
       ExportCSV_ObjectFile;
       MessageShow('File exported to Working folder');
     end else begin
-      MessageShow('File '+lObjectFileName+' not found');
+      MessageShow('File '+Object_FileName+' not found');
       Beep;
     end;
   end else begin
@@ -1565,9 +1574,9 @@ procedure TForm_Utilities.Button_OBJ_LL_Export_CSVClick(Sender: TObject);
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
-    lObjectFolderName := Initial_Folder+'\';
-    lObjectFileName := LandscapeName+'.obj';
-    if (FileExists(lObjectFolderName+lObjectFileName)) then begin
+    Object_FolderName := Initial_Folder;
+    Object_FileName := LandscapeName+'.obj';
+    if (FileExists(Object_FolderName+Object_FileName)) then begin
       // use Condor NAVICON DLL for conversion
 //      u_Condor_NaviconDLL.CondorFolder := Condor_Folder;
 //      if (NOT Condor_Navicon_Open (Condor_Folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.trn') ) then begin
@@ -1582,7 +1591,7 @@ begin
 List_OBJ_File_Object_Details(Initial_Folder,LandscapeName);
 
     end else begin
-      MessageShow('File '+lObjectFileName+' not found');
+      MessageShow('File '+Object_FileName+' not found');
       Beep;
     end;
   end else begin
@@ -1596,9 +1605,9 @@ procedure TForm_Utilities.Button_OBJ_LL_Import_CSVClick(Sender: TObject);
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
-    lObjectFolderName := Initial_Folder+'\';
-    lObjectFileName := LandscapeName+'.obj';
-    if (FileExists(lObjectFolderName+'Working\'+lObjectFileName+'.LL.csv')) then begin
+    Object_FolderName := Initial_Folder;
+    Object_FileName := LandscapeName+'.obj';
+    if (FileExists(Object_FolderName+'\Working\'+Object_FileName+'.LL.csv')) then begin
 //      u_Condor_NaviconDLL.CondorFolder := Condor_Folder;
 //      if (NOT Condor_Navicon_Open (LandscapeName) ) then begin
 //        MessageShow('Unable to open navicon.dll');
@@ -1608,7 +1617,7 @@ begin
 //      Condor_Navicon_Close;
       MessageShow('File imported from Working folder');
     end else begin
-      MessageShow('File '+'Working\'+lObjectFileName+'_LL.csv'+' not found');
+      MessageShow('File '+'Working\'+Object_FileName+'_LL.csv'+' not found');
       Beep;
     end;
   end else begin
@@ -1622,14 +1631,14 @@ procedure TForm_Utilities.Button_APT_Import_CSVClick(Sender: TObject);
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
-    lAirportFolderName := Initial_Folder+'\';
-    lAirportFileName := LandscapeName+'.apt';
-    if (FileExists(lAirportFolderName+'Working\'+lAirportFileName+'.csv')) then begin
+    Airport_FolderName := Initial_Folder;
+    Airport_FileName := LandscapeName+'.apt';
+    if (FileExists(Airport_FolderName+'\Working\'+Airport_FileName+'.csv')) then begin
       ImportCSV_AirportFile;
       MessageShow('File imported from Working folder');
       Unit_AirportPlacer.CurrentLandscape := ''; // flag for reload
     end else begin
-      MessageShow('File '+'Working\'+lAirportFileName+'.csv'+' not found');
+      MessageShow('File '+'Working\'+Airport_FileName+'.csv'+' not found');
       Beep;
     end;
   end else begin
@@ -1643,9 +1652,9 @@ procedure TForm_Utilities.Button_APT_CSV_ExportClick(Sender: TObject);
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
-    lAirportFolderName := Initial_Folder+'\';
-    lAirportFileName := LandscapeName+'.apt';
-    if (FileExists(lAirportFolderName+lAirportFileName)) then begin
+    Airport_FolderName := Initial_Folder;
+    Airport_FileName := LandscapeName+'.apt';
+    if (FileExists(Airport_FolderName+'\'+Airport_FileName)) then begin
       ReadAirportFile;
       ExportCSV_AirportFile;
       MessageShow('File exported to Working folder');
@@ -1653,7 +1662,7 @@ begin
 List_APT_File_Object_Details(Initial_Folder,LandscapeName);
 
     end else begin
-      MessageShow('File '+lAirportFileName+' not found');
+      MessageShow('File '+Airport_FileName+' not found');
       Beep;
     end;
   end else begin
@@ -1980,6 +1989,7 @@ begin
         end;
       end;
       ProgressBar_Status.Position := 0;
+      MessageShow('Reduction done');
     end;
   end else begin
     if (ComboBox_Reduce.Text = 'All') then begin  // if 'All' then do whole folder
@@ -1989,20 +1999,23 @@ begin
         Exit;
       end;
   // need to confirm - cannot be undone
-  // Are you sure you want to reduce the textures in this landscape ?
-
-        ProgressBar_Status.Max := (TileRowCount*4)*(TileColumnCount*4);
-        for i := 0 to TileRowCount*4-1 do begin
-          for j := 0 to TileColumnCount*4-1 do begin
-      u_DXT.dxt_Path := '';
-      u_DXT.dxt_FileName := '';
-      DXT_Reduce;
+  // Are you sure you want to reduce ALL the textures in this landscape ?
+      if (MessageDlg('Are you sure you want to reduce ALL the textures in this landscape ?', mtConfirmation,
+          [mbYes, mbNo], 0) = mrYes) then begin
+        ProgressBar_Status.Max := (RowCount div 64)*(ColumnCount div 64);
+        for i := 0 to (RowCount div 64)-1 do begin
+          for j := 0 to (ColumnCount div 64)-1 do begin
+            u_DXT.dxt_Path := Working_Folder+'\..\Textures';
+            u_DXT.dxt_FileName := format('t%2.2d%2.2d.dds',[j,i]);
+            DXT_Reduce;
+            MessageShow(u_DXT.dxt_FileName);
             ProgressBar_Status.StepIt;
             Application.ProcessMessages;
           end;
         end;
         ProgressBar_Status.Position := 0;
-
+        MessageShow('Reduction done');
+      end;
     end else begin
       if (ComboBox_Reduce.Text = 'Edge') then begin  // if edge, then only do the outside quarter tile
         if (NOT ((HeaderOpen) AND (TileOpen))) then begin
@@ -2010,26 +2023,29 @@ begin
           Beep;
           Exit;
         end;
-  // need to confirm - cannot be undone
-  // Are you sure you want to reduce the outer 1/4 textures in this landscape ?
-
-        ProgressBar_Status.Max := (TileRowCount*4)*(TileColumnCount*4);
-        for i := 0 to TileRowCount*4-1 do begin
-          for j := 0 to TileColumnCount*4-1 do begin
-            if ( (i = 0) OR
-                 (i = TileRowCount*4-1) OR
-                 (j = 0) OR
-                 (i = TileColumnCount*4-1) ) then begin
-      u_DXT.dxt_Path := '';
-      u_DXT.dxt_FileName := '';
-      DXT_Reduce;
+       // need to confirm - cannot be undone
+       // Are you sure you want to reduce the outer 1/4 textures in this landscape ?
+       if (MessageDlg('Are you sure you want to reduce the outer 1/4 textures in this landscape ?', mtConfirmation,
+          [mbYes, mbNo], 0) = mrYes) then begin
+         ProgressBar_Status.Max := (RowCount div 64)*(ColumnCount div 64);
+          for i := 0 to (RowCount div 64)-1 do begin
+            for j := 0 to (ColumnCount div 64)-1 do begin
+              if ( (i = 0) OR
+                   (i = (RowCount div 64)-1) OR
+                   (j = 0) OR
+                   (i = (ColumnCount div 64)-1) ) then begin
+                u_DXT.dxt_Path := Working_Folder+'\..\Textures';
+                u_DXT.dxt_FileName := format('t%2.2d%2.2d.dds',[j,i]);
+                DXT_Reduce;
+                MessageShow(u_DXT.dxt_FileName);
+              end;
+              ProgressBar_Status.StepIt;
+              Application.ProcessMessages;
             end;
-            ProgressBar_Status.StepIt;
-            Application.ProcessMessages;
           end;
+          ProgressBar_Status.Position := 0;
+          MessageShow('Reduction done');
         end;
-        ProgressBar_Status.Position := 0;
-
       end else begin
         MessageShow('Unknown option');
         Beep;
@@ -2046,7 +2062,7 @@ const
 var
   st_X, st_Y :integer;
   st_ColumnCount, st_RowCount :integer;
-  X, Y :integer;
+  {X,} Y :integer;
 //  st_WidthMax :integer;
 //  st_HeightMax :integer;
   FOR_File : File of Byte;
@@ -2087,11 +2103,11 @@ var
   NewLandscapeName : string;
   NewLandscapePath : string;
   V1_LandscapePath : string;
-  i, j :integer;
-  TileName : string;
+  i{, j} :integer;
+//  TileName : string;
   SearchRec: TSearchRec;
   Condor_Ini: TIniFile;
-  INI_File : TextFile;
+//  INI_File : TextFile;
   CurrentPath : string;
   X_ObjectFileName : string;
   c3d_ObjectFileName : string;
@@ -2372,8 +2388,8 @@ begin
       // add default windsock and convert to c3d
     // else create default O file with default windsock
     // get all texture files associated with airports
-  lAirportFolderName := NewLandscapePath+'\';
-  lAirportFileName := NewLandscapeName+'.apt';
+  Airport_FolderName := NewLandscapePath;
+  Airport_FileName := NewLandscapeName+'.apt';
   ReadAirportFile;
   ProgressBar_Status.Max := Airport_Count;
   for i := 0 to Airport_Count-1 do begin
@@ -2463,8 +2479,8 @@ begin
     CopyFile(pchar(V1_LandscapePath+'\'+LandscapeName+'.obj'),
       pchar(NewLandscapePath+'\'+NewLandscapeName+'.obj'),false);
     // read the object list
-    lObjectFolderName := NewLandscapePath+'\';
-    lObjectFileName := NewLandscapeName+'.obj';
+    Object_FolderName := NewLandscapePath;
+    Object_FileName := NewLandscapeName+'.obj';
     ReadObjectFile;
     // convert the links to c3d objects and copy and convert the objects
     CopyAndConvert;
@@ -2559,7 +2575,7 @@ var
   ObjectList : array of Object_Definition;
   ObjectPlacement : array of Object_Placement;
   ObjName : string;
-  ObjRef : string;
+//  ObjRef : string;
   SourceFileName : string;
   OutputFileName : string;
   TextureFile    : string;
@@ -2792,8 +2808,8 @@ begin
       end;
 
       // Now write the Condor Object file
-      lObjectFolderName := Working_Folder+'\XP\';
-      lObjectFileName := LandscapeName+'.obj';
+      Object_FolderName := Working_Folder+'\XP';
+      Object_FileName := LandscapeName+'.obj';
       WriteObjectFile;
 
 //      try

@@ -1,0 +1,17 @@
+Forest / Thermal Help
+
+- move view
+Ctrl-Left-Mouse - drag to pan
+
+- save image
+Alt-S
+
+- load image
+Alt-L
+
+- toggle forest / thermal bitmap
+V
+
+- toggle alternate background
+  - Working\GeoDatabase\xxxx.bmp
+A

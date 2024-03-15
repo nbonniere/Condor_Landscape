@@ -71,8 +71,8 @@ const
 var
   Memo_Message : TMemo;  // external TMemo for messages
 
-  lObjectFolderName : String;
-  lObjectFileName   : String;
+  Object_FolderName : String;
+  Object_FileName   : String;
   Object_Count      : integer;
   Object_List       : array of CondorObject;
 
@@ -108,7 +108,7 @@ end;
 procedure ReadObjectFile;
 begin
   Object_Count := 0;
-  AssignFile(Object_File,lObjectFolderName+lObjectFileName);
+  AssignFile(Object_File,Object_FolderName+'\'+Object_FileName);
   Reset(Object_File);
   While NOT EOF(Object_File) do begin
     SetLength(Object_List,Object_Count+1);
@@ -125,7 +125,7 @@ var
   i : integer;
 
 begin
-  AssignFile(Object_File,lObjectFolderName+lObjectFileName);
+  AssignFile(Object_File,Object_FolderName+'\'+Object_FileName);
   Rewrite(Object_File);
 //  for i := 0 to Object_Count-1 do begin
   for i := 0 to Length(Object_list)-1 do begin
@@ -142,10 +142,10 @@ var
   CSV_File : TextFile;
 
 begin
-  if (NOT DirectoryExists(lObjectFolderName+'Working')) then begin
-    ForceDirectories(lObjectFolderName+'Working');
+  if (NOT DirectoryExists(Object_FolderName+'\Working')) then begin
+    ForceDirectories(Object_FolderName+'\Working');
   end;
-  AssignFile(CSV_File,lObjectFolderName+'Working\'+lObjectFileName+'.csv');
+  AssignFile(CSV_File,Object_FolderName+'\Working\'+Object_FileName+'.csv');
   Rewrite(CSV_File);
   for i := 0 to Object_Count-1 do begin
     with Object_list[i] do begin
@@ -168,7 +168,7 @@ var
   conv_Longitude : single;
 
 begin
-  AssignFile(CSV_File,lObjectFolderName+'\Working\'+lObjectFileName+'.csv');
+  AssignFile(CSV_File,Object_FolderName+'\Working\'+Object_FileName+'.csv');
   Reset(CSV_File);
 
   Object_Count := 0;
@@ -243,10 +243,10 @@ var
   CSV_File : TextFile;
 
 begin
-  if (NOT DirectoryExists(lObjectFolderName+'Working')) then begin
-    ForceDirectories(lObjectFolderName+'Working');
+  if (NOT DirectoryExists(Object_FolderName+'\Working')) then begin
+    ForceDirectories(Object_FolderName+'\Working');
   end;
-  AssignFile(CSV_File,lObjectFolderName+'Working\'+lObjectFileName+'.LL.csv');
+  AssignFile(CSV_File,Object_FolderName+'\Working\'+Object_FileName+'.LL.csv');
   Rewrite(CSV_File);
   for i := 0 to Object_Count-1 do begin
     with Object_list[i] do begin
@@ -271,7 +271,7 @@ var
   CommaPos : integer;
 
 begin
-  AssignFile(CSV_File,lObjectFolderName+'\Working\'+lObjectFileName+'.LL.csv');
+  AssignFile(CSV_File,Object_FolderName+'\Working\'+Object_FileName+'.LL.csv');
   Reset(CSV_File);
 
   Object_Count := 0;

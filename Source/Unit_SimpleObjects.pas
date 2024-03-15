@@ -310,15 +310,15 @@ type
   end;
 
   oObject_t = record
-    oFile     : array[0..9-1] of string;
-    oButtons  : array[0..9-1] of byte; // byte -> 8 bit mask
-    oDefaults : array[0..9-1] of oDefaults_t;
+    oFile     : array[0..11-1] of string;
+    oButtons  : array[0..11-1] of byte; // byte -> 8 bit mask
+    oDefaults : array[0..11-1] of oDefaults_t;
   end;
 const
     oObject : oObject_t =
       (oFile : ('Building_FlatRoof.px', 'Building_PeakRoof.px','Building_Domed.px',
-                'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px', 'asphalt.px', 'grass.px');
-       oButtons  : ($37, $3F, $37, $35, $06, $06, $06, $33, $33);
+                'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px', 'asphalt.px', 'grass.px', 'asphaltpaint.px', 'grasspaint.px');
+       oButtons  : ($37, $3F, $37, $35, $06, $06, $06, $33, $33, $33, $33);
        oDefaults : (
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'H_PK_S_Red.bmp';  od_Path : ('Textures/') ),
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'H_PK_Blue.bmp';   od_Path : ('Textures/') ),
@@ -328,7 +328,9 @@ const
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
-        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') )
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') )
        )
       );
 var
@@ -551,6 +553,30 @@ var
           UpdateTC('tc_Grass', TC);
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
+        9: begin // asphaltpaint
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          // adjust texture coord ratio !
+          TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
+          TC[1] := TC[0];
+          UpdateTC('tc_AsphaltPaint', TC);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+      10: begin // grasspaint
+          FTM[ 0] := W;
+          FTM[ 5] := L;
+          //FTM[10] := 0.0;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          // adjust texture coord ratio !
+          TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
+          TC[1] := TC[0];
+          UpdateTC('tc_GrassPaint', TC);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
         else begin
           // MessageShow('Invalid Object type'');
           exit;
@@ -578,8 +604,12 @@ begin
     if (uppercase(oFileExt) = '.SO') then begin
       soFileName := exFileName;
       Label_FileName.Caption := ExtractFileName(soFileName);
+      // if already exists, make a backup first
+      if (FileExists(soFileName)) then begin
+        CopyFile(pChar(soFileName),pChar(soFilename+'~'),false);
+      end;
       // save the SO file
-      AssignFile(SO_file, exFileName);
+      AssignFile(SO_file, soFileName);
       Rewrite(SO_file);
       writeln(SO_File,format('%s,%s,%s,%s,%s,%s,%s',[
         ComboBox_Type.text,
@@ -959,7 +989,7 @@ begin
  if (filecount > 0) then begin
   // find where clicked and action if needed
   StringGrid_Composite.MouseToCell(sg_X, sg_Y, sg_Col, sg_Row);
-  if (sg_Col = 1) then begin
+  if ((sg_Row > 0) AND (sg_Col = 1)) then begin
     // dialog to select input file - must be .C3D extension
     imFileFilterString := 'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
     imFileName := '';
@@ -1110,21 +1140,25 @@ begin
   exFileName := coFileName;
   exInitialDir := objFolder;
   if (SaveDialog) then begin
-    //remember folder for this session
-    objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
-
     oFileExt := ExtractFileExt(exFileName);
     if (uppercase(oFileExt) = '.CO') then begin
-      coFileName := exFileName;
-      Label_CompositeFileName.Caption := ExtractFileName(coFileName);
+      Label_CompositeFileName.Caption := ExtractFileName(exFileName);
       // only save the .c3d, not the .co, if the folder is 'Airports'
       // and it is an O or G file.
-      FileSuffix := upperCase(copy(coFileName,length(coFileName)-length(oFileExt),1));
-      if ( (upperCase(GetDeepestDir(coFileName)) = 'AIRPORTS') AND
+      FileSuffix := upperCase(copy(exFileName,length(exFileName)-length(oFileExt),1));
+      if ( (upperCase(GetDeepestDir(exFileName)) = 'AIRPORTS') AND
            ( (FileSuffix = 'G') OR (FileSuffix = 'O') )
          ) then begin
         // do nothing
       end else begin
+        // remember filename
+        coFileName := exFileName;
+        // remember folder for this session
+        objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
+        // if already exists, make a backup first
+        if (FileExists(coFileName)) then begin
+          CopyFile(pChar(coFileName),pChar(coFilename+'~'),false);
+        end;
         // save the CO file
         AssignFile(CO_file, coFileName);
         Rewrite(CO_file);

@@ -1,0 +1,89 @@
+
+For thermal and tree maps, it can be done by hand, basically ‘painting’ forests, roads, fields, etc.. onto a background of each tile. This takes way too long, but will match the textures very closely. Manual Editing can be done to 'touch-up' forests around airports.
+
+An alternate way is to use the database which has shape files for roads, lakes, rivers, forests, etc...  Such a database is not complete, but for some areas it is quite good. Whatever is missing can then be filled in manually.
+
+-----------------------------------------------------------------
+In Condor-V1 the various maps had this resolution:
+
+Terrain-map – 90m
+Thermal-map – 90 m
+Combined forest map with
+- Deciduous Forest-map – 45m
+- Coniferous Forest-map – 45m
+Textures maps – variable resolution in Textures folder
+
+-----------------------------------------------------------------
+In Condor-V2 the various maps have this resolution:
+
+Terrain-map – 90m and .tr3 maps at 30m in HeightMaps folder
+Thermal-map – 90 m
+Combined forest maps in .for ForestMaps folder with
+- Deciduous Forest-map – 11.25m
+- Coniferous Forest-map – 11.25m
+Textures maps – variable resolution in Textures folder
+
+-----------------------------------------------------------------
+OSM ESRI shape files are available in a reasonable format from GeoFabrick. You can use OpenOffice database to look into the .dbf files to look for items of interest such as roads and rivers.The OSM shape files can be downloaded from GeoFabrik:
+
+https://download.geofabrik.de/index.html
+
+For the Pennsylvania Landscape Ridge-North-2 recently created, a downloaded of the .shp.zip is needed for the Pennsylvania state from North-America. Because the scenery extends around and south of Pennsylvania, the states of Maryland, Virginia and West-Virginia are also needed. Use Google-Earth for example to find all the states/regions that is needed.
+
+It is possible to download a whole region or by state. It depends on what you want and how big it is.
+The .shp.zip file type is what is needed.
+
+https://download.geofabrik.de/north-america.html
+
+pennsylvania-latest-free.shp.zip
+maryland-latest-free.shp.zip
+virginia-latest-free.shp.zip
+west-virginia-latest-free.shp.zip
+
+-----------------------------------------------------------------
+Condor_Tiles:
+There is a pull-down box at the top named 'GEO Data'. For the OSM database, select 'OSM'.
+
+There is a button on Condor-Tiles ‘Make-Geo’, that creates a GeoDatabase folder and creates batch files for each condor tile. You need to identify the files for the area of interest and download them from GEOfabrik or othe OSM data source. You need the SHP version of the data. You then unzip the shape files into the geodatabase folder and for each, change the name, if desired, such as Pennsylvania.shp for example. It must end in '.shp'. It is actually a folder that contains all the shape files.
+
+In each Working\SourceTiles\xxxx folder, there will be 3 batch files. One for thermal, GEO_t_0000.bat, one for deciduous forest GEO_V2_b_0000.bat, and one for coniferous forest GEO_V2_s_0000.bat. You can run these batch files individually or use the 3 batch files, GO_b.bat, GO_s.bat, GO_t.bat, in the GeoDatabase folder that call all the individual batch files, one at a time. It is best to start by doing one tile individually, and viewing the resulting bitmaps for color features, and then run the overall GO batch file to generate all tiles. The bitmap for the thermal is in each source tile folder Working\SourceTiles\xxxx and called xxxx_t.bmp for tile xxxx. The bitmap for each forest tile is in Working\Terragen\Forests folder and named bxxxx.bmp for each tile. The bitmaps can be viewed with any graphics viewer/editor. The bitmaps should show various features in color, such as roads and rivers.
+
+Note that OSM has only a ‘forest’ definition, not a deciduous nor a coniferous distinction. A blank coniferous map will be generated as it is needed for the Landscape Editor.
+
+You can view and modify the resulting tiles with Condor_Tiles with the ‘Edit Forest’ and ‘Edit thermal’. The background textures tile is shown and is overlaid with the thermal or forest. Press the ‘v’ key to toggle the overlay.
+
+Because the database resolution is limited, it may be necessary to 'shrink' the forest to provide more margin around lakes, rivers, roads, so that no tree ends up on roads or lakes, etc...
+
+Forest maps end up in Working\Terragen\ForestMaps folder, and with the Landscape Editor, you can use Tools 'Import tile size forest maps', then in Files 'Export forest maps (FOR)', and then in Files 'Export forest hash (FHA)'. To see the forest in the Landscape Editor, you need a checkmark in the 'Forest maps' check-box, and you need to zoom in quite close before the tree map shows.
+
+Thermal maps stay in each Working\SourceTiles\xxxx folder. You need to create a folder Working\ThermalMap. There is a button on Condor_Tiles ‘Make thermal’ that will generate the thermal map.  Each type of geographic structure is assigned a thermal value 0 to 255 (0 to 100%), basically a heat index for thermal generation. You can edit the default values if you want. To see the thermal map in the Lanscape Editor, copy the file Working\ThermalMap\ThermalMap.bmp into the Working folder and put a checkmark in the 'Thermal map' check-box.
+
+
+-------------------------------------------------------------------------------------------------------
+Details about OSM data:
+
+Open Office can be used to open the database file to have a look at details.
+
+
+gis_osm_buildings_a_free_1 - (big file - OpenOffice  may crash)
+gis_osm_landuse_a_free_1   - forest, orchard, 
+                           - allotments, cemetery, commercial, farm, grass, industrial, meadow, 
+                           - nature_reserve, park, quarry, 
+                           - recreation_Ground, residential, retail, scrub, vineyard
+gis_osm_natural_a_free_1   - beach, clifs, etc. Nothing useful
+gis_osm_natural_free_1     - peaks, springs, trees, etc. Nothing useful
+gis_osm_places_a_free_1    - village, town, locality, island, etc
+gis_osm_places_free_1      - village, town, locality, hamlet, etc
+gis_osm_pofw_a_free_1      - churches
+gis_osm_pofw_free_1        - churches
+gis_osm_pois_a_free_1      - park, golf course, graveyard, etc
+gis_osm_pois_free_1        - restaurant, pub, hotel, university, etc
+gis_osm_railways_free_1    - rail lines
+gis_osm_roads_free_1       - (big file - OpenOffice crashes)
+gis_osm_traffic_a_free_1   - parking
+gis_osm_traffic_free_1     - crossings, junctions, turning circles, etc
+gis_osm_transport_a_free_1 - railway stations, bus stations, etc
+gis_osm_transport_free_1   - bus stop, railway stations
+gis_osm_water_a_free_1     - river, lake, reservoir, bog, etc
+gis_osm_waterways_free_1   - canal, river, stream, etc
+

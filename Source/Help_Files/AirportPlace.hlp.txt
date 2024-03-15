@@ -1,0 +1,39 @@
+Airport Place Help
+
+- move view
+Ctrl-Left-Mouse - drag to pan
+
+- move airport Up,Down,Left,Right
+Click            - move   1 metre
+Shift-Click      - move  10 metres
+Ctrl-Click       - move  10 metres
+Shift-Ctrl-Click - move 100 metres
+
+- set direction
+Dbl-Click on 'Direction' Label
+(cursor is now cross)
+left mouse down on runway centre/edge end
+left mouse release on other runway centre/edge end
+
+- set length
+Dbl-Click on 'Length' Label
+(cursor is now cross)
+left mouse down on runway end
+left mouse release on other runway end
+
+- set width
+Dbl-Click on 'Width' Label
+(cursor is now cross)
+left mouse down on runway side
+left mouse release on other runway side
+
+- set centre
+Dbl-Click on 'Longitude' or 'Latitude' Label
+(cursor is now cross)
+left mouse down and release at desired centre
+or
+left mouse down on runway centre at one end
+left mouse release on other runway centre at other end
+or
+left mouse down on runway centre at desired take-off point on one end
+left mouse release on other runway centre at opposite take-off point

@@ -24,7 +24,7 @@ INTERFACE
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
-  StdCtrls, Registry, Menus, ExtCtrls, ComCtrls;
+  StdCtrls, Registry, Menus, ExtCtrls, ComCtrls, CheckLst;
 
 type
   TForm_Main = class(TForm)
@@ -120,6 +120,7 @@ type
     procedure Button_ObjectsClick(Sender: TObject);
     procedure Button_ObjectPlaceClick(Sender: TObject);
     procedure MakeDummyAirportList(FilePath,Filename:string);
+    procedure xMakeDummyAirportList(FilePath,Filename:string);
     procedure MakeDummyOBJ(FilePath,Filename:string);
     procedure Button_UtilitiesClick(Sender: TObject);
     procedure Button_AirportPlaceClick(Sender: TObject);
@@ -154,13 +155,13 @@ uses
   FileCtrl, Dialogs, Math,
   Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
   Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects, Unit_SimpleObjects,
-  u_MakeGradient,
+  Unit_Help, u_MakeGradient,
   u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
   u_MakeForest, u_MakeThermal,
   u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
   u_Terrain, u_Forest, u_Thermal, u_UTM,
   u_X_CX, u_CalibImport, u_LandsatMet,
-  u_CalibExport, u_Object, u_CUP, u_INI,
+  u_CalibExport, u_Object, u_CUP, u_INI, u_DXT,
   u_Airport, u_ReduceColors, u_Tile_XYZ, u_TIFF,
   u_BrowseFolder{, u_FTR};
 
@@ -168,17 +169,18 @@ const
   ShortPathNameLength = 50;
 
 var
-  ApplicationPathName : string;
   CondorPathName : string;
   GDALpathName : string;
   CompressorPathName : string;
   DownloaderPathName : string;
-  CondorLandscapeName : string;
-  WorkingPathName : string;
-  TileName : string;
   CondorLEpathName : string;
   WgetPathName : string;
   sZipPathName : string;
+
+  CondorLandscapeName : string;
+  ApplicationPathName : string;
+  WorkingPathName : string;
+  TileName : string;
 
 //---------------------------------------------------------------------------
 function LandscapeSelected : boolean;
@@ -289,7 +291,6 @@ begin
     FIniFile.WriteString('Paths','CondorLandscape',CondorLandscapeName);
     MakeWorkingPath;
     ComboBox_Single.Clear;
-//    ComboBox_Single.Text := '';
     HeaderOpen := false;
     TerrainOpen := false;
     TileOpen := false;
@@ -317,7 +318,6 @@ begin
     MakeFolderList(ComboBox_Landscape.Items, CondorPathName+'\Landscapes', '\*.*');
     MakeWorkingPath;
     ComboBox_Single.Clear;
-//    ComboBox_Single.Text := '';
     HeaderOpen := false;
     TerrainOpen := false;
     TileOpen := false;
@@ -430,7 +430,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.MakeDummyAirportList(FilePath,Filename:string);
+procedure TForm_Main.xMakeDummyAirportList(FilePath,Filename:string);
 var
   i,j : integer;
 
@@ -468,8 +468,34 @@ begin
     Memo_Info.Lines.Add(format('%d dummy centre tile airports %s created',[TileRowCount*TileColumnCount,FileName]));
     ProgressBar_Status.Position := 0;
   end;
-  lAirportFolderName := FilePath;
-  lAirportFileName := FileName;
+  Airport_FolderName := FilePath;
+  Airport_FileName := FileName;
+  WriteAirportFile;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.MakeDummyAirportList(FilePath,Filename:string);
+begin
+  if (TileOpen) then begin
+    Airport_Count := 0;
+    SetLength(Airport_List,Airport_Count+1);
+    with Airport_List[Airport_Count] do begin
+      apName := 'Center';
+      apLatitude := scCentre.TileLatBottom;
+      apLongitude := scCentre.TileLongRight;
+      apAltitude := 0.0;
+      apDirection := 0;
+      apLength := 1000;
+      apWidth := 25;
+      apAsphaltFlag := 0;
+      apFrequency := 123.5;
+      apOptions := 0;
+    end;
+    INC(Airport_Count);
+    Memo_Info.Lines.Add(format('dummy centre airport %s created',[FileName]));
+  end;
+  Airport_FolderName := FilePath;
+  Airport_FileName := FileName;
   WriteAirportFile;
 end;
 
@@ -488,9 +514,10 @@ end;
 procedure TForm_Main.Button_HeaderClick(Sender: TObject);
 var
   CurrentRow, CurrentColumn : integer;
-  SS: string;
-  SSf : double;
+//  SS: string;
+//  SSf : double;
 //  ErrorCode :integer;
+  ItemCount : integer;
 
 begin
   Memo_Info.Lines.Clear;
@@ -591,7 +618,14 @@ begin
             TileList[CurrentRow*(TileColumnCount+1)+CurrentColumn].TileName);
         end;
       end;
+      // adjust size
+      ItemCount := ComboBox_Single.Items.Count;
+      if (ItemCount > 16) then begin
+        ItemCount:= 16;
+      end;
+      ComboBox_Single.DropDownCount := ItemCount;
 
+      // check if landscape being constructed
       if (DirectoryExists(WorkingPathName)) then begin
         if (NOT FileExists(WorkingPathName+'\d'+CondorLandscapeName+'.apt')) then begin
           MakeDummyAirportList(WorkingPathName,'\d'+CondorLandscapeName+'.apt');
@@ -607,6 +641,19 @@ begin
         end;
         if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.obj')) then begin
           MakeDummyOBJ(WorkingPathName,'\..\'+CondorLandscapeName+'.obj');
+        end;
+        if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.tdm')) then begin
+          MakeThermal_Blank(WorkingPathName+'\..\'+CondorLandscapeName+'.tdm', ColumnCount, RowCount, 192);
+        end;
+        if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.bmp')) then begin
+// too          TRN_To_Color_Bitmap(WorkingPathName+'\..\'+CondorLandscapeName+'.trn',
+// slow           WorkingPathName+'\..\'+CondorLandscapeName+'.bmp');
+          MakeGEO_Blank_24bit(WorkingPathName+'\..\'+CondorLandscapeName+'.bmp', ColumnCount, RowCount, 192);
+        end;
+        // dummy \Forestmaps\*.for  not needed, .tha needed, plane not controllable
+        if (NOT FileExists(WorkingPathName+'\..\Textures\t0000.dds')) then begin
+          ForceDirectories(WorkingPathName+'\..\Textures');
+          DXT_MakeEmpty(WorkingPathName+'\..\Textures\t0000.dds');
         end;
       end;
 
@@ -842,6 +889,7 @@ begin
     u_MakeGEO.GDALlibraryfolder := GDALpathName;
     u_MakeGEO.WGETfolder := WgetPathName; // for Wget
     u_MakeGEO.ApplicationPath := ApplicationPathName;
+    ForceDirectories(WorkingPathName+'\GeoDatabase');
 //    u_MakeGEO.OutputTileSize := '1024'; // default for now
     u_MakeGEO.OutputTileSize := ComboBox_TileSize.text;
     if MessageDlg('Proceed with tile size "' + u_MakeGEO.OutputTileSize + '" ?', mtConfirmation,
@@ -863,9 +911,8 @@ begin
     // create if needed
     ForceDirectories(WorkingPathName+'\Terragen\ForestMaps');
     ForceDirectories(WorkingPathName+'\Terragen\WaterMaps');
-    ForceDirectories(WorkingPathName+'\GeoDatabase');
     // create a blank bitmap in GEO folder
-    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256, 0);
+    MakeGEO_Blank_24bit(GEOFolder+'\GeoDatabase\Blank_256_blk.bmp', 256, 256, 0);
     MakeGEO_Blank_Greyscale(GEOFolder+'\GeoDatabase\Blank_256_wht.bmp', 256, 255);
 
     TileName := ComboBox_Single.text;
@@ -914,7 +961,7 @@ var
   TileIndex : integer;
   TileRow, TileColumn : integer;
   i, j : integer;
-  FileName : string;
+//  FileName : string;
 
 begin
   Memo_Info.Lines.Clear;
@@ -1171,9 +1218,6 @@ end;
 
 //---------------------------------------------------------------------------
 procedure TForm_Main.Button_ForestClick(Sender: TObject);
-var
-  i : integer;
-
 begin
   if (ComboBox_Version.text = 'V1') then begin
     ForestResolution := 2;
@@ -1194,17 +1238,24 @@ begin
         u_Forest.Memo_Message := Memo_Info;
         u_Forest.ProgressBar_Status := ProgressBar_Status;
         u_Forest.SourceForestFolder := WorkingPathName;
-        u_Forest.DestinationForestFolder := WorkingPathName+'\..';
+        u_Forest.DestinationForestFolder := WorkingPathName+'\..\ForestMaps';
+        ForceDirectories(u_Forest.DestinationForestFolder);
         if (form_MakeForest.CheckBox_Forest.checked) then begin
           CreateForestMap(form_MakeForest.CheckBox_Shrink.checked, CondorLandscapeName+'.for');
         end;
         u_Forest.DestinationForestFolder := WorkingPathName+'\ForestMap';
         ForceDirectories(u_Forest.DestinationForestFolder);
-        if (form_MakeForest.CheckBox_Coniferous.checked) then begin
+        if (form_MakeForest.CheckBox_IntermediateConiferous.checked) then begin
           CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fConiferous,'ConiferousMap.bmp');
         end;
-        if (form_MakeForest.CheckBox_Deciduous.checked) then begin
+        if (form_MakeForest.CheckBox_IntermediateDeciduous.checked) then begin
           CreateForestBitmap(form_MakeForest.CheckBox_Shrink.checked, fDeciduous,'DeciduousMap.bmp');
+        end;
+        if (form_MakeForest.CheckBox_Export_LE.checked) then begin
+          u_Forest.SourceForestFolder := WorkingPathName+'\..\ForestMaps';
+          u_Forest.DestinationForestFolder := WorkingPathName+'\ForestMaps';
+          ForceDirectories(u_Forest.DestinationForestFolder);
+          Export_Forest_To_LE;
         end;
 //        Beep; //all done
       end;
@@ -1253,6 +1304,7 @@ begin
 //      if (NOT DirectoryExists(WorkingPathName+'\ThermalMap')) then begin
 //        mkdir(WorkingPathName+'\ThermalMap');
 //      end;
+      ForceDirectories(WorkingPathName+'\ThermalMap');
       //skip if .trn file not changed and
       //if SunnySlopes.bmp not changed
       if (form_MakeThermal.RadioButton_SunnySlopes.checked) then begin
@@ -1270,8 +1322,13 @@ begin
       end;
       u_Thermal.DestinationThermalFolder := WorkingPathName+'\ThermalMap';
       ForceDirectories(u_Thermal.DestinationThermalFolder);
-      if (form_MakeThermal.CheckBox_ThermalBitmap.checked) then begin
-        CreateThermalBitmap('ThermalMap.bmp');
+      if (form_MakeThermal.CheckBox_IntermediateThermalBitmap.checked) then begin
+        CreateThermalBitmap('GreyScale.bmp');
+      end;
+      if (form_MakeThermal.CheckBox_Export_LE.checked) then begin
+        // put it where Landscape Editor expects it
+        TDM_To_Greyscale_Bitmap(WorkingPathName+'\..\'+CondorLandscapeName+'.tdm',
+          WorkingPathName+'\ThermalMap.bmp');
       end;
 //      Beep; //all done
     end;
@@ -1454,8 +1511,8 @@ end;
 procedure TForm_Main.Button_EditForestClick(Sender: TObject);
 var
   ErrorCode : integer;
-  i, TileIndex : integer;
-  Path : string;
+  TileIndex : integer;
+//  Path : string;
   TileColumn, TileRow : integer;
 
 begin
@@ -1573,8 +1630,8 @@ end;
 procedure TForm_Main.Button_EditThermalClick(Sender: TObject);
 var
   ErrorCode : integer;
-  i, TileIndex : integer;
-  Path : string;
+  TileIndex : integer;
+//  Path : string;
   TileColumn, TileRow : integer;
 
 begin
@@ -1742,22 +1799,27 @@ begin
   if (LandscapeOpened) then begin
     if (Unit_ObjectPlacer.CurrentLandscape <> CondorLandscapeName) then begin
       Form_ObjectPlacer.GroupBox_ObjectPlace.Caption := CondorLandscapeName;
-      lObjectFolderName := WorkingPathName+'\..\';
-      lObjectFileName := CondorLandscapeName+'.obj';
-      if (NOT FileExists(lObjectFolderName+lObjectFileName)) then begin
-        Memo_Info.Lines.Add('Object file not found: '+lObjectFileName);
+      Object_FolderName := WorkingPathName+'\..';
+      Object_FileName := CondorLandscapeName+'.obj';
+      if (NOT FileExists(Object_FolderName+'\'+Object_FileName)) then begin
+        Memo_Info.Lines.Add('Object file not found: '+Object_FileName);
         Beep;
         exit;
       end;
-      Screen.Cursor := crHourGlass;  // Let user know we're busy...
-      ReadObjectFile;
-      Form_ObjectPlacer.Initialize(Sender);
-      Screen.Cursor := crDefault;  // no longer busy
+//      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+//      ReadObjectFile;
+//      Form_ObjectPlacer.Initialize(Sender);
+//      Screen.Cursor := crDefault;  // no longer busy
       Unit_ObjectPlacer.CurrentLandscape := CondorLandscapeName;
       Unit_ObjectPlacer.opVersion:= ComboBox_Version.text;
       Unit_ObjectPlacer.Memo_Message := Memo_Info;
     end else begin
     end;
+    Screen.Cursor := crHourGlass;  // Let user know we're busy...
+    ReadObjectFile;
+    Form_ObjectPlacer.Initialize(Sender);
+    Screen.Cursor := crDefault;  // no longer busy
+
 //    Form_ObjectPlacer.Position := poDefault;
     // offset to be able to see status and progressbar
     Form_ObjectPlacer.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
@@ -1775,20 +1837,25 @@ begin
   if (LandscapeOpened) then begin
     if (Unit_AirportPlacer.CurrentLandscape <> CondorLandscapeName) then begin
       Form_AirportPlacer.GroupBox_AirportPlace.Caption := CondorLandscapeName;
-      lAirportFolderName := WorkingPathName+'\..\';
-      lAirportFileName := CondorLandscapeName+'.apt';
-      if (NOT FileExists(lAirportFolderName+lAirportFileName)) then begin
-        Memo_Info.Lines.Add('Airport file not found: '+lAirportFileName);
+      Airport_FolderName := WorkingPathName+'\..';
+      Airport_FileName := CondorLandscapeName+'.apt';
+      if (NOT FileExists(Airport_FolderName+'\'+Airport_FileName)) then begin
+        Memo_Info.Lines.Add('Airport file not found: '+Airport_FileName);
         Beep;
         exit;
       end;
-      ReadAirportFile;
-      Form_AirportPlacer.Initialize(Sender);
+//      ReadAirportFile;
+//      Form_AirportPlacer.Initialize(Sender);
       Unit_AirportPlacer.CurrentLandscape := CondorLandscapeName;
       Unit_AirportPlacer.apVersion:= ComboBox_Version.text;
       Unit_AirportPlacer.Memo_Message := Memo_Info;
     end else begin
     end;
+    Screen.Cursor := crHourGlass;  // Let user know we're busy...
+    ReadAirportFile;
+    Form_AirportPlacer.Initialize(Sender);
+    Screen.Cursor := crDefault;  // no longer busy
+
     // for HiResRunway
     u_MakeDDS.CompressorFolder := CompressorPathName;
     u_MakeDDS.DXT_Type := ComboBox_DXT.Text;
@@ -1828,7 +1895,7 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_Main.FormCreate(Sender: TObject);
 var
-  Default : string;
+//  Default : string;
   Desktop:   TRect;
 
 begin
@@ -1920,12 +1987,13 @@ begin
   ComboBoxMatchString(ComboBox_Version,'');
 
   // centre vertically and offset horizontally for other windows to show memo  and progress bar
-   if SystemParametersInfo(SPI_GETWORKAREA,0,@Desktop,0) then begin
-      Form_Main.Left := (Desktop.Right - Desktop.Left - Form_Main.Width) div 2 - 150;
-      if (Form_Main.Left < 0) then Form_Main.Left :=0;
-      Form_Main.Top  := (Desktop.Bottom - Desktop.Top - Form_Main.Height) div 2;
-   end;
+  if SystemParametersInfo(SPI_GETWORKAREA,0,@Desktop,0) then begin
+    Form_Main.Left := (Desktop.Right - Desktop.Left - Form_Main.Width) div 2 - 150;
+    if (Form_Main.Left < 0) then Form_Main.Left :=0;
+    Form_Main.Top  := (Desktop.Bottom - Desktop.Top - Form_Main.Height) div 2;
+  end;
 
+  Unit_Help.ApplicationPath := ApplicationPathName;
 end;
 
 //---------------------------------------------------------------------------
@@ -2075,6 +2143,8 @@ begin
     if (Unit_SimpleObjects.objFolder = '') then begin
       Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes\'+CondorLandscapeName+'\Working\Objects';
       ForceDirectories(Unit_SimpleObjects.objFolder);
+      u_MakeDDS.CompressorFolder := CompressorPathName;
+      MakeDDS_Object_Drop(Unit_SimpleObjects.objFolder, 'Make_DDS.bat');
     end;
   end else begin
     Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes';

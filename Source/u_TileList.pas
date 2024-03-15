@@ -340,12 +340,35 @@ begin
       end;
     end;
     TileOpen := true;
-
+{
     //Make a corner list for quick access
     CornerList[0] := TileList[0];  // bottom right
     CornerList[1] := TileList[TileColumnCount];  // bottom left
     CornerList[2] := TileList[(TileColumnCount+1)*TileRowCount];  // top right
     CornerList[3] := TileList[(TileColumnCount+1)*(TileRowCount+1)-1]; // top left
+}
+    // account for partial tiles
+    //Make a corner list for quick access
+    // bottom right
+    CornerList[0] := TileList[0];
+    // bottom left
+    UTMtoLatLong(Northing+0*Resolution, Easting-ColumnCount*Resolution,UTM_Zone,UTM_ZoneNS);
+    CornerList[1].TileUTMRight :=  ColumnCount*Resolution;
+    CornerList[1].TileUTMBottom := 0*Resolution;
+    CornerList[1].TileLatBottom := uLatitude;
+    CornerList[1].TileLongRight := uLongitude;
+    // top right
+    UTMtoLatLong(Northing+RowCount*Resolution, Easting-0*Resolution,UTM_Zone,UTM_ZoneNS);
+    CornerList[2].TileUTMRight :=  0*Resolution;
+    CornerList[2].TileUTMBottom := RowCount*Resolution;
+    CornerList[2].TileLatBottom := uLatitude;
+    CornerList[2].TileLongRight := uLongitude;
+    // top left
+    UTMtoLatLong(Northing+RowCount*Resolution, Easting-ColumnCount*Resolution,UTM_Zone,UTM_ZoneNS);
+    CornerList[3].TileUTMRight :=  ColumnCount*Resolution;
+    CornerList[3].TileUTMBottom := RowCount*Resolution;
+    CornerList[3].TileLatBottom := uLatitude;
+    CornerList[3].TileLongRight := uLongitude;
 
     //Make a flyable area list for quick access
     RangeList[0].TileName := CornerList[0].TileName;

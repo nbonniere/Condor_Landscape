@@ -303,7 +303,8 @@ begin
   Tile_RT_Long := CornerList[2].TileLongRight;
   Tile_LT_Lat  := CornerList[3].TileLatBottom;
   Tile_LT_Long := CornerList[3].TileLongRight;
-  MakeKMLtile('6f00ffff', false);  // translucent yellow
+//  MakeKMLtile('6f00ffff', false);  // translucent yellow
+  MakeKMLtile('7f00ff00', false);  // translucent green
 
   Name := 'Fly region';
   Tile_RB_Lat  := RangeList[0].TileLatBottom;

@@ -1,5 +1,5 @@
 {
- * u_MakeForest.pas
+ * Unit_Help.pas
  * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
@@ -17,38 +17,30 @@
 }
 
 //---------------------------------------------------------------------------
-unit u_MakeForest;
+unit Unit_Help;
 
 //===========================================================================
 interface
 
 uses
-  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, {Dialogs,}
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
   StdCtrls;
 
 type
-  TForm_MakeForest = class(TForm)
-    GroupBox_MakeForest: TGroupBox;
-    CheckBox_Forest: TCheckBox;
-    CheckBox_IntermediateDeciduous: TCheckBox;
-    CheckBox_IntermediateConiferous: TCheckBox;
-    Button_Proceed: TButton;
-    Button_Cancel: TButton;
-    CheckBox_Erase: TCheckBox;
-    CheckBox_Shrink: TCheckBox;
-    CheckBox_Export_LE: TCheckBox;
-    procedure Button_CancelClick(Sender: TObject);
-    procedure Button_ProceedClick(Sender: TObject);
-    procedure FormActivate(Sender: TObject);
+  TForm_Help = class(TForm)
+    Memo_Help: TMemo;
   private
     { Private declarations }
   public
     { Public declarations }
+    procedure ShowHelp(Help_FileName : string;
+      Left_Pos, Top_Pos : longint);
   end;
 
 var
-  Form_MakeForest: TForm_MakeForest;
-  ActionRequest : boolean;
+  Form_Help: TForm_Help;
+
+  ApplicationPath : string;
 
 //===========================================================================
 implementation
@@ -56,23 +48,32 @@ implementation
 {$R *.DFM}
 
 //---------------------------------------------------------------------------
-procedure TForm_MakeForest.FormActivate(Sender: TObject);
+procedure TForm_Help.ShowHelp(Help_FileName : string;
+  Left_Pos, Top_Pos : longint);
+var
+  Help_File : TextFile;
+  S : string;
+
 begin
-  ActionRequest := false;
+  if (NOT Form_Help.Showing) then begin
+    Help_FileName := ApplicationPath+'\Help_Files\'+Help_FileName;
+    if (FileExists(Help_FileName)) then begin
+      {Form_Help.}Memo_Help.Lines.Clear;
+      AssignFile(Help_File, Help_FileName);
+      Reset(Help_File);
+      While (NOT EOF(Help_File)) do begin
+        Readln(Help_File, S);
+        {Form_Help.}Memo_Help.Lines.Add(S);
+      End;
+      CloseFile(Help_File);
+      {Form_Help.}Left := Left_Pos;
+      {Form_Help.}Top  := Top_Pos;
+      Form_Help.Show;
+    end;
+  end else begin
+    Form_Help.Close;
+  end;
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_MakeForest.Button_CancelClick(Sender: TObject);
-begin
-  ActionRequest := false;
-  Close;
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_MakeForest.Button_ProceedClick(Sender: TObject);
-begin
-  ActionRequest := true;
-  Close;
-end;
-
 end.

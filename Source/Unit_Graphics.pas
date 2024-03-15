@@ -29,6 +29,18 @@ uses
   u_BMP;
 
 type
+  // Nick - add two events to track Scrollbar movements
+  TScrollBox=Class({VCL.}Forms.TScrollBox)
+    procedure WMHScroll(var Message: TWMHScroll); message WM_HSCROLL;
+    procedure WMVScroll(var Message: TWMVScroll); message WM_VSCROLL;
+  private
+    FOnScrollVert: TNotifyEvent;
+    FOnScrollHorz: TNotifyEvent;
+  public
+   Property OnScrollVert:TNotifyEvent read FOnScrollVert Write FonScrollVert;
+   Property OnScrollHorz:TNotifyEvent read FOnScrollHorz Write FonScrollHorz;
+  End;
+
   TForm_Graphic = class(TForm)
     GroupBox_Selections: TGroupBox;
     Button_Exit: TButton;
@@ -87,6 +99,7 @@ type
     Button_ZoomIn: TButton;
     Button_ZoomOut: TButton;
     Button_Save_TIF: TButton;
+    Button_Help: TButton;
     procedure Button_ExitClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_Color0Click(Sender: TObject);
@@ -156,8 +169,12 @@ type
     procedure Button_ZoomInClick(Sender: TObject);
     procedure Button_ZoomOutClick(Sender: TObject);
     procedure Button_Save_TIFClick(Sender: TObject);
+    procedure ScrollBox_ImageResize(Sender: TObject);
+    procedure Button_HelpClick(Sender: TObject);
   private
     { Private declarations }
+    procedure MyScrollHorz(Sender: TObject);
+    procedure MyScrollVert(Sender: TObject);
   public
     { Public declarations }
     procedure SetBrushColor(bColor : Tcolor);
@@ -203,8 +220,10 @@ implementation
 
 {$R *.DFM}
 
-uses u_RGB_HSV, u_RGB_CIE, Unit_Filter, u_Forest, u_Thermal, u_Util, u_TIFF,
-  u_SceneryHDR, u_CannyEdge, u_Convolve, u_ReduceColors, u_BitmapCursor;
+uses
+  u_RGB_HSV, u_RGB_CIE, Unit_Filter, u_Forest, u_Thermal, u_Util, u_TIFF,
+  u_SceneryHDR, u_CannyEdge, u_Convolve, u_ReduceColors, u_BitmapCursor,
+  Unit_Help;
 
 type
   ToolType = (t_None,t_Pen,t_Line,t_Brush,t_Flood,t_Replace,
@@ -223,6 +242,36 @@ var
   AlternateView : boolean;
   BrushBitmap : TBitMap;
   BitMap_Save : TBitMap;
+  cX, cY : double;  // current centre relative
+
+// TScollBox addition
+//---------------------------------------------------------------------------
+procedure TScrollBox.WMHScroll(var Message: TWMHScroll);
+begin
+   inherited;
+   if Assigned(FOnScrollHorz) then  FOnScrollHorz(Self);
+end;
+
+//---------------------------------------------------------------------------
+procedure TScrollBox.WMVScroll(var Message: TWMVScroll);
+begin
+   inherited;
+   if Assigned(FOnScrollVert) then  FOnScrollVert(Self);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Graphic.MyScrollVert(Sender: TObject);
+begin
+  cY := (ScrollBox_Image.VertScrollBar.Position + (ScrollBox_Image.ClientHeight div 2))
+        / (ScrollBox_Image.VertScrollBar.Range);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Graphic.MyScrollHorz(Sender: TObject);
+begin
+  cX := (ScrollBox_Image.HorzScrollBar.Position + (ScrollBox_Image.ClientWidth div 2))
+        / (ScrollBox_Image.HorzScrollBar.Range);
+end;
 
 //---------------------------------------------------------------------------
 procedure TForm_Graphic.Button_ExitClick(Sender: TObject);
@@ -991,11 +1040,13 @@ begin
         ScrollBox_Image.VertScrollBar.Position :=
           ScrollBox_Image.VertScrollBar.Position - (Y-LastY);
 //        LastY := Y; // not needed because Y is relative to bitmap itself
+        MyScrollVert(Sender);
       end;
       if (X-LastX <> 0) then begin
         ScrollBox_Image.HorzScrollBar.Position :=
           ScrollBox_Image.HorzScrollBar.Position - (X-LastX);
 //        LastX := X; // not needed because Y is relative to bitmap itself
+        MyScrollHorz(Sender);
       end;
     end;
   end;
@@ -1292,7 +1343,7 @@ begin
 //  SetBrushColor(ActivePixelColor);
 end;
 
-procedure ApplyMask; forward;
+procedure Apply_ForestGrid_ToMask; forward;
 //---------------------------------------------------------------------------
 procedure TForm_Graphic.Button_Tool_0Click(Sender: TObject);
 var
@@ -1306,12 +1357,12 @@ begin
       u_BMP.BMPfolder := wWorkingPath+'\Terragen\ForestMaps';
       FileName := '\b'+ExtractFileName(mFileName);
       // try reading b file
-      if (ReadForestBitmapTile(FileName, False)) then begin
+      if (ForestBitmap_To_ForestGrid(FileName, False)) then begin
         FileName := '\s'+ExtractFileName(mFileName);
         // try reading s file and combine with b file
-        if (ReadForestBitmapTile(FileName, True)) then begin
+        if (ForestBitmap_To_ForestGrid(FileName, True)) then begin
           // update the bitmap with new mask
-          ApplyMask;
+          Apply_ForestGrid_ToMask;
         end;
       end;
     end;
@@ -1342,10 +1393,12 @@ begin
 //  SetBrushColor(ActivePixelColor);
 end;
 
+Procedure Extract_ForestGrid_FromMask; forward;
 //---------------------------------------------------------------------------
 procedure TForm_Graphic.SaveMaskFile(FileName : string);
 var
   SelectionFlag : boolean;
+  fName, fPath : String;
 
 begin
   if (CheckBox_Selection.Checked) then begin
@@ -1357,6 +1410,13 @@ begin
 
   Image_Mask.Picture.SaveToFile(FileName);
 
+  // now also save V2 b and s files
+  Extract_ForestGrid_FromMask;
+  fName := ExtractFileName(Filename);
+  fPath := ExtractFileDir(Filename);
+  ForestGrid_To_256Color_Bitmap(tColumns, fDeciduous, fPath+'\b'+fName);
+  ForestGrid_To_256Color_Bitmap(tColumns, fConiferous, fPath+'\s'+fName);
+
   if (SelectionFlag) then begin
     ShowSelection(Nil);
   end;
@@ -1366,8 +1426,12 @@ end;
 procedure TForm_Graphic.Button_SaveClick(Sender: TObject);
 begin
   case Graphic_mode of
-    gmForest :  SaveMaskFile(mFileName);
-    gmThermal : SaveMaskFile(thFileName)
+    gmForest : begin
+      SaveMaskFile(mFileName);
+    end;
+    gmThermal : begin
+      SaveMaskFile(thFileName);
+    end;
   end;
 end;
 
@@ -1676,6 +1740,10 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_Graphic.FormCreate(Sender: TObject);
 begin
+  // added scrollbar events
+  ScrollBox_Image.OnScrollVert := MyScrollVert;
+  ScrollBox_Image.OnScrollHorz := MyScrollHorz;
+
   Image_Tile.Transparent := False;
   Image_Alternate.Transparent := True;
   Image_Mask.Transparent := True;
@@ -1767,6 +1835,7 @@ begin
   end;
 end;
 
+// for thermal Mask
 {----------------------------------------------------------------------------}
 Procedure ApplyForestMask;
 var
@@ -1809,9 +1878,9 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure ApplyMask;
+Procedure Apply_ForestGrid_ToMask;
 var
-  NoColor : ColorConvert;
+//  NoColor : ColorConvert;
   mColor  : ColorConvert;
   x, y : integer;
   pScanLine: pRGBArray;
@@ -1822,14 +1891,15 @@ begin
   // !!! if transparent, mask doesn't get updated with scanline !!!
   Form_Graphic.Image_Mask.Transparent := false; // must be done
   Form_Graphic.ProgressBar_Status.Max := tRows*ForestResolution;
-  NoColor := tNone;
+//  NoColor := tNone;
   for y := 0 to tRows*ForestResolution-1 do begin
     pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[y];
     for x := 0 to tColumns*ForestResolution-1 do begin
       // check for overwrite or pixel = tNone
       if ((Form_Graphic.CheckBox_Overwrite.checked) OR
 //        (pScanLine^[x] = NoColor.cRGB)) then begin // can't compare like this
-           CompareMem(@pScanLine^[x],@NoColor.cRGB,3) ) then begin
+//           CompareMem(@pScanLine^[x],@NoColor.cRGB,3) ) then begin
+           CompareMem(@pScanLine^[x],@tNone.cRGB,3) ) then begin
         case ForestGrid[y,x] of
           1: begin
             mColor := tDeciduous;
@@ -1846,6 +1916,48 @@ begin
           end;
         end;
         pScanLine^[x] := mColor.cRGB;
+      end;
+    end;
+    Form_Graphic.ProgressBar_Status.StepIt;
+    Application.ProcessMessages;
+  end;
+  if (MaskView) then begin
+    Form_Graphic.Image_Mask.Visible := true;
+//    Form_Graphic.Image_Mask.Refresh;
+  end;
+  Form_Graphic.ProgressBar_Status.Position := 0;
+  Form_Graphic.Image_Mask.Transparent := true; // restore transparency
+  Screen.Cursor := crDefault;  // no longer busy
+end;
+
+{----------------------------------------------------------------------------}
+Procedure Extract_ForestGrid_FromMask;
+var
+  x, y : integer;
+  pScanLine: pRGBArray;
+
+begin
+  Screen.Cursor := crHourGlass;  // Let user know we're busy...
+  Form_Graphic.Image_Mask.Visible := false; //stops display update while processing
+  // !!! if transparent, mask doesn't get updated with scanline !!!
+  Form_Graphic.Image_Mask.Transparent := false; // must be done
+  Form_Graphic.ProgressBar_Status.Max := tRows*ForestResolution;
+//  NoColor := tNone;
+  // make sure grid is blank to start
+  ClearForestGrid;
+  for y := 0 to tRows*ForestResolution-1 do begin
+    pScanLine := Form_Graphic.Image_Mask.Picture.Bitmap.ScanLine[y];
+    for x := 0 to tColumns*ForestResolution-1 do begin
+      if ( CompareMem(@pScanLine^[x],@tDeciduous.cRGB,3) ) then begin
+        ForestGrid[y,x] := 1;
+      end else begin
+        if ( CompareMem(@pScanLine^[x],@tConiferous.cRGB,3) ) then begin
+          ForestGrid[y,x] := 2;
+        end else begin
+          if ( CompareMem(@pScanLine^[x],@tBoth.cRGB,3) ) then begin
+            ForestGrid[y,x] := 3;
+          end;
+        end;
       end;
     end;
     Form_Graphic.ProgressBar_Status.StepIt;
@@ -1912,7 +2024,7 @@ procedure TForm_Graphic.Button_ImportClick(Sender: TObject);
 begin
   if (Graphic_Mode = gmThermal) then begin
     u_BMP.BMPfolder := ExtractFilepath(mFileName);
-    ReadForestBitmapTile(ExtractFilename(mFileName), False);
+    ForestBitmap_To_ForestGrid(ExtractFilename(mFileName), False);
     ApplyForestMask;
   end else begin
     ClearThermalGrid;
@@ -2015,6 +2127,17 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+Procedure ReCentre;
+begin
+  with Form_Graphic do begin
+    ScrollBox_Image.HorzScrollBar.Position := trunc(cX *
+      (ScrollBox_Image.HorzScrollBar.Range)-(ScrollBox_Image.ClientWidth div 2));
+    ScrollBox_Image.VertScrollBar.Position := trunc(cY *
+      (ScrollBox_Image.VertScrollBar.Range)-ScrollBox_Image.ClientHeight div 2);
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_Graphic.Button_ZoomInClick(Sender: TObject);
 begin
   // temporarily turn off other images
@@ -2055,6 +2178,7 @@ begin
   if (AlternateView) then begin
     Image_Alternate.Visible := true;
   end;
+  ReCentre;
 end;
 
 //---------------------------------------------------------------------------
@@ -2098,6 +2222,7 @@ begin
   if (AlternateView) then begin
     Image_Alternate.Visible := true;
   end;
+  ReCentre;
 end;
 
 //---------------------------------------------------------------------------
@@ -2110,6 +2235,20 @@ begin
   ForceDirectories(Path);
   FileName := ChangeFileExt(ExtractFilename(mFileName),'.tif');
   Save_24bit_Image_To_8bit_Tiff(Image_Mask, Path+'\'+FileName);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Graphic.ScrollBox_ImageResize(Sender: TObject);
+begin
+  ReCentre;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Graphic.Button_HelpClick(Sender: TObject);
+begin
+  Form_Help.ShowHelp('Forest-Thermal.hlp.txt',
+    Self.Left + ScrollBox_Image.left + 8,
+    Self.Top + ScrollBox_Image.Top + 30);
 end;
 
 //---------------------------------------------------------------------------

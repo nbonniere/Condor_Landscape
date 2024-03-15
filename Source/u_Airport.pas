@@ -79,8 +79,8 @@ type
     end;
 
 var
-  lAirportFolderName : String;
-  lAirportFileName : String;
+  Airport_FolderName : String;
+  Airport_FileName : String;
   Airport_Count : integer;
   Airport_File : File of CondorAirport;
   Airport_List : array of CondorAirport;
@@ -104,7 +104,7 @@ uses Windows, FileCtrl, SysUtils,
 procedure ReadAirportFile;
 begin
   Airport_Count := 0;
-  AssignFile(Airport_File,lAirportFolderName+lAirportFileName);
+  AssignFile(Airport_File,Airport_FolderName+'\'+Airport_FileName);
   Reset(Airport_File);
   While NOT EOF(Airport_File) do begin
     SetLength(Airport_List,Airport_Count+1);
@@ -121,7 +121,7 @@ var
   i : integer;
 
 begin
-  AssignFile(Airport_File,lAirportFolderName+lAirportFileName);
+  AssignFile(Airport_File,Airport_FolderName+'\'+Airport_FileName);
   Rewrite(Airport_File);
   For i := 0 to Airport_Count-1 do begin
     Write(Airport_File,Airport_list[i]);
@@ -138,10 +138,10 @@ var
   CSV_File : TextFile;
 
 begin
-  if (NOT DirectoryExists(lAirportFolderName+'Working')) then begin
-    ForceDirectories(lAirportFolderName+'Working');
+  if (NOT DirectoryExists(Airport_FolderName+'\Working')) then begin
+    ForceDirectories(Airport_FolderName+'\Working');
   end;
-  AssignFile(CSV_File,lAirportFolderName+'Working\'+lAirportFileName+'.csv');
+  AssignFile(CSV_File,Airport_FolderName+'\Working\'+Airport_FileName+'.csv');
   Rewrite(CSV_File);
   for i := 0 to Airport_Count-1 do begin
     with Airport_list[i] do begin
@@ -170,7 +170,7 @@ var
   CommaPos : integer;
 
 begin
-  AssignFile(CSV_File,lAirportFolderName+'\Working\'+lAirportFileName+'.csv');
+  AssignFile(CSV_File,Airport_FolderName+'\Working\'+Airport_FileName+'.csv');
   Reset(CSV_File);
 
   Airport_Count := 0;

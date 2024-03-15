@@ -251,7 +251,8 @@ const
   );
 
   xBMP_1bit_ForestColorTable : array[0..2-1] of Longword =
-    ($0000FF00, $00000000);  // why reversed ?
+//    ($0000FF00, $00000000);  // why reversed ?
+    ($00000000, $0000FF00);  // why reversed ?
 
   xBMP_2bit_ForestColorTable : array[0..4-1] of Longword =
     ($00000000, $0000FF00, $004080FF, $00FF8040);
@@ -1659,6 +1660,130 @@ begin
   WriteBitMapToFile(tBufr,'TEST.BMP');
 
   tBufr.Free;
+end;
+}
+{
+// open a bitmap file and split into 4x4 pieces
+//---------------------------------------------------------------------------
+procedure split_4x4(FilePath, FileName : string);
+begin
+  // bitmap row from bottom, column from left
+  for y := 0 to Rows-1 do begin // do all rows
+    if Row = 0 then begin
+      open first 4 files
+    end else
+      if (Row mod quarterSize = 0) then begin
+        close first 4 files
+        open next 4 files
+      end;
+    end;
+      BlockRead(Bitmap_File,P^, one row);
+      BlockWrite(Bitmap_File_0,P^[0], quarter);
+      BlockWrite(Bitmap_File_1,P^[0+n], quarter);
+      BlockWrite(Bitmap_File_2,P^[0+2n], quarter);
+      BlockWrite(Bitmap_File_3,P^[0+3n], quarter);
+  end;
+  close last 4 files
+end;
+}
+
+{
+// open 16 bitmap files and merge 4x4 pieces into one
+// all 8 bit or all 24 bit bitmaps?
+//---------------------------------------------------------------------------
+function Bitmap_Merge_4x4(MergeFileName : string) : boolean;
+  ErrorCode : integer;
+  FilePath : string;
+  FileName : string;
+  y :integer;
+  Column, Row : integer;
+  whSize : integer; // size of width and height of merged file
+
+  outFile : file of byte;
+  inFile_0 : file of byte;
+  inFile_1 : file of byte;
+  inFile_2 : file of byte;
+  inFile_3 : file of byte;
+
+procedure OpenFiles(iRow : integer);
+begin
+  Assign(inFile_0,format('%s\%2.2d%2.2d.bmp'.[FilePath,Column*4+0,Row*4+iRow);
+  Reset(inFile_0);
+  read header and check proper type and size whSize/4
+  Assign(inFile_0,format('%s\%2.2d%2.2d.bmp'.[FilePath,Column*4+1,Row*4+iRow);
+  Reset(inFile_1);
+  read header and check proper type and size whSize/4
+  Assign(inFile_0,format('%s\%2.2d%2.2d.bmp'.[FilePath,Column*4+2,Row*4+iRow);
+  Reset(inFile_2);
+  read header and check proper type and size whSize/4
+  Assign(inFile_0,format('%s\%2.2d%2.2d.bmp'.[FilePath,Column*4+3,Row*4+iRow);
+  Reset(inFile_3);
+  read header and check proper type and size whSize/4
+end;
+
+procedure CloseFiles;
+begin
+  Close(inFile_0);
+  Close(inFile_1);
+  Close(inFile_2);
+  Close(inFile_3);
+end;
+
+begin
+  result := false; // assume false to start
+  // extract FilePath
+  FilePath := ExtractFileDir(MergeFilename);
+  FileName := ExtractFileName(MergeFilename);
+  // extract Tile Column, Row
+  Val(copy(FileName,1,2),Column,ErrorCode);
+  // if errorcode or not in range -> error
+  if (ErrorCode <> 0) then begin
+    Exit;
+  end;
+  Val(copy(FileName,3,2),Row,ErrorCode);
+  // if errorcode or not in range -> error
+  if (ErrorCode <> 0) then begin
+    Exit;
+  end;
+
+  // determine whSize
+  whSize := ???;
+
+  // determine 8 or 24 bit color
+  Color8 or 24 := ???;
+
+  //open merged file
+  assign(outFile,format('%s\%2.2d%2.2d.bmp'.[FilePath,Column,Row);
+  Rewrite(outFile);
+  write a header with proper type and whSize
+
+  try
+    //create a transfer buffer, one full row
+    alloc(P,whSize * sizeof(Color8 or 24))
+
+    // bitmap row from bottom, column from left
+    for y := 0 to Rows-1 do begin // do all rows
+      if (y MOD (whSize div 4) = 0) then begin
+        // close unless first time
+        if (y <> 0) then
+          //close 4 files
+          CloseFiles;
+        end;
+        //open 4 files
+        OpenFiles(y div (whSize div 4));
+      end;
+      BlockRead(Bitmap_File_0,P^[0*(whSize div 4)], (whSize div 4) * size of(Color8 or 24));
+      BlockRead(Bitmap_File_1,P^[1*(whSize div 4)], (whSize div 4) * size of(Color8 or 24));
+      BlockRead(Bitmap_File_2,P^[2*(whSize div 4)], (whSize div 4) * size of(Color8 or 24));
+      BlockRead(Bitmap_File_3,P^[3*(whSize div 4)], (whSize div 4) * size of(Color8 or 24));
+      BlockWrite(Bitmap_File,P^, whSize * size of(Color8 or 24));
+    end;
+  finally
+    freemem(P);
+  end;
+  CloseFiles;
+  Close(outFile);
+  result := true;
 end;
 }
 {----------------------------------------------------------------------------}

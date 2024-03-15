@@ -76,7 +76,7 @@ Procedure MakeGEO_GLC_batchFile(TileIndex: integer;
   gType : geoType; Size : integer);
 Procedure MakeGEO_GLC_Wget;
 Procedure MakeGEO_Blank_GreyScale(FileName : string; Size : integer; value : byte);
-Procedure MakeGEO_Blank_24bit(FileName : string; Size : integer; value : byte);
+Procedure MakeGEO_Blank_24bit(FileName : string; Width, Height : integer; value : byte);
 Procedure MakeGEO_GLC_Blank(TileIndex : integer;
   gType : geoType; Size : integer);
 
@@ -1842,7 +1842,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure MakeGEO_Blank_24bit(FileName : string; Size : integer; value : byte);
+Procedure MakeGEO_Blank_24bit(FileName : string; Width, Height : integer; value : byte);
 var
   i :integer;
   Bitmap_File : File of byte;
@@ -1853,8 +1853,8 @@ begin
     Rewrite(Bitmap_File);
     // create a header
     with xBitmapHeader_24bitColor do begin
-      bDib.bWidth := Size;
-      bDib.bHeight := Size;
+      bDib.bWidth := Width;
+      bDib.bHeight := Height;
       bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
@@ -1862,17 +1862,17 @@ begin
       sizeof(xBitmapHeader_24bitColor));
 
     try
-      P := AllocMem(Size * sizeof(TRGBTriple)); // block of 0's
+      P := AllocMem(Width * sizeof(TRGBTriple)); // block of 0's
       if (value <> 0) then begin
         P^[0].rgbtBlue := value;
         P^[0].rgbtGreen := value;
         P^[0].rgbtRed := value;
-        for i := 1 to Size-1 do begin
+        for i := 1 to Width-1 do begin
           P^[i] := p^[0];
         end;
       end;
-      for i := 0 to Size-1 do begin
-        BlockWrite(Bitmap_File,P^,Size * sizeof(TRGBTriple));
+      for i := 0 to Height-1 do begin
+        BlockWrite(Bitmap_File,P^,Width * sizeof(TRGBTriple));
       end;
     finally
       freemem(P);

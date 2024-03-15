@@ -134,10 +134,13 @@ implementation
 
 {$R *.DFM}
 
-uses Unit_Main, Unit_Graphics, Unit_Coords,
-     u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
+uses
+   ClipBrd,
+   Unit_Main, Unit_Graphics, Unit_Coords,
+   u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
 
 var
+  GUI_State : (IdleScreen, SelectScreen, ScrollScreen, CancelScreen);
   ItemIndex : integer;
   ObjectsChanged : boolean;
   BitmapAvail : boolean;
@@ -227,7 +230,13 @@ begin
   // blank to start
   Image_Tile_Clear;
 
-  // also clear input boxes...
+  // also clear input boxes
+  Edit_FileName.Clear;
+  Edit_Easting.Clear;
+  Edit_Scale.Clear;
+  Edit_Elevation.Clear;
+  Edit_Rotation.Clear;
+  Edit_Northing.Clear;
 end;
 
 //---------------------------------------------------------------------------
@@ -440,7 +449,7 @@ begin
           DDS_Size := 0;
           for i := 0 to 2-1 do begin
             for j := 0 to 2-1 do begin
-              FileName := format('%sTextures\t%2.2d%2.2d.dds',[lObjectFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
               Temp := DXT_ImageWidth(FileName);
               if (Temp > DDS_Size) then begin
                 DDS_Size := temp;
@@ -480,7 +489,7 @@ begin
             // load 4 dds tiles and draw onto Image_Tile
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
-                FileName := format('%sTextures\t%2.2d%2.2d.dds',[lObjectFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
                 if (NOT FileExists(FileName)) then begin
 //                BitmapAvail := false; // change - allow even if no files
                   // blank image
@@ -578,7 +587,7 @@ end;
 
 //---------------------------------------------------------------------------
 var
-  FPanning: Boolean;
+//  FPanning: Boolean;
   FMousePos: TPoint;
 
 // mouse move
@@ -588,7 +597,8 @@ procedure TForm_ObjectPlacer.ShowCoord(Sender: TObject;
 var
   Horiz, Vert : double;
 begin
-  if (FPanning) then begin
+//  if (FPanning) then begin
+  if (Gui_State = ScrollScreen) then begin
     with ScrollBox_Image do
     begin
       HorzScrollBar.Position := HorzScrollBar.Position + (FMousePos.X - X);
@@ -616,20 +626,49 @@ end;
 procedure TForm_ObjectPlacer.Image_TileMouseDown(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  FPanning := True;
-  FMousePos.X := X;
-  FMousePos.Y := Y;
+  if ( (ssCtrl in Shift) AND (Button = mbLeft) ) then begin //scroll bitmap
+    GUI_State := ScrollScreen;
+    FMousePos.X := X;
+    FMousePos.Y := Y;
+  end else begin
+    if ( (ssShift in Shift) AND (Button = mbLeft) ) then begin //scroll bitmap
+      GUI_State := SelectScreen;
+    end else begin
+      GUI_State := IdleScreen;
+    end;
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.Image_TileMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-begin
-  FPanning := False;
+var
+  CommaPos : integer;
+  Str : string;
 
+begin
   if (Button = mbRight) then begin
     Form_Coords.ShowModal;
   end;
+
+  if (Gui_State = SelectScreen) then begin
+    with Object_List[ItemIndex] do begin
+//      Clipboard.AsText := Label_Coords.Caption;
+      CommaPos := pos(',',Label_Coords.Caption);
+      if (CommaPos <> 0) then begin
+        Str := copy(Label_Coords.Caption,1,CommaPos-1);
+        coEasting := StrtoFloat(Str);
+        Edit_Easting.Text := format('%1.2f',[coEasting]);;
+        Str := copy(Label_Coords.Caption, CommaPos+1, length(Label_Coords.Caption));
+        coNorthing := StrtoFloat(Str);
+        Edit_Northing.Text := format('%1.2f',[coNorthing]);
+//        default coScale ?
+//        default coRotation ?
+//        default coElevation ?
+      end;
+    end;
+  end;
+  GUI_State := IdleScreen;
 end;
 
 //---------------------------------------------------------------------------
@@ -1025,25 +1064,8 @@ end;
 
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.Image_TileClick(Sender: TObject);
-var
-  CommaPos : integer;
-  Str : string;
 begin
-  with Object_List[ItemIndex] do begin
-//    Clipboard.AsText := Label_Coords.Caption;
-    CommaPos := pos(',',Label_Coords.Caption);
-    if (CommaPos <> 0) then begin
-      Str := copy(Label_Coords.Caption,1,CommaPos-1);
-      coEasting := StrtoFloat(Str);
-      Edit_Easting.Text := format('%1.2f',[coEasting]);;
-      Str := copy(Label_Coords.Caption, CommaPos+1, length(Label_Coords.Caption));
-      coNorthing := StrtoFloat(Str);
-      Edit_Northing.Text := format('%1.2f',[coNorthing]);
-//      default coScale ?
-//      default coRotation ?
-//      default coElevation ?
-    end;
-  end;
+  Clipboard.AsText := Label_Coords.Caption;
 end;
 
 //---------------------------------------------------------------------------

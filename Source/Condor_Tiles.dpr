@@ -30,7 +30,8 @@ uses
   pnglang in 'Libraries\PNG\pnglang.pas',
   zlibpas in 'Libraries\PNG\zlibpas.pas',
   Unit_SimpleObjects in 'Unit_SimpleObjects.pas' {Form_SimpleObjects},
-  Unit_HiResRunway in 'Unit_HiResRunway.pas' {Form_HiResRunway};
+  Unit_HiResRunway in 'Unit_HiResRunway.pas' {Form_HiResRunway},
+  Unit_Help in 'Unit_Help.pas' {Form_Help};
 
 {$R *.RES}
 
@@ -56,6 +57,7 @@ begin
   Application.CreateForm(TForm_Merge, Form_Merge);
   Application.CreateForm(TForm_SimpleObjects, Form_SimpleObjects);
   Application.CreateForm(TForm_HiResRunway, Form_HiResRunway);
+  Application.CreateForm(TForm_Help, Form_Help);
   Application.Run;
 end.
 

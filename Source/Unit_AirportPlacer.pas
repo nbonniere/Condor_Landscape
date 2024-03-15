@@ -45,8 +45,8 @@ type
     Label1: TLabel;
     Label2: TLabel;
     Label3: TLabel;
-    Label7: TLabel;
-    Label5: TLabel;
+    Label_Direction: TLabel;
+    Label_Length: TLabel;
     Label6: TLabel;
     Edit_AirportName: TEdit;
     Edit_Latitude: TEdit;
@@ -54,17 +54,17 @@ type
     Edit_Direction: TEdit;
     Edit_Length: TEdit;
     Edit_Longitude: TEdit;
+    Edit_Width: TEdit;
+    Edit_Frequency: TEdit;
     ListBox_ObjectList: TListBox;
     Button_Exit: TButton;
     Button_Save: TButton;
     Button_Add: TButton;
     Button_Delete: TButton;
-    Edit_Width: TEdit;
-    Label4: TLabel;
+    Label_Width: TLabel;
     RadioGroup_Surface: TRadioGroup;
     RadioButton_Grass: TRadioButton;
     Label8: TLabel;
-    Edit_Frequency: TEdit;
     CheckBox_Primary_Reverse: TCheckBox;
     CheckBox_Tow_Primary_Left: TCheckBox;
     CheckBox_Tow_Secondary_Left: TCheckBox;
@@ -96,6 +96,7 @@ type
     CheckBox_O_File: TCheckBox;
     TreeView_O: TTreeView;
     Button_HiResRunway: TButton;
+    Button_Help: TButton;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -156,6 +157,12 @@ type
     procedure CheckBox_O_FileMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure Button_HiResRunwayClick(Sender: TObject);
+    procedure Label_DirectionDblClick(Sender: TObject);
+    procedure Label_LengthDblClick(Sender: TObject);
+    procedure Label_WidthDblClick(Sender: TObject);
+    procedure Label3DblClick(Sender: TObject);
+    procedure Label2DblClick(Sender: TObject);
+    procedure Button_HelpClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -180,12 +187,14 @@ implementation
 {$R *.DFM}
 
 uses
-  FileCtrl, ClipBrd,
+  FileCtrl, ClipBrd, Math,
   Unit_Graphics, Unit_Main, u_MakeGDAL, u_MakeDDS, Unit_HiResRunway,
   u_Terrain, u_Airport, u_TileList, u_UTM, u_MakeGMID,
-  u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT;
+  u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT, Unit_Help;
 
 var
+  GUI_State : (IdleScreen, DirectionSelectScreen, CentreSelectScreen,
+    LengthSelectScreen, WidthSelectScreen, ScrollScreen, CancelScreen);
   ItemIndex : integer;
   AirportsChanged : boolean;
   BitmapAvail : boolean;
@@ -197,6 +206,7 @@ var
   Airport_Tow_Secondary_Left : Boolean;
   LatDegPerM, LongDegPerM : double;
   apX, apY : double;  // airport centre relative
+  apBR_X, apBR_Y : double;
   apZoomScale, apRange : double;
   cX, cY : double;  // current centre relative
 //  DDS_Bitmap : TBitMap;
@@ -272,7 +282,18 @@ begin
   // blank image to start
   Image_Tile_Clear;
 
-  // also clear input boxes...
+  // also clear input boxes
+  Edit_AirportName.Clear;
+  Edit_Latitude.Clear;
+  Edit_Altitude.Clear;
+  Edit_Direction.Clear;
+  Edit_Length.Clear;
+  Edit_Longitude.Clear;
+  Edit_Width.Clear;
+  Edit_Frequency.Clear;
+  CheckBox_Primary_Reverse.checked := False;
+  CheckBox_Tow_Primary_Left.checked := False;
+  CheckBox_Tow_Secondary_Left.checked := False;
 end;
 
 //---------------------------------------------------------------------------
@@ -843,9 +864,12 @@ begin
 
   // 4 tiles BR to B+1,R+1
 
+  // keep track of BR reference
+  apBR_X := Col*QT_Range; // UTM
+  apBR_Y := Row*QT_Range;
   // airport tile relative coords (relative to bottom right)
-  {Unit_Graphics.}xCoord := AirportEasting -  (Col*QT_Range);
-  {Unit_Graphics.}yCoord := AirportNorthing - (Row*QT_Range);
+  {Unit_Graphics.}xCoord := AirportEasting -  apBR_X;
+  {Unit_Graphics.}yCoord := AirportNorthing - apBR_Y;
   // Relative fractional position (relative to top left)
   apRange := QT_Range*2; // metres, 2x2 quarter tiles
   apX := 1 - ({Unit_Graphics.}xCoord/apRange);
@@ -943,25 +967,51 @@ begin
           DDS_Size := 0;
           for i := 0 to 2-1 do begin
             for j := 0 to 2-1 do begin
-              FileName := format('%sTextures\t%2.2d%2.2d.dds',[lAirportFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
               Temp := DXT_ImageWidth(FileName);
               if (Temp > DDS_Size) then begin
+{ While (DDS_Size > 8192) do begin
+  ReducedFileName := ???
+  // if reduced exists
+  if (NOT FileExist(ReducedFilaName)) then begin
+    // make copy
+    CopyFile(FileName,ReducedFileName,false)
+  end
+  // then reduce
+  TextureReduce(ReducedFileName);
+  Temp := DXT_ImageWidth(ReducedFileName);
+end; }
                 DDS_Size := temp;
               end;
             end;
           end;
-          // show a blank background if no files
+
+          // show a blank background of default size if no files
           if (DDS_Size = 0) then begin
-            DDS_Size := 512; // choose a default size
+            DDS_Size := 1024; // choose a default size
           end;
 
+{ tried but still no go for large DDS
           // show a blank background if files are too large for 32 bit system
           // i.e. avoid crashing Condor_Tiles
-          // could load next level Mip instead - TBD
+          if (DDS_Size > 8192) then begin
+            // at size 8192, DDS load with load next lower level mip
+            // so new threshold is 16384
+            if (DDS_Size > 16384) then begin
+              MessageShow('DDS file too large');
+              OutOfResources := true;
+              DDS_Size := 1024; // choose a default size
+            end else begin
+              DDS_Size := 8192;
+            end;
+          end;
+}
+          // show a blank background if files are too large for 32 bit system
+          // i.e. avoid crashing Condor_Tiles
           if (DDS_Size > 8192) then begin
             MessageShow('DDS file too large');
             OutOfResources := true;
-            DDS_Size := 512; // choose a default size
+            DDS_Size := 1024; // choose a default size
           end;
 
           with Image_Tile.Picture.Bitmap do begin
@@ -980,9 +1030,10 @@ begin
             // load 4 dds tiles and draw onto Image_Tile
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
-                FileName := format('%sTextures\t%2.2d%2.2d.dds',[lAirportFolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+     // try ReducedFileName first
                 if (NOT FileExists(FileName)) then begin
-//                BitmapAvail := false; // change - allow even if no files
+//                BitmapAvail := false; // no, change - allow even if no files
                   // blank image
                   Screen.Cursor := crDefault;  // no longer busy
             //      Image_Tile_Clear;
@@ -1031,9 +1082,12 @@ begin
 //          DrawRunway(0);
           DrawObjects(0);
         end else begin // try terragen tile
+          //keep track of BR reference
+          apBR_X := TileList[AirportTileIndex].TileUTMRight;
+          apBR_Y := TileList[AirportTileIndex].TileUTMBottom;
           // airport tile relative coords (relative to bottom right)
-          {Unit_Graphics.}xCoord := AirportEasting -  TileList[AirportTileIndex].TileUTMRight;
-          {Unit_Graphics.}yCoord := AirportNorthing - TileList[AirportTileIndex].TileUTMBottom;
+          {Unit_Graphics.}xCoord := AirportEasting -  apBR_X;
+          {Unit_Graphics.}yCoord := AirportNorthing - apBR_Y;
           // Relative fractional position (relative to top left)
           apX := 1 - ({Unit_Graphics.}xCoord/T_Range);
           apY := 1 - ({Unit_Graphics.}yCoord/T_Range);
@@ -1069,7 +1123,7 @@ end;
 
 //---------------------------------------------------------------------------
 var
-  FPanning: Boolean;
+//  FPanning: Boolean;
   FMousePos: TPoint;
 
 // mouse move
@@ -1080,7 +1134,8 @@ var
   Horiz, Vert : double;
   cCOS, cSIN : double;
 begin
-  if (FPanning) then begin
+//  if (FPanning) then begin
+  if (GUI_State = ScrollScreen) then begin
     with ScrollBox_Image do
     begin
       HorzScrollBar.Position := HorzScrollBar.Position + (FMousePos.X - X);
@@ -1124,16 +1179,86 @@ end;
 procedure TForm_AirportPlacer.Image_TileMouseDown(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  FPanning := True;
   FMousePos.X := X;
   FMousePos.Y := Y;
+  case GUI_State of
+    IdleScreen: begin
+      if (ssCtrl in Shift) then begin //scroll bitmap
+//        FPanning := True;
+        GUI_State := ScrollScreen;
+      end;
+    end;
+    else begin
+    end;
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.Image_TileMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  dx, dy : Integer;
+  Angle : single;
+  Value : single;
+
 begin
-  FPanning := False;
+  dx := X - FMousePos.X;
+  dy := Y - FMousePos.Y;
+  case GUI_State of
+    CentreSelectScreen: begin
+      xCoord := (X + FMousePos.X) /2;
+      yCoord := (Y + FMousePos.Y) /2;
+      // convert to absolute UTM
+//      uEasting := UTM_Right - (apRange-xCoord + apBR_X);
+      uEasting := UTM_Right - (apRange*(1-xCoord/Image_Tile.Width) + apBR_X);
+      uNorthing := UTM_Bottom + (apRange*(1-yCoord/Image_Tile.Height) + apBR_Y);
+      // convert to lat/long
+      UTMtoLatLong(uNorthing, uEasting, UTM_Zone, UTM_ZoneNS);
+      // save result
+      Edit_Longitude.Text := floatToStr(uLongitude);
+      Edit_Longitude.Modified := true;
+      Edit_LongitudeExit(Sender);
+      Edit_Latitude.Text := floatToStr(uLatitude);
+      Edit_Latitude.Modified := true;
+      Edit_LatitudeExit(Sender);
+    end;
+    DirectionSelectScreen: begin
+      if (dy <> 0.0) then begin
+        Angle := ArcTan2(dx, -dy) * 180 / PI;
+        if (Angle < 0.0) then begin
+          Angle := Angle + 360;
+        end;
+      end else begin
+        if dx < 0 then begin
+          Angle := 270.0;
+        end else begin
+          Angle := 90.0;
+        end;
+      end;
+      Edit_Direction.Text := floatToStr(Angle);
+      Edit_Direction.Modified := true;
+      Edit_DirectionExit(Sender);
+    end;
+    LengthSelectScreen: begin
+      // TBD - improve - in-line distance
+      Value := sqrt(dx*dx + dy*dy) *
+        apRange/Image_Tile.Width;
+      Edit_Length.Text := intToStr(round(Value));
+      Edit_Length.Modified := true;
+      Edit_LengthExit(Sender);
+    end;
+    WidthSelectScreen: begin
+      // TBD - improve - perpendicular distance
+      Value := sqrt(dx*dx + dy*dy) *
+        apRange/Image_Tile.Width;
+      Edit_Width.Text := intToStr(round(Value));
+      Edit_Width.Modified := true;
+      Edit_WidthExit(Sender);
+    end;
+  end;
+  Screen.Cursor := crDefault;
+  Image_Tile.ShowHint := True;
+  GUI_State := IdleScreen;
 end;
 
 //---------------------------------------------------------------------------
@@ -1178,7 +1303,7 @@ begin
     ClearTreeView(TreeView_O); // and append to not show headers
 
     // look for O.c3d or O.x or O.cx
-    Path := lAirportFolderName+'Airports\';
+    Path := Airport_FolderName+'\Airports\';
     Mask := Airport_List[ItemIndex].apName + 'O.*';
     if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
       if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
@@ -1198,7 +1323,7 @@ begin
     ClearTreeView(TreeView_G); // and append to not show headers
 
     // look for G.c3d or G.x or G.cx
-    Path := lAirportFolderName+'Airports\';
+    Path := Airport_FolderName+'\Airports\';
     Mask := Airport_List[ItemIndex].apName + 'G.*';
     if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
       if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
@@ -1831,6 +1956,42 @@ begin
   Close(PXfile);
 end;
 
+//-------------------------------------------------------------------------------------
+Procedure Make_Airport_All_BatchFile(epsg : integer; FilePath, FileName : string);
+var
+  HRR_file : TextFile;
+
+begin
+  // create path
+  ForceDirectories(FilePath);
+
+  FileName := 'MAKE_ALL';
+  if (epsg = 4326) then begin
+    FileName := format('%s_%d.bat',[FileName,epsg]);
+  end else begin
+    FileName := FileName+'.bat';
+  end;
+
+  //open the file
+  AssignFile(HRR_file, FilePath +'\'+ FileName);
+  Rewrite(HRR_file);
+
+  writeln(HRR_file,'@echo off');
+  // use || to execute next command if previous one failed
+  writeln(HRR_file,'call Batch_Airport_Download.bat || exit /b 9');
+  writeln(HRR_file,'call Batch_Airport_Combine.bat || exit /b 9');
+  if (epsg = 4326) then begin
+    writeln(HRR_file,'call GDAL_Airport_4326.bat || exit /b 9');
+  end else begin
+    writeln(HRR_file,'call GDAL_Airport.bat || exit /b 9');
+  end;
+  writeln(HRR_file,'call DDS_Airport.bat || exit /b 9');
+
+  // close the file
+  Close(HRR_file);
+  MessageShow(FileName+' done.');
+end;
+
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.Button_HiResRunwayClick(Sender: TObject);
 const
@@ -2014,14 +2175,68 @@ begin
   Y_Min := UTM_Bottom+AirportNorthing+(Y_Offset-Y_Extent/2);
   Y_Max := UTM_Bottom+AirportNorthing+(Y_Offset+Y_Extent/2);
   // create GDAL batch file
-  FileName := 'GDAL_Airport.bat';
-  MakeAutoGDAL_Generic(3857, FileName, FilePath,
+  FileName := 'GDAL_Airport';
+  MakeAutoGDAL_Generic(3857, FileName+'.bat', FilePath,
+    'Airport', Zoom_Level_Airport,
+    X_Min, X_Max, Y_Min, Y_Max);
+  MakeAutoGDAL_Generic(4326, FileName+'_4326.bat', FilePath,
     'Airport', Zoom_Level_Airport,
     X_Min, X_Max, Y_Min, Y_Max);
   // create DDS batch file
   FileName := 'DDS_Airport.bat';
   MakeDDS_Generic('Airport', FilePath, FileName);
 
+  // now make a Batch ALL
+  Make_Airport_All_BatchFile(3857, FilePath, FileName);
+  Make_Airport_All_BatchFile(4326, FilePath, FileName); // geid as well
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Label_DirectionDblClick(Sender: TObject);
+begin
+  GUI_State := DirectionSelectScreen;
+  Screen.Cursor := crCross;
+  Image_Tile.ShowHint := False;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Label_LengthDblClick(Sender: TObject);
+begin
+  GUI_State := LengthSelectScreen;
+  Screen.Cursor := crCross;
+  Image_Tile.ShowHint := False;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Label_WidthDblClick(Sender: TObject);
+begin
+  GUI_State := WidthSelectScreen;
+  Screen.Cursor := crCross;
+  Image_Tile.ShowHint := False;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Label3DblClick(Sender: TObject);
+begin
+  GUI_State := CentreSelectScreen;
+  Screen.Cursor := crCross;
+  Image_Tile.ShowHint := False;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Label2DblClick(Sender: TObject);
+begin
+  GUI_State := CentreSelectScreen;
+  Screen.Cursor := crCross;
+  Image_Tile.ShowHint := False;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_HelpClick(Sender: TObject);
+begin
+  Form_Help.ShowHelp('AirportPlace.hlp.txt',
+    Self.Left + ScrollBox_Image.left + 8,
+    Self.Top + ScrollBox_Image.Top + 30);
 end;
 
 //---------------------------------------------------------------------------

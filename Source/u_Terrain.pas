@@ -47,7 +47,8 @@ The condor .TRN file is structured as follows:
 //===========================================================================
 INTERFACE
 
-uses StdCtrls, comctrls;
+uses
+  StdCtrls, comctrls;
 
 type
   CondorTerrainHeader = packed record
@@ -101,6 +102,7 @@ Procedure OverrideTerrainCalibration(TerrainFileName : string);
 Procedure CreateColorGradientBitmap(TerrainFileName,ColorGradientFileName : string);
 Procedure CreateSlopeGradientBitmap(TerrainFileName,SlopeGradientFileName : string);
 Procedure TRN_To_Greyscale_Bitmap(TRN_FileName,Greyscale_FileName : string);
+Procedure TRN_To_Color_Bitmap(TRN_FileName, Color_FileName : string);
 Procedure RAW_To_TRN(RAW_FileName, TRN_FileName : string);
 Procedure RAW_To_TR3(RAW_FileName, TR3_FilePath : string);
 Procedure TRN_To_RAW(TRN_FileName, RAW_FileName : string);
@@ -110,7 +112,8 @@ Procedure UpdateTerrainUTMgrid_V2(TerrainFileName : string);
 //===========================================================================
 IMPLEMENTATION
 
-uses forms, FileCtrl, SysUtils, Graphics, {Windows,} Math, Dialogs,
+uses
+  forms, FileCtrl, SysUtils, Graphics, Windows, Math, Dialogs,
   u_SceneryHDR, u_TileList, u_BMP;
 
 var
@@ -184,7 +187,7 @@ begin
   AssignFile(Terrain_File,TerrainFileName);
   if (NOT FileExists(TerrainFileName)) then begin
     MessageShow('Terrain file not found');
-    beep; Exit;
+    SysUtils.Beep; Exit;
   end;
   reset(Terrain_File);
   BlockRead(Terrain_File,TerrainHeader,sizeof(CondorTerrainHeader));
@@ -212,7 +215,7 @@ var
 begin
   if (NOT FileExists(FilePath+'\'+Filename)) then begin
     MessageShow('Terrain file not found');
-    Beep; Exit;
+    SysUtils.Beep; Exit;
   end;
   AssignFile(TRN_File,FilePath+'\'+Filename);
   Reset(TRN_File);
@@ -266,7 +269,7 @@ var
 begin
   if (NOT FileExists(FilePath+'\'+Filename)) then begin
     MessageShow('Terrain file not found');
-    Beep; Exit;
+    SysUtils.Beep; Exit;
   end;
   AssignFile(TRN_File,FilePath+'\'+Filename);
   Reset(TRN_File);
@@ -420,7 +423,7 @@ begin
   // load merged terrain file for reference extents
   if (NOT FileExists(FilePath+'\'+Filename)) then begin
     MessageShow('Terrain file not found');
-    Beep; Exit;
+    SysUtils.Beep; Exit;
   end;
   AssignFile(Data_File,FilePath+'\'+Filename);
   Reset(Data_File);
@@ -601,58 +604,87 @@ end;
 {----------------------------------------------------------------------------}
 Procedure ReadTerrainTile(TileColumn,TileRow: integer);
 var
-  i,j : integer;
+  x, y, k : integer;
   FileIndex : longint;
+  cOffset, rOffset : integer;
+  P16 : PWordArray;
 
 begin
-  FileIndex := {TerrainHeaderSize} sizeof(CondorTerrainHeader) +
-//               TerrainSize * (TileRow*tRows*(TileColumnCount*tColumns) +
-////                              (((TileColumnCount-1)-TileColumn)*tColumns)
-//                              (TileColumn*tColumns)
-               TerrainSize * (TileColumn*tColumns*(TileRowCount*tRows) +
-                              (TileRow*tRows)
+  // for partial tiles, need to crop
+  cOffset := 0;
+  if (((TileColumn+1) * tColumns) > ColumnCount) then begin
+    cOffset := ((TileColumn+1) * tColumns) - ColumnCount;
+  end;
+  rOffset := 0;
+  if (((TileRow+1) * tRows) > RowCount) then begin
+    rOffset := ((TileRow+1) * tRows) - RowCount;
+  end;
+  FileIndex := sizeof(CondorTerrainHeader) +
+               TerrainSize * (TileColumn*tColumns*RowCount +
+                               (TileRow*tRows)
                              );
-  for i := tColumns-1 downto 0 do begin // columns from right
-    seek(Terrain_File,FileIndex);
-    for j := tRows-1 downto 0 do begin // rows from bottom
-      // read each height element
-      read(Terrain_File,HeightValue.ByteValue[0],HeightValue.ByteValue[1]);
-      GradientGrid[j,i] := HeightValue.IntegerValue;
+  try
+    // write each terrain height value
+    P16  := AllocMem(tRows * sizeof(Word)); // one row at a time
+    for x := tColumns-1 downto cOffset do begin // columns from right
+      seek(Terrain_File,FileIndex);
+      BlockRead(Terrain_File,P16^,(tRows-rOffset) * TerrainSize);
+      k := 0;
+      for y := tRows-1 downto rOffset do begin // rows from bottom
+        // read each height element
+        GradientGrid[y,x] := P16^[k];
+        INC(k);
+      end;
+      INC(FileIndex,(RowCount) * TerrainSize);
     end;
-    INC(FileIndex,(TileRowCount*tRows) * TerrainSize);
+  finally
+    freemem(P16);
   end;
 end;
 
 {----------------------------------------------------------------------------}
 Procedure WriteBitmapGradientTile(TileColumn,TileRow: integer);
 var
-  i,j : integer;
+  x ,y, k : integer;
   FileIndex : longint;
-  FileByte : byte;
+  cOffset, rOffset : integer;
+  P24 : pRGBArray;
   gColor : Tcolor;
   cColor : ColorConvert;
 
 begin
+  // for partial tiles, need to crop
+  cOffset := 0;
+  if (((TileColumn+1) * tColumns) > ColumnCount) then begin
+    cOffset := ((TileColumn+1) * tColumns) - ColumnCount;
+  end;
+  rOffset := 0;
+  if (((TileRow+1) * tRows) > RowCount) then begin
+    rOffset := ((TileRow+1) * tRows) - RowCount;
+  end;
+
   FileIndex := BitmapHeader_24bitColor.Bitmap24PixelOffset +
-               Color24Size * (TileRow*tRows*(TileColumnCount*tColumns) +
-                              (((TileColumnCount-1)-TileColumn)*tColumns)
+               Color24Size * (TileRow*tRows*ColumnCount +
+                               (ColumnCount-tColumns+cOffset - TileColumn*tColumns)
                              );
-  for i := tRows-1 downto 0 do begin // rows from bottom
-    seek(CG_File,FileIndex);
-    for j := 0 to tColumns-1 do begin // columns from left
-      // write each colorized height
-      CalcGradientColor(GradientGrid[i,j],gColor);
-//      cColor.ColorValue := ByteReverseOrder32(gColor);
-      cColor.ColorValue := ByteSwapColor(gColor);
-      BlockWrite(CG_File,cColor.cRGB,sizeof(cColor.cRGB))
-//      FileByte := GetBValue(gColor);
-//      Write(CG_File,FileByte);
-//      FileByte := GetGValue(gColor);
-//      Write(CG_File,FileByte);
-//      FileByte := GetRValue(gColor);
-//      Write(CG_File,FileByte);
+  try
+    // write each thermal index
+    P24 := AllocMem(tColumns * Color24Size); // one row at a time
+    for y := tRows-1 downto rOffset do begin // rows from bottom
+      seek(CG_File,FileIndex);
+      k := 0;
+      for x := cOffset to tColumns-1 do begin // columns from left
+        // write each colorized height
+        CalcGradientColor(GradientGrid[y,x],gColor);
+        cColor.ColorValue := ByteSwapColor(gColor);
+        p24^[k] :=  cColor.cRGB;
+        INC(k);
+      end;
+      BlockWrite(CG_File,P24^,(tColumns-cOffset) * Color24Size);
+      INC(FileIndex,(ColumnCount) * Color24Size);
     end;
-    INC(FileIndex,(TileColumnCount*tColumns) * Color24Size);
+  finally
+    freemem(P24);
   end;
 end;
 
@@ -701,7 +733,7 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := ColumnCount;
       bDib.bHeight := RowCount;
-      bDib.bImageByteSize := ColumnCount*RowCount*xColor24Size div 8;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
     BlockWrite(CG_File,xBitmapHeader_24bitColor,
@@ -1241,7 +1273,7 @@ begin
       WidthHeight := InputBox('Dimensions of terrain', 'Width, Height', 'Width, Height');
       if (NOT ParseWidthHeight(WidthHeight)) then begin
         MessageShow('Error - Invalid values');
-        Beep;
+        SysUtils.Beep;
         Exit;
       end;
     end;
@@ -1258,7 +1290,7 @@ begin
           RowCount := RowCount div 3;
         end else begin
           MessageShow('Error - File size');
-          Beep;
+          SysUtils.Beep;
           Exit;
         end;
       end;
@@ -1435,6 +1467,97 @@ exit;
     Close(Greyscale_File);
     MessageShow('Greyscale bitmap created');
     ProgressBar_Status.Position := 0;
+  end;
+end;
+
+// use 16 bit elevation and make colors
+{----------------------------------------------------------------------------}
+Procedure TRN_To_Color_Bitmap(TRN_FileName, Color_FileName : string);
+const
+  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+  pColor : ColorConvert;
+  TRN_File : File of byte;
+  Color_File : File of byte;
+  TRN_Header : CondorTerrainHeader;
+//  ByteCount : longint;
+  Q : pRGBArray;
+  P : PWordArray;
+  Value : single;
+
+begin
+  if (NOT FileExists(TRN_FileName)) then begin
+    MessageShow('Terrain file not found');
+    SysUtils.Beep; Exit;
+  end else begin
+    if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TRN') then begin
+      AssignFile(TRN_File,TRN_FileName);
+      Reset(TRN_File);
+      BlockRead(TRN_File,TRN_Header,sizeof(TRN_Header));
+      ColumnCount := TRN_Header.tWidth;
+      RowCount := TRN_Header.tHeight;
+    end else begin
+      MessageShow('TRN file not found');
+      SysUtils.Beep; Exit;
+    end;
+    // Bitmap byte width must be divisible by 4
+//    ByteWidth := ColumnCount * Color24Size;
+    MessageShow('Converting terrain file to color bitmap...');
+
+    AssignFile(Color_File,Color_FileName);
+    Rewrite(Color_File);
+    // create a BMP header
+    with xBitmapHeader_24bitColor do begin
+      bDib.bWidth := ColumnCount;
+      bDib.bHeight := RowCount;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color24Size;
+      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+    end;
+    BlockWrite(Color_File,xBitmapHeader_24bitColor,
+      sizeof(xBitmapHeader_24bitColor));
+
+    // write dummy last byte to force filesize
+    seek(Color_File,xBitmapHeader_24bitColor.bH.bPixelArrayOffset+
+      xBitmapHeader_24bitColor.bDib.bImageByteSize);
+    BlockWrite(Color_File,Q^[0],1);
+    try
+      P := AllocMem(RowCount*2); // TRN, one column at a time
+      Q := AllocMem(RowCount*sizeof(TRGBTriple));
+      // write dummy last byte to force filesize
+      seek(Color_File,xBitmapHeader_24bitColor.bH.bPixelArrayOffset+
+        ((ColumnCount*RowCount-1)*Color24Size));
+      BlockWrite(Color_File,Q^[0],3);
+//      ProgressBar_Status.Max := ColumnCount;
+      for i := 0 to ColumnCount-1 do begin
+        BlockRead(TRN_File,P^,RowCount*2);
+        // convert integer to color
+        // LSB into green, and MSB into Blue and Red
+        for j := 0 to RowCount-1 do begin
+          Q^[j].rgbtGreen := Lo(P^[j]);
+          Q^[j].rgbtBlue := Hi(P^[j]);
+          Q^[j].rgbtRed := Hi(P^[j]);
+        end;
+        //Now write as a column instead of a row - BMP, one row at a time
+        for j := 0 to RowCount-1 do begin
+          seek(Color_File,xBitmapHeader_24bitColor.bH.bPixelArrayOffset+
+            (j*ColumnCount+(ColumnCount-1-i))*Color24Size);
+          BlockWrite(Color_File,Q^[j],3);
+        end;
+//        ProgressBar_Status.StepIt;
+//        Application.ProcessMessages;
+      end;
+    finally
+      freemem(Q);
+      freemem(P);
+    end;
+
+    Close(Color_File);
+    Close(TRN_File);
+    MessageShow('Color bitmap created');
+//    ProgressBar_Status.Position := 0;
   end;
 end;
 

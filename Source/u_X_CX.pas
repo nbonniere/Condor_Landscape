@@ -1227,11 +1227,38 @@ begin
         end else begin
 //          ParseFloatArray(16,@pFTMdata.ftmArray,[',']);
           ParseFloatArray(16,@pFTMdata^.ftmArray,[',']);   // seems to be same as without ^
+          // for SimpleObjects
+          if (InjectFTM) then begin
+            // with FTM and inject FTM, must combine FTMs
+            // TBD ???
+          end;
           ParseDelimiter([';']);
         end;
       end;
     end;
   end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure Inject_FTM(fNode : TTreenode);
+var
+  j : integer;
+//  fTreeNode : TTreeNode;
+
+begin
+      // FTM
+      New(pObjectData); //allocate space for an object data
+      pObjectData^.oType := oFTM;
+      New(pFTMdata); //allocate space for data
+      pFTMdata^.tName := '';
+      pObjectData^.oPointer := pFTMdata;
+      {fTreeNode :=} oTreeView.Items.AddChildObject(fNode, 'FTM '+pFTMdata^.tName, pObjectData);
+//  ParseFloatArray(16,@pFTMdata.ftmArray,[',']);
+//  SetLength(pFloatArray(pFTMdata.ftmArray)^,16);
+      SetLength(tFloatArray(pFTMdata^.ftmArray),16);
+      for j := 0 to 16-1 do begin
+        tFloatArray(pFTMdata^.ftmArray)[j] := FTM[j];
+      end;
 end;
 
 {----------------------------------------------------------------------------}
@@ -1272,6 +1299,10 @@ begin
             ReadToken;
             ParseFTM(fTreeNode);
           end else begin
+            // for SimpleObjects
+            if (InjectFTM) then begin
+              Inject_FTM(fTreeNode);
+            end;
             if (uppercase(InputString) = 'MESH') then begin
               ReadToken;
               ParseMesh(fTreeNode);
@@ -3193,7 +3224,7 @@ begin
     Objects_C3D[ObjectIndex].Lighting.e_Lighting := 0;
     Objects_C3D[ObjectIndex].Lighting.f_Lighting := 1;
     Objects_C3D[ObjectIndex].Lighting.g_Lighting := 0;
-     // assume noe at first
+     // assume none at first
     Objects_C3D[ObjectIndex].TexturePath := '';
     // get actual filename not reference name
     Index := FindMaterialByName(pMaterialReference(pObjectItem(Items[NodeIndex].data)^.oPointer)^.tName);
@@ -3413,9 +3444,21 @@ begin
       Objects_C3D[i].name := Objects_C3D[i].name+'_ns';
     end;
 
-    // now increment object count
-    INC(Headers_C3D.Number_Objects);
-    INC(Headers_C3D.Number_TBD);
+    // now check for mesh merging
+    if ( (i >= 1) AND {(Enable_Merge) AND}
+         (Objects_C3D[i].name = Objects_C3D[i-1].name) AND
+         (Objects_C3D[i].TexturePath = Objects_C3D[i-1].TexturePath)
+       ) then begin
+      // keep first Indexes, but increment counts
+      INC(Objects_C3D[i-1].Indexes.NumVertices,Objects_C3D[i].Indexes.NumVertices);
+      // keep first surface Indexes, but increment surface counts
+      INC(Objects_C3D[i-1].Indexes.NumSurfaceVertices,Objects_C3D[i].Indexes.NumSurfaceVertices);
+      // do not increment object count, and do not add object header
+    end else begin
+      // now increment object count
+      INC(Headers_C3D.Number_Objects);
+      INC(Headers_C3D.Number_TBD);
+    end;
     OverallNumVertices := OverallNumVertices + Objects_C3D[i].Indexes.NumVertices;
     OverallNumSurfaces := OverallNumSurfaces + Objects_C3D[i].Indexes.NumSurfaceVertices div 3;
 end;

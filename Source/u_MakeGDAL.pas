@@ -1052,9 +1052,11 @@ begin
   writeln(GDALfile,'del %sourcebmp%');
 
   Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+//  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+  Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
   Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+//  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+  Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
   writeln(GDALfile,'set utm_zone='+UTM_Zone);
@@ -1069,8 +1071,10 @@ begin
   writeln(GDALfile,format('set utm_wanted_top=%1.1f',[Tile_T_Lat]));
 
   writeln(GDALfile,'rem re-size');
-  writeln(GDALfile,format('set image_width=%d',[TileColumnCount*256]));
-  writeln(GDALfile,format('set image_height=%d',[TileRowCount*256]));
+//  writeln(GDALfile,format('set image_width=%d',[TileColumnCount*256]));
+  writeln(GDALfile,format('set image_width=%d',[ColumnCount]));
+//  writeln(GDALfile,format('set image_height=%d',[TileRowCount*256]));
+  writeln(GDALfile,format('set image_height=%d',[RowCount]));
 
   writeln(GDALfile,'set sourcetiff=Overall\bigmap.tif');
   writeln(GDALfile,'set destinationtiff=Overall\UTMmap.tif');
@@ -1161,9 +1165,11 @@ begin
   writeln(GDALfile,'del %sourcebmp%');
 
   Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+//  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+  Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
   Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+//  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+  Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
   writeln(GDALfile,'set utm_zone='+UTM_Zone);
@@ -1178,8 +1184,8 @@ begin
   writeln(GDALfile,format('set utm_wanted_top=%1.1f',[Tile_T_Lat]));
 
   writeln(GDALfile,'rem re-size');
-  writeln(GDALfile,format('set image_width=%d',[TileColumnCount*256]));
-  writeln(GDALfile,format('set image_height=%d',[TileRowCount*256]));
+  writeln(GDALfile,format('set image_width=%d',[ColumnCount]));
+  writeln(GDALfile,format('set image_height=%d',[RowCount]));
 
   writeln(GDALfile,'set sourcetiff='+Name+'.tif');
   writeln(GDALfile,'set destinationtiff=UTMmap.tif');
@@ -1283,9 +1289,11 @@ begin
   writeln(GDALfile,'del %sourcebmp%');
 
   Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+//  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+  Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
   Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+//  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+  Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
   writeln(GDALfile,'set utm_zone='+UTM_Zone);
@@ -1300,8 +1308,8 @@ begin
   writeln(GDALfile,format('set utm_wanted_top=%1.1f',[Tile_T_Lat]));
 
   writeln(GDALfile,'rem re-size');
-  writeln(GDALfile,format('set image_width=%d',[TileColumnCount*256]));
-  writeln(GDALfile,format('set image_height=%d',[TileRowCount*256]));
+  writeln(GDALfile,format('set image_width=%d',[ColumnCount]));
+  writeln(GDALfile,format('set image_height=%d',[RowCount]));
 
   writeln(GDALfile,'set sourcetiff='+Name+'.tif');
   writeln(GDALfile,'set destinationtiff=UTMmap.tif');
@@ -1371,9 +1379,11 @@ begin
   writeln(GDALfile,'del %sourcebmp%');
 
   Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+//  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+  Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
   Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+//  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+  Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
   writeln(GDALfile,'set utm_zone='+UTM_Zone);
@@ -1388,8 +1398,8 @@ begin
   writeln(GDALfile,format('set utm_wanted_top=%1.1f',[Tile_T_Lat]));
 
   writeln(GDALfile,'rem re-size');
-  writeln(GDALfile,format('set image_width=%d',[TileColumnCount*256]));
-  writeln(GDALfile,format('set image_height=%d',[TileRowCount*256]));
+  writeln(GDALfile,format('set image_width=%d',[ColumnCount]));
+  writeln(GDALfile,format('set image_height=%d',[RowCount]));
 
   writeln(GDALfile,'set sourcetiff='+Name+'.tif');
   writeln(GDALfile,'set destinationtiff=UTMmap.tif');
@@ -1448,9 +1458,11 @@ begin
   writeln(GDALfile,'cd /d %~dp0');
 
   Tile_B_Lat  := CornerList[0].TileUTMBottom + UTM_Bottom - Legacy_Offset;
-  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+//  Tile_T_Lat  := Tile_B_Lat + 23040 * TileRowCount;
+  Tile_T_Lat  := Tile_B_Lat + Resolution * RowCount;
   Tile_L_Long := UTM_Right + Legacy_Offset - CornerList[1].TileUTMRight;
-  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+//  Tile_R_Long := Tile_L_Long + 23040 * TileColumnCount;
+  Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
   writeln(GDALfile,'set utm_zone='+UTM_Zone);
@@ -1465,8 +1477,8 @@ begin
   writeln(GDALfile,format('set utm_wanted_top=%1.1f',[Tile_T_Lat]));
 
   writeln(GDALfile,'rem re-size');
-  writeln(GDALfile,format('set image_width=%d',[TileColumnCount*256]));
-  writeln(GDALfile,format('set image_height=%d',[TileRowCount*256]));
+  writeln(GDALfile,format('set image_width=%d',[ColumnCount]));
+  writeln(GDALfile,format('set image_height=%d',[RowCount]));
 
   writeln(GDALfile,'set sourcebmp='+Name+'_combined\'+Name+'.bmp');
   writeln(GDALfile,'set sourcetiff='+Name+'_combined\'+Name+'.tif');
@@ -1709,7 +1721,7 @@ begin
   writeln(GDALfile,'rem convert bitmap to GeoTiff to embed the lat/long coordinates');
 
   if (epsg = 4326) then begin
-    Zoom_Suffix := format('_%d',[strtoint(ZoomLevel)+1]); // for geid, zoom level is 1 step higher
+    Zoom_Suffix := format('_%d',[strtoint(Zoom_Level)+1]); // for geid, zoom level is 1 step higher
 //    writeln(GDALfile,'set sourcebmp='+TileName+'_geid_combined\'+TileName+'_zoom'+Zoom_Suffix+'.bmp');
     writeln(GDALfile,'set sourcebmp='+Name+'_combined\'+Name+'_zoom'+Zoom_Suffix+'.bmp');
     writeln(GDALfile,'set FileName='+Name+'.geid');

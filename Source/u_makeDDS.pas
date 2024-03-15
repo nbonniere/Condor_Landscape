@@ -40,6 +40,7 @@ Procedure MakeDDSbatchFile(TileIndex : integer);
 Procedure MakeDDS_All_BatchFile;
 Procedure MakeDDSquarterTile(CurrentRow, CurrentColumn, offset_Row, offset_Column : Integer);
 Procedure MakeDDS_Generic(Name, FilePath, FileName : string);
+Procedure MakeDDS_Object_Drop(FilePath, FileName : string);
 
 //----------------------------------------------------------------------------
 implementation
@@ -415,6 +416,48 @@ begin
   Close(DDSfile);
 
   MessageShow(FileName+' done ('+DXT_Type+').');
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure MakeDDS_Object_Drop(FilePath, FileName : string);
+begin
+  // check for DXT generator
+  if (FileExists(CompressorFolder+'\nvDXT.exe')) then begin
+    DXT_Gen := g_nVDXT;
+  end else begin
+    if (FileExists(CompressorFolder+'\CompressonatorCLI.exe')) then begin
+      DXT_Gen := g_CompressonatorCLI;
+    end else begin
+      MessageShow('Select nvDXT path or Compressonator path');
+      Beep;
+      Exit;
+    end;
+  end;
+
+  //open the file
+  AssignFile(DDSfile, FilePath +'\'+ FileName);
+  Rewrite(DDSfile);
+
+  writeln(DDSfile,'@echo off');
+  writeln(DDSfile,'setlocal');
+  writeln(DDSfile,'set PATH=%PATH%;"'+CompressorFolder+'"');
+  writeln(DDSfile,'rem goto directory where batch file is');
+  writeln(DDSfile,'cd /d %~dp0');
+
+  writeln(DDSfile,'rem converts graphic file into .dds');
+  writeln(DDSfile,'IF [%1] NEQ [] (set sourcebmp=%1) else (echo ERROR: Drag-and-Drop file needed & pause & exit /b 9)');
+  writeln(DDSfile,'set destinationdds=%~p1\%~n1.dds');
+
+  writeln(DDSfile,'if NOT exist %sourcebmp% (echo ERROR: %sourcebmp% NOT found & pause & exit /b 9)');
+  if (DXT_Gen = g_nVDXT) then begin
+    writeln(DDSfile,'nvDXT.exe -quality_highest -Cubic -dxt1c -file %sourcebmp%');
+  end else begin // must be Compressonator
+    writeln(DDSfile,'CompressonatorCLI.exe -fd dxt1 -mipsize 1 -CompressionSpeed 0 %sourcebmp% %destinationdds%');
+  end;
+  writeln(DDSfile,'rem del %sourcebmp%');
+  writeln(DDSfile,'endlocal');
+  // close the file
+  Close(DDSfile);
 end;
 
 {----------------------------------------------------------------------------}

@@ -1,0 +1,54 @@
+
+If you want to use the Condor2 Landscape Editor to examine and possibly modify a Landscape, the Landscape Editor will initially only show a greyscale texture map of the elevation and you are limited to the viewing/modifying of the HeightMaps, the Airport list, and the Object list, with no access to the ForestMaps or the ThermalMap or Textures.
+
+In Condor2, the Landscape data is stored as follows:
+
+- The elevation data: folder LandscapeName\HeightMaps\*.tr3
+- The texture data: LandscapeName\Textures\t*.dds
+- The forest maps: LandscapeName\ForestMaps\t*.for
+- The thermal map: LandscapeName\LandscapeName.tdm
+- The airport list: LandscapeName\LandscapeName.apt
+- The airport Ground features: LandscapeName\Airports\AiportNameG.c3d
+- The airport Object features: LandscapeName\Airports\AiportNameO.c3d
+- The airport Ground and Object textures: LandscapeName\Airports\Textures\*.dds *.bmp *.tga *.png
+- The object list: LandscapeName\LandscapeName.obj
+- The object files: LandscapeName\World\Objects\*.c3d
+- The object textures: LandscapeName\World\Textures\*.dds *.bmp *.tga *.png
+
+There is also two hash table files to confirm the validity of data as follows:
+
+- Validity of HeightMaps: LandscapeName\LandscapeName.tha
+- Validity of ForestMaps: LandscapeName\LandscapeName.fha
+
+The landscape Editor has direct access to the HeightMaps in the folder LandscapeName\HeightMaps
+
+The Landscape Editor shows the texture with files in the folder:
+- LandscapeName\Working\Textures
+Initially these files contain a greyscale view of the elevation
+
+The Landscape Editor shows the forest map with forest files in the folder:
+- LandscapeName\Working\ForestMaps
+Initially there are no files
+
+The Landscape Editor shows the thermal map with the file:
+- LandscapeName\Working\ThermalMap.bmp
+Initially there are no file
+
+With Condor_Tiles it is possible to export the Textures, Forest map and thermal.
+
+Start the landscape Editor and pick the Landscape and use the 'Read Header' button to determine the details of the landscape.
+
+To Export the Textures, select the Utilities button, and select 'Convert DDS to 24 bit bitmaps' 'Convert' button. Select all files in the LandscapeName\Textures folder with Ctrl-A, or a single file of interest. The files will be created in a new folder LandscapeName\Textures_Export. You can then:
+- rename the folder LandscapeName\Working\Textures to LandscapeName\Working\Textures_Initial
+- rename the folder LandscapeName\Working\Textures_Export to LandscapeName\Working\Textures
+The texture data can then be viewed in the Landscape Editor.
+
+To Export the forest map, select the Utilities button, and select 'Convert forest map (FOR)' 'Export to BMP' button. Select all files in the LandscapeName\ForestMaps folder with Ctrl-A, or a single file of interest. The files will be created in a new folder LandscapeName\Working\ForestMaps_Export. You can then:
+- rename the folder LandscapeName\Working\ForestMaps_Export to LandscapeName\Working\ForestMaps
+The forest data can then be viewed in the Landscape Editor, when you zoom-in close.
+
+To Export the thermal map, select the Utilities button, and select 'Convert thermal map (TDM)' 'Export to BMP' button. Select the file  LandscapeName.tdm. A new file LandscapeName.tdm-bmp.bmp will be created in the folder LandscapeName. You can then:
+- move the file LandscapeName.tdm-bmp.bmp into folder LandscapeName\Working
+- rename the file LandscapeName\Working\LandscapeName.tdm-bmp.bmp to LandscapeName\Working\ThermalMap.bmp
+The thermal data can then be viewed in the Landscape Editor.
+

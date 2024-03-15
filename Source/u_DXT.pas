@@ -733,29 +733,58 @@ end;
 
 {----------------------------------------------------------------------------}
 procedure DXT_Reduce;
+const
+  DefaultBlockSize = 256;
 var
   DDS_Header   : t_DDS_Header;
-  DDS_BlockIn  : t_DDS_DXT1_Block;
-  DDS_BlockOut : t_DDS_DXT1_Block;
+  DDS_BlockIn  : t_DDS_DXT3_Block; // assume biggest block
+  DDS_BlockOut : t_DDS_DXT3_Block;
   i : integer;
   FileName, NewFileName : string;
   NumMipMaps : Longint;
   xWidth : Longint;
   yHeight : Longint;
   sSize : Longint;
+  P : ^pByteArray;
+  TotalSize : Longword;
+  NumBytes : Longword;
+  BlockSize : integer;
 
 begin
-  FileName := dxt_Path+'\'+dxt_FileName;
-  NewFileName := dxt_Path+'\'+dxt_FileName+'.dds';
-  if fileExists(FileName) then begin
+  NewFileName := dxt_Path+'\'+dxt_FileName;
+  FileName := dxt_Path+'\'+dxt_FileName+'.~dds'; // save original
+  RenameFile(NewFileName,FileName);
+  if (NOT fileExists(FileName)) then begin
+    MessageShow(format('File %s not found',[dxt_FileName]));
+    Exit;
+  end else begin
     AssignFile(DDS_File_In,FileName);
     Reset(DDS_File_In);
+    TotalSize := FileSize(DDS_File_In);
     BlockRead(DDS_File_In,DDS_Header,sizeof(DDS_Header));
 
-    // check for DXT1 signature
-    if ((DDS_Header[0] = dds_Magic) AND
-        (DDS_Header[hdr_DXT_Index] = hdr_DXT1)) then begin
-      AssignFile(DDS_File_Out,FileName+'.dds');
+    // check for signature and DXT1,3,5 signature
+    if (DDS_Header[0] <> dds_Magic) then begin
+      MessageShow(format('Error: %s not DXT',[dxt_FileName]));
+      Close(DDS_File_in);
+      Exit;
+    end else begin
+      case (DDS_Header[hdr_DXT_Index]) of
+        hdr_DXT1: begin
+          BlockSize := sizeof(t_DDS_DXT1_Block);
+        end;
+        hdr_DXT3, hdr_DXT5 : begin
+          BlockSize := sizeof(t_DDS_DXT3_Block);
+        end;
+        else begin
+          MessageShow(format('Error: %s not DXT1,3,5',[dxt_FileName]));
+          Close(DDS_File_in);
+          Exit;
+        end;
+      end;
+
+//      AssignFile(DDS_File_Out,FileName+'.dds');
+      AssignFile(DDS_File_Out,NewFileName);
       Rewrite(DDS_File_Out);
 
       // check header
@@ -771,32 +800,41 @@ begin
       DDS_Header[hdr_NumMipMaps] :=      NumMipMaps-1;
       DDS_Header[hdr_Height] :=          yHeight div 2;
       DDS_Header[hdr_Width] :=           xWidth div 2;
-      DDS_Header[hdr_LinearSize_Index]:= sSize - xWidth*yHeight*sizeOf(DDS_BlockIn);
+//      DDS_Header[hdr_LinearSize_Index]:= sSize - xWidth*yHeight*BlockSize;
+//      DDS_Header[hdr_LinearSize_Index]:= DDS_Header[hdr_Height]div 4*DDS_Header[hdr_Width]div 4*BlockSize;
+      DDS_Header[hdr_LinearSize_Index]:= DDS_Header[hdr_Height] div 4 * DDS_Header[hdr_Width] div 4 * BlockSize;
 
       BlockWrite(DDS_File_Out,DDS_Header,sizeof(DDS_Header));
 
       // skip over first MipMap
-      seek (DDS_File_In, Sizeof(t_DDS_Header)+ (xWidth div 4)*(yHeight div 4)*sizeOf(DDS_BlockIn));
-
-   // slow - improve - do more than one block at a time !!!
+      seek (DDS_File_In, Sizeof(t_DDS_Header)+ (xWidth div 4)*(yHeight div 4)* BlockSize);
+{
+      // slow - improve - do more than one block at a time !!!
       While NOT EOF(DDS_File_In) do begin
-        BlockRead(DDS_File_In,DDS_BlockIn,sizeof(DDS_BlockIn));
+        BlockRead(DDS_File_In,DDS_BlockIn,BlockSize);
         DDS_BlockOut := DDS_BlockIn;
-        BlockWrite(DDS_File_Out,DDS_BlockOut,sizeof(DDS_BlockOut));
+        BlockWrite(DDS_File_Out,DDS_BlockOut,BlockSize);
       end;
+}
+      // faster
+      try
+        NumBytes := TotalSize-Sizeof(t_DDS_Header) -
+          (xWidth div 4)*(yHeight div 4)*BlockSize;
+        P := AllocMem(DefaultBlockSize);
+        while(NumBytes >= DefaultBlockSize) do begin
+          BlockRead(DDS_File_In,P^,DefaultBlockSize);
+          BlockWrite(DDS_File_Out,P^,DefaultBlockSize);
+          DEC(NumBytes,DefaultBlockSize);
+        end;
+        BlockRead(DDS_File_In,P^,NumBytes);
+        BlockWrite(DDS_File_Out,P^,NumBytes);
+      finally
+        freemem(P);
+      end;
+
       Close(DDS_File_Out);
       Close(DDS_File_in);
-
-     // delete original
-//     DeleteFile(Filename);
-     // rename newfile to replace original
-//     RenameFile(NewFileName,dxt_FileName)
-    end else begin
-      MessageShow(format('Error: %s not DXT1',[dxt_FileName]));
-      Close(DDS_File_in);
     end;
-  end else begin
-    MessageShow(format('File %s not found',[dxt_FileName]));
   end;
 end;
 

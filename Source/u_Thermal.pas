@@ -86,6 +86,7 @@ Procedure Greyscale_Bitmap_To_TDM(Greyscale_FileName,TDM_FileName : string);
 // for merging
 Procedure WriteTDMHeader(TDM_FileName : string);
 //Procedure ForceTDMsize(TDM_FileName : string);
+Procedure MakeThermal_Blank(TDM_FileName : string; tWidth, tHeight : integer; Default_Value : integer);
 Procedure ForceTDMsize(TDM_FileName : string; Default_Value : integer);
 procedure Merge_TDM_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongInt;
                           FilePath,Filename,
@@ -425,7 +426,7 @@ begin
   u_BMP.BMPfolder := FilePath;
 
   //get forest data first
-  if ReadForestBitmapTile(fFileName, False) then begin
+  if ForestBitmap_To_ForestGrid(fFileName, False) then begin
     ConvertForestMask(Heating[0],Heating[1],Heating[8]);
     Result := true;
   end else begin
@@ -648,7 +649,7 @@ begin
   ProgressBar_Status.Max := TileColumnCount*TileRowCount;
   for i := 0 to TileColumnCount-1 do begin
     for j := 0 to TileRowCount-1 do begin
-      MessageShow(format('%2.2d%2.2d',[i,j]));
+//      MessageShow(format('%2.2d%2.2d',[i,j]));
       //see if forest and/or thermal files are present
       if (ThermalTileUpdate(i,j)) then begin
         //scale by sunny slope if wanted
@@ -664,9 +665,6 @@ begin
   Close(Thermal_File);
   MessageShow('Thermal map done.');
   ProgressBar_Status.Position := 0;
-
-  TDM_To_Greyscale_Bitmap(FilePath+'\'+ThermalFileName,SourceThermalFolder+'\ThermalMap\Greyscale.bmp');
-
 end;
 
 {----------------------------------------------------------------------------}
@@ -818,7 +816,7 @@ begin
   ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
   for i := 0 to TileColumnCount-1 do begin
     for j := 0 to TileRowCount-1 do begin
-      MessageShow(format('%2.2d%2.2d',[i,j]));
+//      MessageShow(format('%2.2d%2.2d',[i,j]));
       //see if forest and/or thermal files are present
       if (ThermalTileUpdate(i,j)) then begin
         //scale by sunny slope if wanted
@@ -1050,6 +1048,47 @@ begin
     seek(TDM_File,sizeof(TDM_Header)+Width*Height-1);
   end;
   Write(TDM_File,ZeroByte);
+  Close(TDM_File);
+end;
+
+{----------------------------------------------------------------------------}
+Procedure MakeThermal_Blank(TDM_FileName : string; tWidth, tHeight : integer; Default_Value : integer);
+var
+  TDM_File : File of byte;
+  P : PByteArray;
+  ByteCount : longint;
+
+begin
+  AssignFile(TDM_File,TDM_FileName);
+  rewrite(TDM_File);
+
+ try
+  with TDM_Header do begin
+    Width := tWidth;
+    Height := tHeight;
+    // write the header
+    BlockWrite(TDM_File,TDM_Header,sizeof(TDM_Header));
+
+    P := AllocMem(512); // initial values
+    for ByteCount := 0 to 512-1 do begin
+      P^[ByteCount] := Default_Value;
+    end;
+
+    ByteCount := Width*Height;
+    while (ByteCount > 0) do begin
+      if (ByteCount > 512) then begin
+        BlockWrite(TDM_File,P^,512);
+      end else begin
+        BlockWrite(TDM_File,P^,ByteCount);
+      end;
+      DEC(ByteCount,512);
+    end;
+  end;
+
+ finally
+   freemem(P);
+ end;
+
   Close(TDM_File);
 end;
 

@@ -1,0 +1,319 @@
+
+For thermal and tree map generation, it can be done by hand, basically ‘painting’ forests, roads, fields, etc.. onto a background of each tile. This takes way too long, but will match the textures very closely. Manual Editing can be done to 'touch-up' forests around airports.
+
+An alternate way is to use the database which has shape files for roads, lakes, rivers, forests, etc...  Such a database is not complete, but for some areas it is quite good. Whatever is missing can then be filled in manually.
+
+-----------------------------------------------------------------
+In Condor-V1 the various maps had this resolution:
+
+Terrain-map – 90m
+Thermal-map – 90 m
+Combined forest map with
+- Deciduous Forest-map – 45m
+- Coniferous Forest-map – 45m
+Textures maps – variable resolution in Textures folder
+
+-----------------------------------------------------------------
+In Condor-V2 the various maps have this resolution:
+
+Terrain-map – 90m and .tr3 maps at 30m in HeightMaps folder
+Thermal-map – 90 m
+Combined forest maps in .for ForestMaps folder with
+- Deciduous Forest-map – 11.25m
+- Coniferous Forest-map – 11.25m
+Textures maps – variable resolution in Textures folder
+
+-----------------------------------------------------------------
+An alternate way is to use the database from Maryland University which a Global-Land-Cover database which includes forests.
+
+https://storage.googleapis.com/earthenginepartners-hansen/GLCLU_2019/download.html
+
+Data available on-line from:
+https://glad.earthengine.app/view/global-land-cover-land-use-v1. 
+
+Dataset Details:
+This global dataset is divided into 10x10 degree tiles, consisting of two files per tile. All files contain unsigned 8-bit values and have a spatial resolution of 1 arc-second per pixel, or approximately 30 meters per pixel at the equator. For more information please refer to the above publication. The 'Map' file has the neded information. It includes a global map with continuous measures of bare ground and tree height inside and outside of wetlands as well as of builtup area and binary labels of water, ice, cropland, and recent tree cover loss.
+
+Each Tile covers 10 degrees of latitude and longitude and is sized 40,000 x 40,000. At the equator this provides a resolution of 27.8m x 27.8m.  At 45 deg latitude, the resolution is: 19.6m x 27.8m. A at 60 deg latitude, the resolution is: 13.9m x 27.8m. The resolution is a little coarser than what Condor V2 can provide.
+
+-----------------------------------------------------------------
+Condor_Tiles:
+There is a pull-down box at the top named 'GEO Data'. For the Maryland University Global-Land-Cover, database, select 'GLC'.
+
+There is a button on Condor-Tiles ‘Make-Geo’, that creates a GeoDatabase folder and creates batch files for each condor tile. In the status message box, it will show a list of the names of the data files to download from the GLC download site. In the GeoDatabase folder, there will be a GLC_WGET.bat batch file that can be used to download the data files.
+
+In each Working\SourceTiles\xxxx folder, there will be 3 batch files. One for thermal, GEO_t_0000.bat, one for deciduous forest GEO_V2_b_0000.bat, and one for coniferous forest GEO_V2_s_0000.bat. You can run these batch files individually or use the 3 batch files, GO_b.bat, GO_s.bat, GO_t.bat, in the GeoDatabase folder that call all the individual batch files, one at a time. It is best to start by doing one tile individually, and viewing the resulting bitmaps for color features, and then run the overall GO batch file to generate all tiles. The bitmap for the thermal is in each source tile folder Working\SourceTiles\xxxx and called xxxx_t.bmp for tile xxxx. The bitmap for each forest tile is in Working\Terragen\Forests folder and named bxxxx.bmp for each tile. The bitmaps can be viewed with any graphics viewer/editor. The bitmaps should show various features in color, such as roads and rivers.
+
+Note that GLC has only a ‘forest’ definition, not a deciduous nor a coniferous distinction. A blank coniferous map will be generated as it is needed for the Landscape Editor.
+
+You can view and modify the resulting tiles with Condor_Tiles with the ‘Edit Forest’ and ‘Edit thermal’. The background textures tile is shown and is overlaid with the thermal or forest. Press the ‘v’ key to toggle the overlay.
+
+Because the database resolution is limited, it may be necessary to 'shrink' the forest to provide more margin around lakes, rivers, roads, so that no tree ends up on roads or lakes, etc...
+
+Forest maps end up in Working\Terragen\ForestMaps folder, and with the Landscape Editor, you can use Tools 'Import tile size forest maps', then in Files 'Export forest maps (FOR)', and then in Files 'Export forest hash (FHA)'. To see the forest in the Landscape Editor, you need a checkmark in the 'Forest maps' check-box, and you need to zoom in quite close before the tree map shows.
+
+Thermal maps stay in each Working\SourceTiles\xxxx folder. You need to create a folder Working\ThermalMap. There is a button on Condor_Tiles ‘Make thermal’ that will generate the thermal map.  Each type of geographic structure is assigned a thermal value 0 to 255 (0 to 100%), basically a heat index for thermal generation. You can edit the default values if you want. To see the thermal map in the Lanscape Editor, copy the file Working\ThermalMap\ThermalMap.bmp into the Working folder and put a checkmark in the 'Thermal map' check-box.
+
+
+-------------------------------------------------------------------------------------------------------
+Details about GLC data:
+
+The color map uses a 256 color index and each index corresponds to a land-cover type:
+
+Index Strata      Sub-class
+0     True desert 100% bare ground
+1                 98% bare ground
+2                 96% bare ground
+3                 94% bare ground
+4                 92% bare ground
+5                 90% bare ground
+6     Semi-arid   88% bare ground
+7                 86% bare ground
+8                 84% bare ground
+9                 82% bare ground
+10                80% bare ground
+11                78% bare ground
+12                76% bare ground
+13                74% bare ground
+14                72% bare ground
+15                70% bare ground
+16                68% bare ground
+17                66% bare ground
+18                64% bare ground
+19                62% bare ground
+20                60% bare ground
+21                58% bare ground
+22                56% bare ground
+23                54% bare ground
+24                52% bare ground
+25                50% bare ground
+26                48% bare ground
+27                46% bare ground
+28                44% bare ground
+29                42% bare ground
+30                40% bare ground
+31                38% bare ground
+32                36% bare ground
+33                34% bare ground
+34                32% bare ground
+35                30% bare ground
+36                28% bare ground
+37                26% bare ground
+38  Dense short vegetation  24% bare ground
+39                          22% bare ground
+40                          20% bare ground
+41                          18% bare ground
+42                          16% bare ground
+43                          14% bare ground
+44                          12% bare ground
+45                          10% bare ground
+46                          8% bare ground
+47                          6% bare ground
+48                          4% bare ground
+49                          2% bare ground
+50                          0% bare ground
+51  Open tree cover 3m stable open trees
+52                  4m stable open trees
+53                  5m stable open trees
+54                  6m stable open trees
+55                  7m stable open trees
+56                  8m stable open trees
+57                  9m stable open trees
+58                  10m stable open trees
+59                  11m stable open trees
+60                  12m stable open trees
+61                  13m stable open trees
+62                  14m stable open trees
+63                  15m stable open trees
+64                  16m stable open trees
+65                  17m stable open trees
+66                  18m stable open trees
+67                  19m stable open trees
+68                  20m stable open trees
+69                  21m stable open trees
+70                  22m stable open trees
+71                  23m stable open trees
+72                  24m stable open trees
+73                  25m stable open trees
+74                  >25m stable open trees
+75  Dense tree cover    10m dense trees
+76                      11m dense trees
+77                      12m dense trees
+78                      13m dense trees
+79                      14m dense trees
+80                      15m dense trees
+81                      16m dense trees
+82                      17m dense trees
+83                      18m dense trees
+84                      19m dense trees
+85                      20m dense trees
+86                      21m dense trees
+87                      22m dense trees
+88                      23m dense trees
+89                      24m dense trees
+90                      25m dense trees
+91                      >25m dense trees
+92  Tree cover gain     3m tree cover gain
+93                      4m tree cover gain
+94                      5m tree cover gain
+95                      6m tree cover gain
+96                      7m tree cover gain
+97                      8m tree cover gain
+98                      9m tree cover gain
+99                      10m tree cover gain
+100                     11m tree cover gain
+101                     12m tree cover gain
+102                     13m tree cover gain
+103                     14m tree cover gain
+104                     15m tree cover gain
+105                     16m tree cover gain
+106                     17m tree cover gain
+107                     18m tree cover gain
+108                     19m tree cover gain
+109                     20m tree cover gain
+110                     21m tree cover gain
+111                     22m tree cover gain
+112                     23m tree cover gain
+113                     24m tree cover gain
+114                     25m tree cover gain
+115                     >25m tree cover gain
+116 Tree cover loss 
+117 Not used        
+118 Not used        
+119 Not used        
+120 Wetland Salt pan      100% bare ground
+121                        98% bare ground
+122                        96% bare ground
+123                        94% bare ground
+124                        92% bare ground
+125                        90% bare ground
+126 Sparse vegetation      88% bare ground
+127                        86% bare ground
+128                        84% bare ground
+129                        82% bare ground
+130                        80% bare ground
+131                        78% bare ground
+132                        76% bare ground
+133                        74% bare ground
+134                        72% bare ground
+135                        70% bare ground
+136                        68% bare ground
+137                        66% bare ground
+138                        64% bare ground
+139                        62% bare ground
+140                        60% bare ground
+141                        58% bare ground
+142                        56% bare ground
+143                        54% bare ground
+144                        52% bare ground
+145                        50% bare ground
+146                        48% bare ground
+147                        46% bare ground
+148                        44% bare ground
+149                        42% bare ground
+150                        40% bare ground
+151                        38% bare ground
+152                        36% bare ground
+153                        34% bare ground
+154                        32% bare ground
+155                        30% bare ground
+156                        28% bare ground
+157                        26% bare ground
+158 Dense short vegetation 24% bare ground
+159                        22% bare ground
+160                        20% bare ground
+161                        18% bare ground
+162                        16% bare ground
+163                        14% bare ground
+164                        12% bare ground
+165                        10% bare ground
+166                        8% bare ground
+167                        6% bare ground
+168                        4% bare ground
+169                        2% bare ground
+170                        0% bare ground
+171 Open tree cover 3m stable open trees
+172                 4m stable open trees
+173                 5m stable open trees
+174                 6m stable open trees
+175                 7m stable open trees
+176                 8m stable open trees
+177                 9m stable open trees
+178                 10m stable open trees
+179                 11m stable open trees
+180                 12m stable open trees
+181                 13m stable open trees
+182                 14m stable open trees
+183                 15m stable open trees
+184                 16m stable open trees
+185                 17m stable open trees
+186                 18m stable open trees
+187                 19m stable open trees
+188                 20m stable open trees
+189                 21m stable open trees
+190                 22m stable open trees
+191                 23m stable open trees
+192                 24m stable open trees
+193                 25m stable open trees
+194                 >25m stable open trees
+195 Dense tree cover    10m dense trees
+196                     11m dense trees
+197                     12m dense trees
+198                     13m dense trees
+199                     14m dense trees
+200                     15m dense trees
+201                     16m dense trees
+202                     17m dense trees
+203                     18m dense trees
+204                     19m dense trees
+205                     20m dense trees
+206                     21m dense trees
+207                     22m dense trees
+208                     23m dense trees
+209                     24m dense trees
+210                     25m dense trees
+211                     >25m dense trees
+212 Tree cover gain     3m tree cover gain
+213                     4m tree cover gain
+214                     5m tree cover gain
+215                     6m tree cover gain
+216                     7m tree cover gain
+217                     8m tree cover gain
+218                     9m tree cover gain
+219                     10m tree cover gain
+220                     11m tree cover gain
+221                     12m tree cover gain
+222                     13m tree cover gain
+223                     14m tree cover gain
+224                     15m tree cover gain
+225                     16m tree cover gain
+226                     17m tree cover gain
+227                     18m tree cover gain
+228                     19m tree cover gain
+229                     20m tree cover gain
+230                     21m tree cover gain
+231                     22m tree cover gain
+232                     23m tree cover gain
+233                     24m tree cover gain
+234                     25m tree cover gain
+235                     >25m tree cover gain
+236 Tree cover loss 
+237 Not used        
+238 Not used        
+239 Not used        
+240 Built-up    0-10% built-up
+241             10-20% built-up
+242             20-30% built-up
+243             30-40% built-up
+244             40-50% built-up
+245             50-60% built-up
+246             60-70% built-up
+247             70-80% built-up
+248             80-90% built-up
+249             90-100% built-up
+250 Water       
+251 Ice     
+252 Cropland        
+253 Not used        
+254 Ocean       
+255 No data     

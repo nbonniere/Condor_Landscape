@@ -1,0 +1,62 @@
+
+Simple Objects
+
+3D objects can be created with a CAD program and a texture applied with UV-mapping, but for a simple object it is possible to use a template. Condor_Tiles provides a simple interface to create simple objects and textures for use with Condor as follows:
+
+1) One of the simple object in Condor_Tiles is a box. With the Button 'Simple Objects' an interface provides for the definition of the size of this simple box which includes Length, Width, Height. This can be used to create a basic hangar for example. This definition can be saved as a xxx.so file wich is then converted to a 3D object xxx.c3d for use with Condor.  
+
+2) This simple object needs a 'texture' and a bitmap can be generated based on pictures of this object. Pictures from the front, rear, sides and top can be pasted into this template and the resulting texture can be associated with a xxx.c3d object. The pictures need to be corrected for perspective (parallel vertical and horizontal lines) and then cropped and re-sized to fit the template. If the texture bitmap is sized for 1024x1024 pixels, each view must be sized for 512x256. These views will be stretched by Condor onto each surface of the object.
+
+3) For the Condor Airport O files, a 'composite' object can be defined with a list of xxx.c3d files and corresponding distance left/right, up/down, in meters from the centre of the airport and rotation relative to the runway direction. The objects in the list can include up to 3 windsocks and matching poles, and hangars, vehicles amd other. This composite object can be saved as xxxO.co which is then converted to a xxxO.c3d.
+
+4) For the Condor Airport G files, a 'composite' object can be defined with a list of xxx.c3d files and corresponding offsets left/right, up/down, in meters from the centre of the airport and rotation relative to the runway direction. The 4 items that can be included are the 'Asphalt' area, the AshpaltPaint, the Grass area, and the Graspaint. This composite object can be saved as xxxG.co which is then converted to a xxxG.c3d.
+
+Airports in Condor have normally two objects defined for each airport, one object (G file) for the take-off surface, and one object for the windsock (up to 3 per airport) and other objects (O file). If no objects are defined, the take-off surface will be bumpy, and there will not be any windsock.
+
+Condor_tiles can generate the following simple objects:
+1) Flat_Roof - a box with length, width, height
+2) Peak_Roof - a box with length, width, height, and peak size
+3) Dome - a half-cyclinder dome, with length, width, height,
+4) Pole - a straight verical pole to support a windsock
+5) Windsock
+6) Windsock2
+7) Windsock3
+8) Asphalt - a rectangular area of asphalt
+9) Grass - a rectangular area of grass
+
+For example to create a peaked roof hangar for an airport, on the main Control_Tiles page click on the 'Simple Object' button. On the tab 'Simple Object', use the Type pull-down box to select 'Peak Roof'; default dimensions will appear that can be modified to create the hangar the size you want. The peak is the extra height at the centre of the peak.
+
+Each simple object needs a texture file which gets painted onto the object by Condor. A couple of default textures are provided - H_PK_Blue.bmp or H_PK_S_Blue.bmp for example with the option of the hangar doors on the front or 'S' for side.
+
+You can then save this simple object template and give it a name.
+
+You can also create your own texture to paint on the hangar. Pictures of the front, rear, sides and roof are needed. These pictures need to be corrected for perspective and re-sized to fit into a template.
+
+Condor_Tiles can help create 3 simple textures:
+1) Flat roof - 5 pictures are needed, front, back, left side, right side, roof
+2) Peak roof - 8 pictures are needed, front, front peak, back, back peak, left side, left roof, right side, right roof
+3) Dome - 2 pictures are needed, front and roof
+
+For example to create a texture for a peaked roof hangar, on the main Control_Tiles page click on the 'Simple Object' button. Select the tab 'Simple Texture', and use the Type pull-down box to select 'Peak Roof'; a grid is shown, also select the image size (resolution in pixels) you want. You then click into each section and select a picture for that section. For reference, you can open an existing texture such as H_PK_Blue.bmp. The resulting bitmap can then be saved and named.
+
+Multiple simple objects can be combined into a 'Composite object' such as an 'O' object for an airport with a windsock and hangars and othe objects. These objects can be 'Simple Objects' and can also be other objects, such as cars, trailers, arplanes etc...
+
+For example to create an 'O' object for an airport with a windsock and a hangar, on the main Control_Tiles page click on the 'Simple Object' button. Select the tab 'Composte Object'. A grid needs to be filled in with the object name and its UTM distances in meters and its rotation. For an airport object, the distances are relative to the defined centre of the airport.
+Winsock.c3d,   30,  -15, 0
+Pole.c3d,      30,  -15, 0
+Hangar-1.c3d, 300, -120, 45
+
+To determine the size and position of the objects for an airport, Condor-Tiles can be used with the 'Airport Place' button. You then select the desired airport, when the textures have been generated, a map will show, and you can cursor around the map. The cursor values at the bottom left are the distances with reference to the defined centre and direction of the airport.
+
+To create YourLandscape\Airports\MyAirportO.c3d, you first need to open 'simpleObjects' and click on the third tab 'Composite Object' and you will see a spreadsheet. You click ADD and then in the first entry, you enter the name pole-1.c3d and next to it, you enter the location Easting, Northing, the UTM coordinates offset from the center of the airport, If you enter 0 and 0, your pole will be in the middle of the runway. You then click on ADD again and enter windsock-1.c3d and its matching location to the pole. For any extra object you want such as perhaps a gliderTailer, you click ADD, etc...  The Angle is 0 for a windsock or a pole, but for a hangar, the hangar doors need to point in the right direction, so you select the correct angle in degrees.
+
+You can then save it as MyAirportO.co so you can edit it later if you need to. A condor Object MyAirportO.c3d is created. Copy that file into MyLandscape\Airports, and copy associated textures for the objects in MyLandscape\Airports\Textures for example.
+
+To create MyAirportG.c3d, it is similar, except that the first object you ADD is asphalt_1.c3d. You can ADD a grass area next to the runway if you want, and ADD grass_1.c3d for example. The asphalt location will be 0,0 of course with an angle of 0 and the grass on the side would 50,0 so that is is placed 50m to the side of the runway center for example.
+
+You can then save it as MyAirportG.co so you can edit it later if you need to. A Condor Object is created MyAirportG.c3d.  Copy that file into MyLandscape\Airports.
+
+You can then run Condor and see if it's all there as you expect.
+
+If you need to make adjustments, you simply open the appropriate .co file again and make adjustments, or add objects or remove objects.
+

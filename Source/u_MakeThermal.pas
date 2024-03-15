@@ -30,7 +30,7 @@ type
   TForm_MakeThermal = class(TForm)
     GroupBox_MakeThermal: TGroupBox;
     CheckBox_Thermal: TCheckBox;
-    CheckBox_ThermalBitmap: TCheckBox;
+    CheckBox_IntermediateThermalBitmap: TCheckBox;
     Button_Proceed: TButton;
     Button_Cancel: TButton;
     CheckBox_Erase: TCheckBox;
@@ -40,6 +40,7 @@ type
     GroupBox_Options: TGroupBox;
     StringGrid_ThermalHeating: TStringGrid;
     Button_HeatingDefaults: TButton;
+    CheckBox_Export_LE: TCheckBox;
     procedure Button_CancelClick(Sender: TObject);
     procedure Button_ProceedClick(Sender: TObject);
     procedure FormActivate(Sender: TObject);

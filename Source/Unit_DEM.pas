@@ -172,6 +172,7 @@ uses
 
 const
   CondorTileSize = tColumns * Resolution;  // 256*90=23040 metres
+  CondorPatchSize = pColumns * Resolution;  // 64*90= 5760 metres
 
 var
   mBitmap : TBitmap;
@@ -632,12 +633,16 @@ begin
     UTM_Bottom := StrToFloat(Edit_UTMsouth.Text);
     UTM_Left  := StrToFloat(Edit_UTMwest.Text);
     UTM_Right  := StrToFloat(Edit_UTMeast.Text);
-    if (frac((UTM_Right - UTM_Left) / CondorTileSize) <> 0) then begin
-      MessageShow('DEM: UTM EW range not multiple of 23040');
+//    if (frac((UTM_Right - UTM_Left) / CondorTileSize) <> 0) then begin
+//      MessageShow('DEM: UTM EW range not multiple of 23040');
+    if (frac((UTM_Right - UTM_Left) / CondorPatchSize) <> 0) then begin
+      MessageShow('DEM: UTM EW range not multiple of '+IntToStr(CondorPatchSize));
       exit;
     end;
-    if (frac((UTM_Top - UTM_Bottom) / CondorTileSize) <> 0) then begin
-      MessageShow('DEM: UTM NS range not multiple of 23040');
+//    if (frac((UTM_Top - UTM_Bottom) / CondorTileSize) <> 0) then begin
+//      MessageShow('DEM: UTM NS range not multiple of 23040');
+    if (frac((UTM_Top - UTM_Bottom) / CondorPatchSize) <> 0) then begin
+      MessageShow('DEM: UTM NS range not multiple of '+IntToStr(CondorPatchSize));
       exit;
     end;
     // no errors detected
@@ -661,8 +666,10 @@ begin
     UTM_Width  := UTM_Right - UTM_Left;
     // put on standardized Condor quarter-tile (90 m * 64)
     UTM_Offset := 500000;
-    UTM_Left   := Floor( (UTM_Left - UTM_Offset + (90*64/2)) / (90*64) )*(90*64) + UTM_Offset;
-    UTM_Right  := UTM_Left + UTM_Width;
+//    UTM_Left   := Floor( (UTM_Left - UTM_Offset + (90*64/2)) / (90*64) )*(90*64) + UTM_Offset;
+//    UTM_Right  := UTM_Left + UTM_Width;
+    UTM_Right   := Floor( (UTM_Right - UTM_Offset + (90*64/2)) / (90*64) )*(90*64) + UTM_Offset;
+    UTM_Left  := UTM_Right - UTM_Width;
     Edit_UTMwest.Text := FloatToStr(UTM_Left);
     Edit_UTMeast.Text := FloatToStr(UTM_Right);
     UTM_Height := UTM_Top - UTM_Bottom;
@@ -682,17 +689,23 @@ end;
 
 //---------------------------------------------------------------------------
 procedure TForm_DEM.Button_CheckShowClick(Sender: TObject);
-var
-  Columns, Rows : integer;
+//var
+//  Columns, Rows : integer;
 begin
   if (NOT UTM_Validate) then begin
     Beep; ClearGrid(Sender);
   end else begin
     // show number tile columns and rows
-    Columns := round( (UTM_Right - UTM_Left) / CondorTileSize);
-    Rows := round( (UTM_Top - UTM_Bottom) / CondorTileSize);
-    Label_sCols.Caption  := format('Columns: %d',[Columns]);
-    Label_sRows.Caption  := format('Rows: %d',[Rows]);
+//    Columns := round( (UTM_Right - UTM_Left) / CondorTileSize);
+//    Rows := round( (UTM_Top - UTM_Bottom) / CondorTileSize);
+//    Label_sCols.Caption  := format('Columns: %d',[Columns]);
+//    Label_sRows.Caption  := format('Rows: %d',[Rows]);
+    ColumnCount := round( (UTM_Right - UTM_Left) / Resolution);
+    RowCount := round( (UTM_Top - UTM_Bottom) / Resolution);
+//    Columns := Ceil(ColumnCount / tColumns);
+//    Rows := Ceil(RowCount / tRows);
+    Label_sCols.Caption  := format('Columns: %3.2f',[ColumnCount/tColumns]);
+    Label_sRows.Caption  := format('Rows: %3.2f',[RowCount/tRows]);
 
     //save extents
     if (Length(Areas) < 1) then begin
@@ -703,16 +716,18 @@ begin
     Areas[0][2].X := round(UTM_Right); Areas[0][2].Y := round(UTM_Bottom);
 
   // Area 1 is used for the flying extent
-    Areas[1][0].X := round(UTM_Left + 90 * 64);
-    Areas[1][0].Y := round(UTM_Top - 90 * 64);
-    Areas[1][2].X := round(UTM_Right - 90 * 64);
-    Areas[1][2].Y := round(UTM_Bottom + 90 * 64);
+    Areas[1][0].X := round(UTM_Left + Resolution * pColumns);
+    Areas[1][0].Y := round(UTM_Top - Resolution * pRows);
+    Areas[1][2].X := round(UTM_Right - Resolution * pColumns);
+    Areas[1][2].Y := round(UTM_Bottom + Resolution * pRows);
     Areas[1][1].X := Areas[1][2].X; Areas[1][1].Y := Areas[1][0].Y;
     Areas[1][3].X := Areas[1][0].X; Areas[1][3].Y := Areas[1][2].Y;
 
     // show distances
-    Label_Xkm.Caption  := format('%0.2f Km',[Columns*CondorTileSize/1000]);
-    Label_Ykm.Caption  := format('%0.2f Km',[Rows*CondorTileSize/1000]);
+//    Label_Xkm.Caption  := format('%0.2f Km',[Columns*CondorTileSize/1000]);
+//    Label_Ykm.Caption  := format('%0.2f Km',[Rows*CondorTileSize/1000]);
+    Label_Xkm.Caption  := format('%0.2f Km',[ColumnCount*Resolution/1000]);
+    Label_Ykm.Caption  := format('%0.2f Km',[RowCount*Resolution/1000]);
 
     // centre of elevation points !
     UTMtoLatLong(UTM_Top, UTM_Left, UTM_Zone, UTM_ZoneNS);
@@ -729,7 +744,8 @@ begin
     Label_BR_Long.Caption := format('%0.5f',[uLongitude]);
 
     // show the tile grid, flyable area and desired area
-    ShowGrid(mBitmap, Columns, Rows);
+//    ShowGrid(mBitmap, Columns, Rows);
+    ShowGrid(mBitmap, ColumnCount/tColumns, RowCount/tRows);
 
     // save in temporary file
     SaveTempFile;
@@ -755,12 +771,17 @@ begin
   if (NOT UTM_Validate) then begin
     Beep;                                 // use scenery vars, i.e.
   end else begin                          // why make copies ? go direct ?
-    TileRowCount := round( (UTM_Top - UTM_Bottom) / 256 / 90);
-    TileColumnCount := round( (UTM_Right - UTM_Left) / 256 / 90);
+//    TileRowCount := round( (UTM_Top - UTM_Bottom) / 256 / 90);
+//    TileColumnCount := round( (UTM_Right - UTM_Left) / 256 / 90);
+    ColumnCount := round( (UTM_Right - UTM_Left) / Resolution);
+    RowCount := round( (UTM_Top - UTM_Bottom) / Resolution);
+    TileColumnCount := Ceil(ColumnCount / tColumns);
+    TileRowCount := Ceil(RowCount / tRows);
     HeaderOpen := true;
 
     u_TileList.ProgressBar_Status := ProgressBar_Status;
 
+    // with TileColumnCount, TileRowCount
     MakeTileList(UTM_Right, UTM_Bottom);
 
     // ADD Desired area ??? TBD
