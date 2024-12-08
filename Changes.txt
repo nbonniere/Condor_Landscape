@@ -345,6 +345,9 @@ v0.9.3 - Mar 2024
   - AirportPlace - set direction, length, width by mouse-click
   - Export to LE for thermal map and forest map
 
+v0.9.3a - Jun 2024
+  - remove symboli link creation dur to Windows issues.
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

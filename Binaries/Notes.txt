@@ -4,3 +4,7 @@ Condor_V1 folder only needed to convert Condor V1 landscape to Condor V2.
 Condor Viewer folder only needed to open object files in 3D. Support is very limited.
 
 Condor Simple Objects folder is only needed to create simple objects and textures.
+
+Condor Batch folder is optional with custom replacement batch files
+
+Condor Help_Files folder provides context help
