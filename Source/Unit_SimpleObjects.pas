@@ -143,6 +143,9 @@ var
   stFilename : string;
   coFilename : string;
 
+procedure MakeGrid(SizeMax, X, Y : single); forward;
+procedure WritePXfile(oType, pxFileName : string); forward;
+
 // duplicate of function in Main.pas
 //---------------------------------------------------------------------------
 Procedure ComboBoxMatchString(CB : TComboBox; SearchText : string);
@@ -310,27 +313,30 @@ type
   end;
 
   oObject_t = record
-    oFile     : array[0..11-1] of string;
-    oButtons  : array[0..11-1] of byte; // byte -> 8 bit mask
-    oDefaults : array[0..11-1] of oDefaults_t;
+    oFile     : array[0..13-1] of string;
+    oButtons  : array[0..13-1] of byte; // byte -> 8 bit mask
+    oDefaults : array[0..13-1] of oDefaults_t;
   end;
 const
     oObject : oObject_t =
-      (oFile : ('Building_FlatRoof.px', 'Building_PeakRoof.px','Building_Domed.px',
-                'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px', 'asphalt.px', 'grass.px', 'asphaltpaint.px', 'grasspaint.px');
-       oButtons  : ($37, $3F, $37, $35, $06, $06, $06, $33, $33, $33, $33);
+      (oFile : ('Building_FlatRoof.px', 'Building_PeakRoof.px','Building_Domed.px','Silo.px',
+                'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px',
+                'asphalt.px', 'grass.px', 'asphaltpaint.px', 'grasspaint.px', 'grass3d.px');
+       oButtons  : ($37, $3F, $37, $35, $35, $06, $06, $06, $33, $33, $33, $33, $33);
        oDefaults : (
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'H_PK_S_Red.bmp';  od_Path : ('Textures/') ),
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'H_PK_Blue.bmp';   od_Path : ('Textures/') ),
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'H_Dome_Blue.bmp'; od_Path : ('Textures/') ),
+        ( od_Width : ' 5.0'; od_Length : '  0.0'; od_Height : '12.0'; od_Peak : '0.0'; od_File : 'Cyl.bmp';         od_Path : ('Textures/') ),
         ( od_Width : ' 0.1'; od_Length : '  0.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : 'Mast.dds';        od_Path : ('Textures/') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
-        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('128_muck.dds'); od_Path : ('Textures/') ),
         ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
-        ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') )
+        ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('green_128_muck.dds'); od_Path : ('Textures/') )
        )
       );
 var
@@ -438,6 +444,11 @@ var
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Procedure Save_S_C3D(FileName : string);
   begin
+    // read the parameters
+    W := strtofloat(Edit_Width.text); // need validation to avoid exception !
+    L := strtofloat(Edit_Length.text);
+    H := strtofloat(Edit_Height.text);
+    P := strtofloat(Edit_Peak.text);
     // select the simple object
     with ComboBox_Type do begin
       ComboBoxMatchString(ComboBox_Type, ComboBox_Type.Text);
@@ -445,18 +456,21 @@ var
         // MessageShow('Invalid Object type');
         exit;
       end;
-      // read the simple object file
       oFileName := ApplicationPath+'\SimpleObjects\'+oObject.oFile[ComboBox_Type.ItemIndex];
+      // check for special case(s)
+      // if grass3d, then create it on-the-fly
+      case ComboBox_Type.ItemIndex of
+        12: begin // grass3D
+          MakeGrid(30,W,L);
+          WritePXfile('Grass3D',oFileName);
+        end;
+      end;
+      // read the simple object file
       if (NOT FileExists(oFileName)) then begin
         // MessageShow('Object not available');
         Beep; Exit;
       end;
       ReadCondorXfile(oFileName, false);
-      // read the parameters
-      W := strtofloat(Edit_Width.text); // need validation to avoid exception !
-      L := strtofloat(Edit_Length.text);
-      H := strtofloat(Edit_Height.text);
-      P := strtofloat(Edit_Peak.text);
   // modify the Object
       // find the FTM and set the parameters
       Reset_FTM_Unity;
@@ -492,14 +506,22 @@ var
           UpdateFTM('FTM_0',FTM);
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
-        3: begin // pole
+        3: begin // silo
+          FTM[ 0] := W;
+          FTM[ 5] := W;
+          FTM[10] := H;
+          //FTM[11] := 0.0;
+          UpdateFTM('FTM_0',FTM);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        4: begin // pole
           FTM[ 0] := W;
           FTM[ 5] := W;
           FTM[10] := H;
           //FTM[11] := 0.0;
           UpdateFTM('FTM_0',FTM);
         end;
-        4: begin // windsock
+        5: begin // windsock
           // calc triangle corners, and set height
           // windsock length is 100x the radius of the equilateral triangle
           // default triangle is 1m, i.e. radius=0.01
@@ -509,7 +531,7 @@ var
           FTM[11] := H;
           UpdateFTM('FTM_0',FTM);
         end;
-        5: begin // windsock2
+        6: begin // windsock2
           // calc triangle corners, and set height
           // windsock length is 100x the radius of the equilateral triangle
           // default triangle is 1m, i.e. radius=0.01
@@ -519,7 +541,7 @@ var
           FTM[11] := H;
           UpdateFTM('FTM_0',FTM);
         end;
-        6: begin // windsock3
+        7: begin // windsock3
           // calc triangle corners, and set height
           // windsock length is 100x the radius of the equilateral triangle
           // default triangle is 1m, i.e. radius=0.01
@@ -529,7 +551,7 @@ var
           FTM[11] := H;
           UpdateFTM('FTM_0',FTM);
         end;
-        7: begin // asphalt
+        8: begin // asphalt
           FTM[ 0] := W;
           FTM[ 5] := L;
           //FTM[10] := 0.0;
@@ -541,7 +563,7 @@ var
           UpdateTC('tc_Asphalt', TC);
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
-        8: begin // grass
+        9: begin // grass
           FTM[ 0] := W;
           FTM[ 5] := L;
           //FTM[10] := 0.0;
@@ -553,7 +575,7 @@ var
           UpdateTC('tc_Grass', TC);
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
-        9: begin // asphaltpaint
+        10: begin // asphaltpaint
           FTM[ 0] := W;
           FTM[ 5] := L;
           //FTM[10] := 0.0;
@@ -565,7 +587,7 @@ var
           UpdateTC('tc_AsphaltPaint', TC);
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
-      10: begin // grasspaint
+        11: begin // grasspaint
           FTM[ 0] := W;
           FTM[ 5] := L;
           //FTM[10] := 0.0;
@@ -575,6 +597,18 @@ var
           TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
           TC[1] := TC[0];
           UpdateTC('tc_GrassPaint', TC);
+          UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
+        end;
+        12: begin // grass3d
+          //FTM[ 0] := 1.0;
+          //FTM[ 5] := 1.0;
+          //FTM[10] := 0.0;
+          //FTM[11] := 0.0;
+          //UpdateFTM('FTM_0',FTM);
+          // adjust texture coord ratio !
+          //TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
+          //TC[1] := TC[0];
+          //UpdateTC('tc_Grass3D', TC);
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
         else begin
@@ -1273,5 +1307,175 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+type
+//  Vector = array[0..3-1] of single;
+  Vector = array[0..2-1] of single;
+  Coords = array[0..2-1] of single;
+  Triangle = array[0..3-1] of integer;
+
+var
+  Vectors  : array of Vector;
+  tCoords  : array of Coords;
+  Surfaces : array of triangle;
+  Nx, Ny : integer;
+
+//---------------------------------------------------------------------------
+function MakeIndex (i,j : integer) : integer;
+begin
+  result := j*(nX+1)+i;
+end;
+
+//---------------------------------------------------------------------------
+procedure MakeGrid(SizeMax, X, Y : single);
+var
+  i, j, k : integer;
+  dX, dY : single;
+  index : integer;
+  xyRange : single;
+
+begin
+  // calculate number of dX and dY steps
+  Nx := trunc((X+SizeMax)/SizeMax);
+  Ny := trunc((Y+SizeMax)/SizeMax);
+  // calculate dX, dY
+  dX := X / Nx;
+  dY := Y / Ny;
+  // calculate xyRange
+  if (X > Y) then begin
+    xyRange := X;
+  end else begin
+    xyRange := Y;
+  end;
+  // make Vectors
+  setLength(Vectors,(Nx+1)*(Ny+1));
+  setLength(tCoords,(Nx+1)*(Ny+1));
+  for j := 0 to Ny do begin
+    for i := 0 to Nx do begin
+      index := MakeIndex(i,j);
+     Vectors[index][0] := i*dX - X/2;
+     Vectors[index][1] := j*dY - Y/2;
+//     Vectors[index][2] := 0.0;
+     // reverse x,y for clockwise vector sequence
+     tCoords[index][0] := j*dY/xyRange;
+     tCoords[index][1] := i*dX/xyRange;
+    end;
+  end;
+  // make Surfaces (counter-clockwise vector sequence)
+  setLength(Surfaces,(Nx)*(Ny)*2);
+  k := 0;
+  for j := 1 to Ny do begin
+    for i := 1 to Nx do begin
+     Surfaces[k][0] := MakeIndex(i-1,j);
+     Surfaces[k][1] := MakeIndex(i,j-1);
+     Surfaces[k][2] := MakeIndex(i-1,j-1);
+     inc(k);
+     Surfaces[k][0] := MakeIndex(i,j-1);
+     Surfaces[k][1] := MakeIndex(i-1,j);
+     Surfaces[k][2] := MakeIndex(i,j);
+     inc(k);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure WritePXfile(oType, pxFileName : string);
+var
+  i : integer;
+  vectorCount, surfaceCount : integer;
+  pxFile : TextFile;
+
+begin
+  vectorCount := (Nx+1)*(Ny+1);
+  surfaceCount := (Nx)*(Ny)*2;
+
+  assignFile(pxFile,pxFileName);
+  rewrite(pxFile);
+  writeln(pxFile,'xof 0303txt 0032');
+  writeln(pxFile,'Frame f_'+oType+' {');
+  writeln(pxFile,'  FrameTransformMatrix FTM_0 {');
+  writeln(pxFile,'   1.0, 0.0, 0.0, 0.0,');
+  writeln(pxFile,'   0.0, 1.0, 0.0, 0.0,');
+  writeln(pxFile,'   0.0, 0.0, 1.0, 0.0,');
+  writeln(pxFile,'   0.0, 0.0, 0.0, 1.0;;');
+  writeln(pxFile,'  }');
+  writeln(pxFile,'Mesh '+oType+' {');
+  writeln(pxFile,format('%d;',[vectorCount]));
+  // write Vectors
+  for i := 0 to vectorCount-1 do begin
+    write(pxFile,format('%0.6f; %0.6f; %0.6f;',[Vectors[i][0],Vectors[i][1],0.0]));
+    if (i = vectorCount-1) then begin
+      writeln(pxFile,';');
+    end else begin
+      writeln(pxFile,',');
+    end;
+  end;
+  writeln(pxFile,format('%d;',[surfaceCount]));
+  // write Surfaces
+  for i := 0 to surfaceCount-1 do begin
+    write(pxFile,format('3; %d, %d, %d;',[Surfaces[i][0],Surfaces[i][1],Surfaces[i][2]]));
+    if (i = surfaceCount-1) then begin
+      writeln(pxFile,';');
+    end else begin
+      writeln(pxFile,',');
+    end;
+  end;
+  writeln(pxFile,'MeshNormals mn_'+oType+' {');
+  writeln(pxFile,format('%d;',[vectorCount]));
+  // write Normals
+  for i := 0 to vectorCount-1 do begin
+    write(pxFile,' 0.0; 0.0; 1.0;');
+    if (i = vectorCount-1) then begin
+      writeln(pxFile,';');
+    end else begin
+      writeln(pxFile,',');
+    end;
+  end;
+  writeln(pxFile,format('%d;',[surfaceCount]));
+  // write Surfaces
+  for i := 0 to surfaceCount-1 do begin
+    write(pxFile,format('3; %d, %d, %d;',[Surfaces[i][0],Surfaces[i][1],Surfaces[i][2]]));
+    if (i = surfaceCount-1) then begin
+      writeln(pxFile,';');
+    end else begin
+      writeln(pxFile,',');
+    end;
+  end;
+  writeln(pxFile,'}');
+  writeln(pxFile,'MeshTextureCoords tc_'+oType+' {');
+  writeln(pxFile,format('%d;',[vectorCount]));
+  // write Texture Coordinates
+  for i := 0 to vectorCount-1 do begin
+    write(pxFile,format('%0.6f; %0.6f;',[tCoords[i][0],tCoords[i][1]]));
+    if (i = vectorCount-1) then begin
+      writeln(pxFile,';');
+    end else begin
+      writeln(pxFile,',');
+    end;
+  end;
+  writeln(pxFile,'}');
+  // write Materials
+  writeln(pxFile,'MeshMaterialList  {');
+  writeln(pxFile,'          1;');
+  writeln(pxFile,'          1;');
+  writeln(pxFile,'          0;');
+  writeln(pxFile,'Material  {');
+  writeln(pxFile,'  1.0;  1.0;  1.0;  1.0;;');
+  writeln(pxFile,'  1.0;');
+  writeln(pxFile,'  0.0;  0.0;  0.0;;');
+  writeln(pxFile,'  1.0;  1.0;  1.0;;');
+  writeln(pxFile,'TextureFilename TF_0 {');
+  writeln(pxFile,'"";');
+  writeln(pxFile,'}');
+  writeln(pxFile,'}');
+  writeln(pxFile,'}');
+  writeln(pxFile,'}');
+  writeln(pxFile,'}');
+  CloseFile(pxFile);
+end;
+
+//---------------------------------------------------------------------------
+begin
+//  MakeGrid(113,789,30);
+//  WritePXfile('Asphalt','TESTFILE.PX');
 end.
 

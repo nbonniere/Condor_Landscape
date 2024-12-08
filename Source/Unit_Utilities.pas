@@ -34,6 +34,7 @@ type
     Label2: TLabel;
     Button_BMP_TDM: TButton;
     Button_TDM_BMP: TButton;
+    Button_TM3_BMP: TButton;
     Label4: TLabel;
     Button_ReadTerrain: TButton;
     Button_TRN_BMP: TButton;
@@ -95,9 +96,21 @@ type
     Button_DDS_BMP: TButton;
     CheckBox_DDS_Color: TCheckBox;
     CheckBox_DDS_Transparent: TCheckBox;
+    Label29: TLabel;
+    Label30: TLabel;
+    Button_Convert_V2_V3: TButton;
+    Label31: TLabel;
+    Button_Hash_Execute: TButton;
+    Edit_BMP_Alpha: TEdit;
+    CheckBox_AutoAlpha: TCheckBox;
+    CheckBox_Water: TCheckBox;
+    Label32: TLabel;
+    Button_To_XXYY: TButton;
+    Button_To_XXXYYY: TButton;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
+    procedure Button_TM3_BMPClick(Sender: TObject);
     procedure Button_ReadTerrainClick(Sender: TObject);
     procedure Button_TRN_BMPClick(Sender: TObject);
     procedure Button_ReadPolarClick(Sender: TObject);
@@ -125,6 +138,10 @@ type
     procedure Button_DDS_BMPClick(Sender: TObject);
     procedure V2_FOR_BMP(Sender: TObject);
     procedure Button_BMP_FORClick(Sender: TObject);
+    procedure Button_Convert_V2_V3Click(Sender: TObject);
+    procedure Button_Hash_ExecuteClick(Sender: TObject);
+    procedure Button_To_XXXYYYClick(Sender: TObject);
+    procedure Button_To_XXYYClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -141,20 +158,25 @@ var
 // where the folder is for the selected file. So use the Application path
 // instead of getcurrent dir, or a '.\' prefix
   ApplicationPath : string;
-  Initial_Folder : string;   // external path for file
-  Working_Folder : string;   // external path for file
-  Condor_Folder : string;    // external path for file
-  Compressor_Folder : string;    // external path for file
-  Library_Folder : string;   // external path for file
-  WgetFolder : string;   // external path for Wget
-  LandscapeName : string;    // external path for file
+  Initial_Folder : string;    // external path for file
+  Working_Folder : string;    // external path for file
+  Condor_Folder : string;     // external path for file
+  Compressor_Folder : string; // external path for file
+  Library_Folder : string;    // external path for file
+  WgetFolder : string;        // external path for Wget
+  LEfolder : string;          // external path for Landscape Editor
+  LandscapeName : string;     // external path for file
+  File_Name : string;         // external name for file
   ZoomLevel : string;
   TileName : string;
   OutputTileSize : string;
-  File_Name : string;   // external name for file
   DXT_Type : string;
   ObjectPlacement_Count : Longint;
   opVersion : string;
+
+  procedure MakeDummyFile(FilePath,Filename:string);
+  procedure Make_Hashes(LandscapeName, BatchFileName : string);
+  Function Execute_BatchFile(FilePath, FileName, Params : String) : DWORD;
 
 //===========================================================================
 IMPLEMENTATION
@@ -163,15 +185,18 @@ IMPLEMENTATION
 
 uses
   FileCtrl, IniFiles,
-  Unit_AirportPlacer,
+  Unit_objects, Unit_AirportPlacer, ShellAPI, u_Exec,
   u_BMP, u_Thermal, u_Forest, u_Terrain, u_Polar, u_Convolve, u_MakeGDAL,
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
   u_GMIDlog, u_DXT, DXTC, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
-  u_QuarterTile, u_Condor_NaviconDLL;
+  u_QuarterTile, u_Condor_NaviconDLL, u_Airspace, u_AutoGen;
 
 const
   faNormalFile = 0; // for use with FindFirst FindNext
   // instead of faAnyFile which includes directories and hidden, etc...
+
+var
+  DataChanged : boolean;
 
 {----------------------------------------------------------------------------}
 Procedure MessageShow(Info : string);
@@ -189,13 +214,33 @@ begin
   end;
 end;
 
+//---------------------------------------------------------------------------
+procedure MakeDummyFile(FilePath,Filename:string);
+var
+  Dummy_File : TextFile;
+begin
+  AssignFile(Dummy_File,FilePath+Filename);
+  Rewrite(Dummy_File);
+  // empty file
+  CloseFile(Dummy_File);
+end;
+
+// 24 to 32 bit BMP with Alpha
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.Button_BMP_ConvrtClick(Sender: TObject);
 var
   Filename : String;
   i : integer;
+  Alpha : single;
 
 begin
+  // select Alpha
+  Alpha := strToFloat(Edit_BMP_Alpha.Text);
+  if ((Alpha > 1.0) or (Alpha <0.0)) then begin
+    MessageShow('Error: must be >0.0 and <=1.0');
+    beep; exit;
+  end;
+  // select files
   OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
   OpenDialog1.InitialDir := Initial_Folder;
   OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
@@ -210,7 +255,9 @@ begin
           // convert
           u_BMP.Memo_Message := Memo_Message;
           u_BMP.ProgressBar_Status := ProgressBar_Status;
-          Bitmap_24_To_Bitmap_32(FileName,FileName+'-32.bmp');
+//          Bitmap_24_To_Bitmap_32(FileName,FileName+'-32.bmp');
+          Bitmap_24_To_Bitmap_32(FileName,FileName+'-32.bmp',
+            CheckBox_AutoAlpha.checked,Alpha);
         end;
       end;
     finally
@@ -265,6 +312,32 @@ begin
       u_Thermal.Memo_Message := Memo_Message;
       u_Thermal.ProgressBar_Status := ProgressBar_Status;
       TDM_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
+  end;
+end;
+
+// read Hi-Res thermal map (.TM3) file and save as bitmap
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_TM3_BMPClick(Sender: TObject);
+var
+  Filename : String;
+
+begin
+  OpenDialog1.Options := [ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder;
+  OpenDialog1.Filter := 'TM3 files (*.TM3)|*.TM3|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      FileName := OpenDialog1.FileName;
+//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
+      // convert
+      u_Thermal.Memo_Message := Memo_Message;
+      u_Thermal.ProgressBar_Status := ProgressBar_Status;
+      TM3_To_Color_Bitmap(FileName,FileName+'-bmp.bmp');
     finally
       Screen.Cursor := crDefault;  // no longer busy
     end;
@@ -552,6 +625,8 @@ begin
   end;
 end;
 
+// change to use matching strings {z}{x}{y} but only works if file name is single
+// parameter such as {y].jpg since file needs to be combined and need bare file name only
 //-------------------------------------------------------------------------------------
 procedure WGET_Generic(Row_B, Col_R, Row_T, Col_L, ZoomLevel : Integer;
   TMStype, SwapXY : Boolean; URL, Name, FilePath : string);
@@ -559,10 +634,12 @@ const
   ExtraDist = 0.1;  // extra 100 metres on each edge
 var
   FileName : string;
-  GDALfile, URLfile : TextFile;
+  GDALfile, URLfile, RENfile : TextFile;
   i, j : integer;
   Xsize,Ysize : real;
   Generic_TN: array [0..2-1,0..2-1] of integer;
+  f_URL : string;
+  f_File : string;
 begin
   // need landscape header and tile extent
   if (HeaderOpen) AND (TileOpen) then begin
@@ -612,34 +689,16 @@ begin
       // convert from tile Z/X/Y to Z/Y/X format
       // mkdir row folders
       // move column files to rows and rename from row names to column names
-
-      //open the file
+      // open the file
       FileName := 'Swap_XY.bat';
       AssignFile(GDALfile, FilePath +'\'+ FileName);
       Rewrite(GDALfile);
-{
-      for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
-        writeln(GDALfile, 'mkdir '+Name+'\T'+IntToStr(i));  // use Temporary folder in case of name conflict
-        for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
-          writeln(GDALfile, 'move /Y '+Name+'\'+IntToStr(j)+'\'+IntToStr(i)+'.jpg '+Name+'\T'+IntToStr(i)+'\'+IntToStr(j)+'.jpg');
-        end;
-      end;
-      // erase empty folders
-      for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
-        writeln(GDALfile, 'rmdir '+Name+'\'+IntToStr(j));
-      end;
-      // now rename temp folders
-      for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
-        writeln(GDALfile, 'rename '+Name+'\T'+IntToStr(i) + ' '+IntToStr(i));
-      end;
-}
       for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
         writeln(GDALfile, 'mkdir '+Name+'\'+IntToStr(i));
         for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
           writeln(GDALfile, 'move /Y '+Name+'\WG\'+IntToStr(j)+'\'+IntToStr(i)+'.jpg '+Name+'\'+IntToStr(i)+'\'+IntToStr(j)+'.jpg');
         end;
       end;
-
       // close the file
       CloseFile(GDALfile);
     end;
@@ -650,28 +709,56 @@ begin
 
     writeln(GDALfile,'echo off');
     writeln(GDALfile,'setlocal');
-//    writeln(GDALfile,'set PATH=%PATH%;c:\programs\wget');
     writeln(GDALfile,'set PATH=%PATH%;'+WgetFolder);
+    writeln(GDALfile,'cd /d %~dp0');
     if (NOT SwapXY) then begin
       for i := Generic_TN[0,0] to Generic_TN[1,0] do begin
+//        writeln(GDALfile, 'wget -P '+Name+'\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
         writeln(GDALfile, 'wget -P '+Name+'\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
+        writeln(GDALfile, 'call RENs\rens_'+IntToStr(i)+'.bat');
+        AssignFile(RENfile, FilePath +'\RENs\rens_'+IntToStr(i)+'.bat');
+        Rewrite(RENfile);
+        writeln(RENfile,'setlocal');
+        writeln(RENfile,'cd /d %~dp0');
         AssignFile(URLfile, FilePath +'\URLs\urls_'+IntToStr(i)+'.txt');
         Rewrite(URLfile);
         for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
-          writeln(URLfile, URL+'/'+IntToStr(zoom)+'/'+IntToStr(i)+'/'+IntToStr(j)+'.jpg');
+//          writeln(URLfile, URL+'/'+IntToStr(zoom)+'/'+IntToStr(i)+'/'+IntToStr(j)+'.jpg');
+          f_URL := StringReplace(URL,'{z}',IntToStr(zoom), [rfReplaceAll]);
+          f_URL := StringReplace(f_URL,'{x}',IntToStr(i), [rfReplaceAll]);
+          f_URL := StringReplace(f_URL,'{y}',IntToStr(j), [rfReplaceAll]);
+          writeln(URLfile, f_URL);
+          f_File := StringReplace(f_URL,'/','\', [rfReplaceAll]);
+          f_File := ExtractFileName(f_File);
+          writeln(RENfile, 'rename ..\Overall\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
         end;
+        writeln(RENfile,'endlocal');
+        CloseFile(RENfile);
         CloseFile(URLfile);
       end;
     end else begin
       writeln(GDALfile, 'mkdir '+Name+'\WG');  // use Download folder in case of name conflict
       for i := Generic_TN[0,1] to Generic_TN[1,1] do begin
-//        writeln(GDALfile, 'wget -P '+Name+'\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
         writeln(GDALfile, 'wget -P '+Name+'\WG\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
+        writeln(GDALfile, 'call RENs\rens_'+IntToStr(i)+'.bat');
+        AssignFile(RENfile, FilePath +'\RENs\rens_'+IntToStr(i)+'.bat');
+        Rewrite(RENfile);
+        writeln(RENfile,'setlocal');
+        writeln(RENfile,'cd /d %~dp0');
         AssignFile(URLfile, FilePath +'\URLs\urls_'+IntToStr(i)+'.txt');
         Rewrite(URLfile);
         for j := Generic_TN[0,0] to Generic_TN[1,0] do begin
-          writeln(URLfile, URL+'/'+IntToStr(zoom)+'/'+IntToStr(i)+'/'+IntToStr(j)+'.jpg');
+//          writeln(URLfile, URL+'/'+IntToStr(zoom)+'/'+IntToStr(i)+'/'+IntToStr(j)+'.jpg');
+          f_URL := StringReplace(URL,'{z}',IntToStr(zoom), [rfReplaceAll]);
+          f_URL := StringReplace(f_URL,'{x}',IntToStr(i), [rfReplaceAll]);
+          f_URL := StringReplace(f_URL,'{y}',IntToStr(j), [rfReplaceAll]);
+          writeln(URLfile, f_URL);
+          f_File := StringReplace(f_URL,'/','\', [rfReplaceAll]);
+          f_File := ExtractFileName(f_File);
+          writeln(RENfile, 'rename ..\Overall\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
         end;
+        writeln(RENfile,'endlocal');
+        CloseFile(RENfile);
         CloseFile(URLfile);
       end;
     end;
@@ -1349,7 +1436,13 @@ begin
   end else begin
     // get desired tile
     TileName := Edit_QuarterTile.Text;
-    if (length(TileName) <> 4) then begin
+    if (NOT GetTileIndex(TileName,qColumn, qRow)) then begin
+      Memo_Message.Lines.Add('Select a tile name first');
+      Beep;
+      Exit;
+    end;
+
+{    if (length(TileName) <> 4) then begin
        Memo_Message.Lines.Add('Select a tile name first');
        Beep;
        Exit;
@@ -1358,7 +1451,7 @@ begin
       Val(copy(TileName,3,2),qRow,ErrorCode);
       // if errorcode or not in range -> error
     end;
-
+}
     // find main tile and offset
     column        := qColumn div 4;
     offset_Column := qColumn mod 4;
@@ -1576,7 +1669,7 @@ begin
   if (HeaderOpen) AND (TileOpen) then begin
     Object_FolderName := Initial_Folder;
     Object_FileName := LandscapeName+'.obj';
-    if (FileExists(Object_FolderName+Object_FileName)) then begin
+    if (FileExists(Object_FolderName+'\'+Object_FileName)) then begin
       // use Condor NAVICON DLL for conversion
 //      u_Condor_NaviconDLL.CondorFolder := Condor_Folder;
 //      if (NOT Condor_Navicon_Open (Condor_Folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.trn') ) then begin
@@ -1676,6 +1769,7 @@ procedure TForm_Utilities.Button_AddAlphaClick(Sender: TObject);
 var
   FullFilename : String;
   File_Folder : String;
+  Alpha_File_Name : String;
   File_Name : String;
   File_Name_NoExt : String;
   i : integer;
@@ -1694,12 +1788,19 @@ begin
         File_Name := ExtractFileName(FullFileName);
         File_Name_NoExt := copy(File_Name,1,pos('.bmp',File_Name)-1);
 
+        if (CheckBox_Water.checked) then begin
+          Alpha_File_Name := File_Folder+'\..\WaterMaps\'+File_Name;
+        end else begin
+          Alpha_File_Name := File_Folder+'\'+File_Name_NoExt+'_Alpha.bmp';
+        end;
+
 // compressonator uses pre-multiplied alpha with TIF - problem for water-tiles
 // nvDXT uses pre-multiplied alpha with TIF - problem for water-tiles
         u_TIFF.Memo_Message := Memo_Message;
         u_TIFF.ProgressBar_Status := ProgressBar_Status;
         BMP_24_To_TIF_32_WithAlpha(FullFileName,
-                                File_Folder+'\..\WaterMaps\'+File_Name,
+//                                File_Folder+'\..\WaterMaps\'+File_Name,
+                                Alpha_File_Name,
                                 File_Folder+'\'+File_Name_NoExt+'.tif'
                                );
 
@@ -1713,7 +1814,8 @@ begin
 //                                     File_Folder+'\..\WaterMaps\'+File_Name,
 //                                     File_Folder+'\'+File_Name_NoExt+'-32.bmp'
         Bitmap_24_To_Bitmap_32_Alpha(File_Folder+'\Saved\'+File_Name,
-                                     File_Folder+'\..\WaterMaps\'+File_Name,
+//                                     File_Folder+'\..\WaterMaps\'+File_Name,
+                                     Alpha_File_Name,
                                      FullFileName
                                     );
 
@@ -1817,14 +1919,13 @@ procedure TForm_Utilities.Button_WGETClick(Sender: TObject);
 //  Tile_Type = 'XYZ'; // TMS or XYZ
 //  xyz_Order = 'ZYX'; // ZXY, ZYX, xxx_yyy_zz
 var
-  URL : string; // 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile'
+//  URL : string; // 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile'
+  URL : string; // 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}.jpg'
   Tile_Type : string;  // TMS or XYZ
   xyz_Order : string;  // ZXY, ZYX, xxx_yyy_zz
-//  TileName : String;
   TilePath : String;
   TileIndex : integer;
-//  TileRow, TileColumn : integer;
-  i,j : integer;
+  i, j : integer;
   TMS, SwapXY : boolean;
   ErrorCode : integer;
 
@@ -1899,25 +2000,25 @@ begin
 
   // epsg 4326 or 3857 ?
 
-  // confirm the zoom level
-  if MessageDlg('Proceed with zoom level "' + ZoomLevel + '" ?', mtConfirmation,
-    [mbYes, mbNo], 0) = mrNo then begin
-    Exit;
-  end;
+  // confirm one or all ???
 
   if (TileName = '') then begin // default blank -> all
+    // confirm make ALL tiles
+    if MessageDlg('Proceed with ALL tiles ?', mtConfirmation,
+      [mbYes, mbNo], 0) = mrNo then begin
+      Exit;
+    end;
+    // confirm the zoom level
+    if MessageDlg('Proceed with zoom level "' + ZoomLevel + '" ?', mtConfirmation,
+      [mbYes, mbNo], 0) = mrNo then begin
+      Exit;
+    end;
+
     ProgressBar_Status.Max := TileColumnCount*TileRowCount;
     for j := 0 to TileColumnCount-1 do begin
       for i := 0 to TileRowCount-1 do begin
         DoOneTile;
-{        TileIndex := i*(TileColumnCount+1)+j;
-        TileName := TileList[TileIndex].TileName;
-        TilePath := Working_Folder+'\SourceTiles\'+TileName;
-        WGET_Generic(i, j, i+1, j+1, strtoint(ZoomLevel), TMS, SwapXY, URL,
-          TileName, TilePath);
-        MakeBatchCombineFile(TilePath, TileName, '.umd');
-        MakeBatchDo_All(TilePath, TileName);
-}        ProgressBar_Status.StepIt;
+        ProgressBar_Status.StepIt;
         Application.ProcessMessages;
       end;
     end;
@@ -1928,11 +2029,15 @@ begin
     MakeWGET_All_BatchFile;
   end else begin
     if (TileName = 'Overall') then begin // only overall tile
+      // confirm make ALL tiles
+      if MessageDlg('Proceed with "Overall" tile ?', mtConfirmation,
+        [mbYes, mbNo], 0) = mrNo then begin
+        Exit;
+      end;
       TilePath := Working_Folder+'\SourceTiles\'+TileName;
       ForceDirectories(TilePath+'\'+TileName);
       WGET_Generic(0, 0, TileRowCount, TileColumnCount, 10, TMS, SwapXY, URL,
         TileName, TilePath);
-//      MakeBatchCombineFile(TilePath, TileName, '.umd');
       Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd',
                                  TilePath, 'Batch_Combine_'+TileName+'.bat',
                                  '0',
@@ -1940,22 +2045,21 @@ begin
                                 );
       MakeBatchDo_All(TilePath, TileName, false);
     end else begin // individual tile only
-      if (length(TileName) <> 4) then begin
+      if (NOT GetTileIndex(TileName,j, i)) then begin
         MessageShow('Select a tile name first');
         Beep;
       end else begin
-        Val(copy(TileName,1,2),j,ErrorCode);
-        Val(copy(TileName,3,2),i,ErrorCode);
-//        if errorcode or not in range -> error
+        // confirm make only one tile
+        if MessageDlg('Proceed with tile "' + TileName + '" ?', mtConfirmation,
+          [mbYes, mbNo], 0) = mrNo then begin
+          Exit;
+        end;
+        // confirm the zoom level
+        if MessageDlg('Proceed with zoom level "' + ZoomLevel + '" ?', mtConfirmation,
+          [mbYes, mbNo], 0) = mrNo then begin
+          Exit;
+        end;
         DoOneTile;
-{        TileIndex := i*(TileColumnCount+1)+j;
-        TileName := TileList[TileIndex].TileName;
-        TilePath := Working_Folder+'\SourceTiles\'+TileName;
-        WGET_Generic(i, j, i+1, j+1, strtoint(ZoomLevel), TMS, SwapXY, URL,
-          TileName, TilePath);
-        MakeBatchCombineFile(TilePath, TileName, '.umd');
-        MakeBatchDo_All(TilePath, TileName);
-}
       end;
     end;
   end;
@@ -2006,7 +2110,8 @@ begin
         for i := 0 to (RowCount div 64)-1 do begin
           for j := 0 to (ColumnCount div 64)-1 do begin
             u_DXT.dxt_Path := Working_Folder+'\..\Textures';
-            u_DXT.dxt_FileName := format('t%2.2d%2.2d.dds',[j,i]);
+//            u_DXT.dxt_FileName := format('t%2.2d%2.2d.dds',[j,i]);
+            u_DXT.dxt_FileName := format('t%s.dds',[MakeTileName(j,i, TileNameMode)]);
             DXT_Reduce;
             MessageShow(u_DXT.dxt_FileName);
             ProgressBar_Status.StepIt;
@@ -2035,7 +2140,8 @@ begin
                    (j = 0) OR
                    (i = (ColumnCount div 64)-1) ) then begin
                 u_DXT.dxt_Path := Working_Folder+'\..\Textures';
-                u_DXT.dxt_FileName := format('t%2.2d%2.2d.dds',[j,i]);
+//                u_DXT.dxt_FileName := format('t%2.2d%2.2d.dds',[j,i]);
+                u_DXT.dxt_FileName := format('t%s.dds',[MakeTileName(j,i, TileNameMode)]);
                 DXT_Reduce;
                 MessageShow(u_DXT.dxt_FileName);
               end;
@@ -2079,7 +2185,8 @@ begin
     ProgressBar_Status.Max := st_ColumnCount*st_RowCount;
     for st_X := 0 to st_ColumnCount-1 do begin
       for st_Y := 0 to st_RowCount-1 do begin
-        FileName := FOR_FilePath+'\'+format('%2.2d%2.2d.for',[st_X,st_Y]);
+//        FileName := FOR_FilePath+'\'+format('%2.2d%2.2d.for',[st_X,st_Y]);
+        FileName := FOR_FilePath+'\'+format('%s.for',[MakeTileName(st_X,st_Y, TileNameMode)]);
         AssignFile(FOR_File,FileName);
         Rewrite(FOR_File);
         begin
@@ -2549,6 +2656,489 @@ begin
 
 end;
 
+{
+  When inserting triangle, keep in array in case same edge used again in
+  adjacent triangle to not duplicate another extra vertex
+    nvInserted : array of array[0..3-1] of longword;
+      (IndexA, IndexB, NewVertex)
+  Because vertex sequence on surfaces is counter-clockwise, other surfaces
+  will use reverse sequence, i.e. IndexB, IndexA to search in table
+  Once used, clear entry, and also clear table at end of surfaces before looping
+}
+
+{----------------------------------------------------------------------------}
+// new variables for use with Grass3D generation based on Grass
+const
+  MaxEdgeSize = 100;
+var
+  NewFrameData   : pFrame;
+  NewMeshData    : pMesh;
+  NewNormalsData : pMeshNormals;
+  NewTcoordsData : pMeshTcoord;
+  NewMaterialListData : pMaterialList;
+  NewMaterialData : pMaterial;
+  NewFileNameData : pFileName;
+
+  numInserted : longint;
+  nvInserted : array of array[0..3-1] of longword;
+
+{----------------------------------------------------------------------------}
+procedure splitTriangle(indexA, indexB, Sfc, Edge : integer);
+var
+  i, j : integer;
+  NewIndex : integer;
+  matchingVertex : boolean;
+
+begin
+  // first check array for matching vertex
+  matchingVertex := false;
+  numInserted := length(nvInserted);
+  if (numInserted > 0) then begin
+    // scan array for matching edge
+    for j := 0 to numInserted-1 do begin
+      if ((indexA = nvInserted[j][1]) AND (indexB = nvInserted[j][0])) then begin
+        matchingVertex := true;
+        NewIndex := nvInserted[j][2];
+        nvInserted[j][0] := 0;
+        nvInserted[j][1] := 0;
+        break;
+      end;
+    end;
+  end;
+
+  with NewMeshData^ do begin
+    if (Not MatchingVertex) then begin
+      // add a vertex
+      Inc(tArray.aCount);
+      // insert a vertex at mid-point
+      NewIndex := tArray.aCount-1;
+      setlength(tArray.aArray,tArray.aCount,3);
+      // calculate mid point vertex
+      for i := 0 to 3-1 do begin
+        tArray.aArray[NewIndex][i] := (tArray.aArray[indexA][i] + tArray.aArray[indexB][i]) /2;
+      end;
+
+      // keep track of insertions for later matching
+      numInserted := length(nvInserted);
+      setlength(nvInserted,numInserted+1);
+      nvInserted[numInserted][0] := indexA;
+      nvInserted[numInserted][1] := indexB;
+      nvInserted[numInserted][2] := NewIndex;
+    end;
+
+    // add a surface
+    Inc(sArray.aCount);
+    // insert a vertex at mid-point
+    setlength(sArray.aArray,sArray.aCount);
+    sArray.aArray[sArray.aCount-1].aCount := 3;
+    setlength(sArray.aArray[sArray.aCount-1].aArray,3);
+    // calculate new surface
+    sArray.aArray[sArray.aCount-1].aArray[0] := NewIndex;
+    sArray.aArray[sArray.aCount-1].aArray[1] := sArray.aArray[Sfc].aArray[(Edge+2) mod 3];
+    sArray.aArray[sArray.aCount-1].aArray[2] := sArray.aArray[Sfc].aArray[Edge];
+    // update current surface
+    sArray.aArray[Sfc].aArray[Edge] := NewIndex;
+  end;
+  with NewNormalsData^ do begin
+    if (Not MatchingVertex) then begin
+      // add a vertex normal
+      Inc(tArray.aCount);
+      // insert a vertex at mid-point
+      NewIndex := tArray.aCount-1;
+      setlength(tArray.aArray,tArray.aCount,3);
+      // calculate mid point vertex
+      for i := 0 to 3-1 do begin
+        tArray.aArray[NewIndex][i] := (tArray.aArray[indexA][i] + tArray.aArray[indexB][i]) /2;
+      end;
+    end;
+    // add a surface
+    Inc(sArray.aCount);
+    // insert a vertex at mid-point
+    setlength(sArray.aArray,sArray.aCount);
+    sArray.aArray[sArray.aCount-1].aCount := 3;
+    setlength(sArray.aArray[sArray.aCount-1].aArray,3);
+    // calculate new surface
+    sArray.aArray[sArray.aCount-1].aArray[0] := NewIndex;
+    sArray.aArray[sArray.aCount-1].aArray[1] := sArray.aArray[Sfc].aArray[(Edge+2) mod 3];
+    sArray.aArray[sArray.aCount-1].aArray[2] := sArray.aArray[Sfc].aArray[Edge];
+    // update current surface
+    sArray.aArray[Sfc].aArray[Edge] := NewIndex;
+  end;
+  with NewTcoordsData^ do begin
+    if (Not MatchingVertex) then begin
+      // add a coord
+      Inc(tArray.aCount);
+      // insert a coord at mid-point
+      NewIndex := tArray.aCount-1;
+      setlength(tArray.aArray,tArray.aCount,2);
+      // calculate mid point coord
+      for i := 0 to 2-1 do begin
+        tArray.aArray[NewIndex][i] := (tArray.aArray[indexA][i] + tArray.aArray[indexB][i]) /2;
+      end;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+function CalcLength(indexA, indexB : integer) : single;
+begin
+  with NewMeshData^ do begin
+    result := (tArray.aArray[indexB][0] - tArray.aArray[indexA][0]) *
+              (tArray.aArray[indexB][0] - tArray.aArray[indexA][0]) +
+              (tArray.aArray[indexB][1] - tArray.aArray[indexA][1]) *
+              (tArray.aArray[indexB][1] - tArray.aArray[indexA][1]);
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ScanTriangles;
+var
+  Done : boolean;
+  Sfc, Edge, EdgeMax : integer;
+  lengthSQ, LengthMax : single;
+  IndexA, IndexB, IndexAmax, IndexBmax : integer;
+
+begin
+  Done := false;
+  with NewMeshData^ do begin
+    While (NOT Done) do begin
+      Done := true; // assume for now
+      // clear array
+      setlength(nvInserted,0);
+      // for each surface/triangle
+      for Sfc := 0 to sArray.aCount-1 do begin
+        // for each of 3 triangle edge
+        LengthMax := 0;
+        for Edge := 0 to 3-1 do begin
+          indexA := sArray.aArray[Sfc].aArray[Edge];
+          indexB := sArray.aArray[Sfc].aArray[(Edge+1) mod 3];
+          lengthSQ := CalcLength(indexA,indexB);
+          // find longest edge
+          if (lengthSQ > LengthMax) then begin
+            LengthMax := lengthSQ;
+            IndexAmax := indexA;
+            IndexBmax := indexB;
+            EdgeMax := Edge;
+          end;
+        end; // edge
+        // now check if longest edge too big
+        if (lengthMax > MaxEdgeSize*MaxEdgeSize) then begin
+          // too big, so split triangle
+          splitTriangle(indexAmax, indexBmax, Sfc, EdgeMax);
+          Done := false;
+        end;
+      end; // Sfc
+    end; // while
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure AddGrass3Dframe(oTreeView : TTreeView; Index : integer);
+var
+  Index2 : integer;
+  pObjectData : pObjectItem;
+  fTreeNode, fTreeNode2 : TTreeNode;
+begin
+  // insert Grass3D before Grass so that if process attempted, again
+  // Grass3D found first will stop re-creating it again.
+
+  // need the whole frame, i.e. all children
+  // make a copy of the frame - contains name
+  New(NewFrameData);
+  ExtractFrame(NewFrameData^, oTreeView, Index-1);
+  // make a copy of the mesh - contains vertices and surfaces
+  New(NewMeshData);
+  ExtractMesh(NewMeshData^, oTreeView, Index);
+  // make a copy of the mesh normals - contains normals and surfaces
+  New(NewNormalsData);
+  ExtractNormals(NewNormalsData^, oTreeView, Index+1);
+  // make a copy of the texture coordinates
+  New(NewTCoordsData);
+  ExtractTcoords(NewTCoordsData^, oTreeView, Index+2);
+  // make a copy of the material list
+  New(NewMaterialListData);
+  ExtractMaterialList(NewMaterialListData^, oTreeView, Index+3);
+  // make a copy of the material
+  New(NewMaterialData);
+  ExtractMaterial(NewMaterialData^, oTreeView, Index+4);
+  // make a copy of the file name
+  New(NewFileNameData);
+  ExtractTFileName(NewFileNameData^, oTreeView, Index+5);
+
+  // zero array on inserted vertices
+  numInserted := 0;
+  setlength(nvInserted,0);
+
+  // examine each triangle and split if too large
+  ScanTriangles; // in NewMeshData
+
+  // now add new data into treeview
+  //insert NewFrame
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oFrame;
+  pObjectData^.oPointer := NewFrameData;
+  fTreeNode := oTreeView.Items.InsertObject(oTreeView.Items[Index], '',pObjectData);
+  //insert NewMesh
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oMesh;
+  pObjectData^.oPointer := NewMeshData;
+  NewMeshData^.tName := 'Grass3D';  // C3D mesh name!
+  fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, '',pObjectData);
+  //insert NewNormals
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oMeshNormals;
+  pObjectData^.oPointer := NewNormalsData;
+  fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, '',pObjectData);
+  //insert NewTCoord
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oMeshTextureCoord;
+  pObjectData^.oPointer := NewTCoordsData;
+  fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, '',pObjectData);
+  //insert NewMaterialList
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oMaterialList;
+  pObjectData^.oPointer := NewMaterialListData;
+  fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, '',pObjectData);
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oMaterial;
+  pObjectData^.oPointer := NewMaterialData;
+  NewMaterialData^.tRGBA[3] := 0.33; // 33% opaqueness to merge with background
+  fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, '',pObjectData);
+  New(pObjectData); //allocate space for an object data
+  pObjectData^.oType := oFileName;
+  NewFileNameData^.tqName := 'Textures/grass_rgba.dds';
+  pObjectData^.oPointer := NewFileNameData;
+  fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, '',pObjectData);
+
+  DataChanged := true;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure AdjustMaterial(oTreeView : TTreeView; Index, Which : integer);
+begin
+  // check if indeed oFileName
+  if ( (oTreeView.Items[Index].data <> nil) AND
+       (pObjectItem(oTreeView.Items[Index].data)^.oType in
+       [oMaterial]) ) then begin
+    with pMaterial(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin // pMaterialData
+      case Which of
+        0: begin
+          //change material Alpha to 0.0
+          tRGBA[3] := 0.0;
+        end;
+        1: begin
+          //change material color to 0.55, 0.55, 0.55
+          tRGBA[0] := 0.55;
+          tRGBA[1] := 0.55;
+          tRGBA[2] := 0.55;
+        end;
+      end;
+    end;
+    DataChanged := true;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure AdjustAsphaltMesh(oTreeView : TTreeView; Index : integer);
+var
+  TextureFileName : string;
+begin
+  // examine the texturefilename 5 nodes ahead
+  if (oTreeView.Items.Count < Index+5) then begin
+    // error
+    Exit;
+  end else begin
+    // check if indeed oFileName
+    if ( (oTreeView.Items[Index+5].data <> nil) AND
+         (pObjectItem(oTreeView.Items[Index+5].data)^.oType in
+         [oFileName]) ) then begin
+      TextureFileName := pFileName(pObjectItem(oTreeView.Items[Index+5].data)^.oPointer)^.tqName;
+      if (upperCase(TextureFileName) = 'TRANSPARENT.DDS') then begin
+        //change material Alpha to 0.0
+        AdjustMaterial(u_X_CX.oTreeView, Index+4, 0);
+        MessageShow('- Adjust: Alpha ');
+      end else begin
+        if ((TextureFileName) = '') then begin
+          //change material color to 0.55, 0.55, 0.55
+          AdjustMaterial(u_X_CX.oTreeView, Index+4, 1);
+          MessageShow('- Adjust: Color ');
+        end;
+      end;
+    end;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_Convert_V2_V3Click(Sender: TObject);
+var
+  i, Index : integer;
+  V2_LandscapePath : string;
+  FileName, ObjectFileName : string;
+  nName : string;
+  SearchRec: TSearchRec;
+  GrassDone : boolean;
+  Grass3DInserted : boolean;
+
+  Dummy_File : file;
+begin
+  // convert in-place (and use a symbolic-link in V3 folder)
+  // convert all BMP flightPlanner maps to 32 bits in if not already
+  // add blank airspace file .air, .aha, .oha, dummy .tm3
+  // use Landscape Creator to create extra 'hash' files and TM3 thermal file
+
+  // need landscape header and tile extent
+  if NOT ((HeaderOpen) AND (TileOpen)) then begin
+    MessageShow('Need a V2 landscape selected and Read Header file first');
+    Beep;
+    Exit;
+  end;
+
+  V2_LandscapePath := ExpandFileName(Working_Folder+'\..');
+
+  if (
+      ( NOT DirectoryExists(V2_LandscapePath+'\HeightMaps') ) OR  // V1 ?
+      ( FileExists(V2_LandscapePath+'\'+LandscapeName+'.air') )   // V3 ?
+     ) then begin
+    MessageShow(LandscapeName + ' Not a V2 landscape');
+    Beep;
+    Exit;
+  end;
+
+  if MessageDlg('Are you sure you want convert "'+LandscapeName+'" scenery to V3 ?', mtConfirmation,
+    [mbYes, mbNo], 0) = mrNo then begin
+    Exit;
+  end;
+{
+  if MessageDlg('Add a link to this landscape "'+LandscapeName+'" ?', mtConfirmation,
+    [mbYes, mbNo], 0) = mrYes then begin
+    // add a symbolic-link in V3 folder (?)
+
+  end;
+}
+  try
+    Screen.Cursor := crHourGlass;  // Let user know we're busy...
+    // need a treeView to store object data
+    // make sure a treeView is selected; use one in Unit_Objects
+    u_X_CX.oTreeView := Unit_Objects.Form_Objects.TreeView_Object;
+
+    // need to assign progress bar
+    u_BMP.ProgressBar_Status := ProgressBar_Status;
+    u_Thermal.ProgressBar_Status := ProgressBar_Status;
+
+    // convert 24 bit color BMPs to 32 bit color
+    if (FindFirst(V2_LandscapePath+'\*.bmp', faNormalFile, SearchRec)) = 0 then begin
+      FileName := V2_LandscapePath+'\'+SearchRec.Name;
+      if (BMP_ColorSize(FileName) <> 32) then begin
+        RenameFile(FileName, FileName+'.bmp');
+        Bitmap_24_To_Bitmap_32(FileName+'.bmp', FileName, true, 1.0);
+        DeleteFile(FileName+'.bmp');
+      end;
+      while (FindNext(SearchRec) = 0) do begin
+        FileName := V2_LandscapePath+'\'+SearchRec.Name;
+        if (BMP_ColorSize(FileName) <> 32) then begin
+          RenameFile(FileName, FileName+'.bmp');
+          Bitmap_24_To_Bitmap_32(FileName+'.bmp',FileName, false,1.0);
+          DeleteFile(FileName+'.bmp');
+        end;
+        Application.ProcessMessages;
+      end;
+      FindClose(SearchRec);
+    end;
+
+    // add an empty Airspace file
+    if (NOT FileExists(V2_LandscapePath+'\'+LandscapeName+'.air')) then begin
+      MakeDummy_AIR(V2_LandscapePath,'\'+LandscapeName+'.air');
+      // add an Airspace .aha HASH file for an empty Airspace file
+      MakeDummy_AHA(V2_LandscapePath,'\'+LandscapeName+'.aha');
+    end;
+
+    // add an AutoGen HASH .oha file for an empty AutoGen folder
+    if (NOT FileExists(V2_LandscapePath+'\'+LandscapeName+'.oha')) then begin
+      MakeDummy_OHA(ColumnCount div 64, RowCount div 64, V2_LandscapePath,'\'+LandscapeName+'.oha');
+    end;
+
+    // add a dummy TM3 thermalMap file to start
+    // unknown format (???) so use LandscapeEditor to make actual TM3
+    if (NOT FileExists(V2_LandscapePath+'\'+LandscapeName+'.tm3')) then begin
+//      MakeDummyBlank_TM3(128, ColumnCount, RowCount, V2_LandscapePath,'\'+LandscapeName+'.tm3');
+      MakeDummyTDM_TM3(V2_LandscapePath,LandscapeName);
+    end;
+
+    // read airport file to get list of airports
+    Airport_FolderName := V2_LandscapePath;
+    Airport_FileName := LandscapeName+'.apt';
+    if (NOT FileExists(V2_LandscapePath+'\'+Airport_FileName)) then begin
+      MessageShow('ERROR: file '+Airport_FileName+' Not found');
+    end else begin
+      Grass3DInserted := false;
+      ReadAirportFile;
+      // for each airport
+      for i := 0 to Airport_Count-1 do begin
+        with Airport_list[i] do begin
+          // look for the airportG file
+          ObjectFileName := Airport_FolderName+'\Airports\'+apName+'G.c3d';
+          if (NOT FileExists(ObjectFileName)) then begin
+            MessageShow('ERROR: file '+apName+'G.c3d Not found');
+          end else begin
+            MessageShow('Check Airport: '+apName);
+            DataChanged := false; // assume for now
+            // open the airportG file
+            ReadCondorC3Dfile(ObjectFileName, false);
+            // look for Asphalt and Grass meshes
+            Index := 0;
+            GrassDone := false;
+            While (Index <> -1) do begin
+              // scan TreeView_G looking for mesh name = asphalt or grass
+              Index := FindNodebyType(u_X_CX.oTreeView, Index, oMesh, nName);
+              if (Index <> -1) then begin
+                if (upperCase(nName) = 'ASPHALT') then begin
+                  AdjustAsphaltMesh(u_X_CX.oTreeView, Index);
+                end else begin
+                  if (uppercase(nName) = 'GRASS3D') then begin
+                    // already done; skip GRASS
+                    GrassDone := true;
+       	          end else begin
+                    if ((uppercase(nName) = 'GRASS') AND (NOT GrassDone)) then begin
+                  //    CopyAndAddFrame(u_X_CX.oTreeView, Index);
+                  //    INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
+                      AddGrass3Dframe(u_X_CX.oTreeView, Index);
+                      Grass3DInserted := true;
+//                      INC(Index,7-1); // 7 because 7 processed, so just keep
+                      INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
+                    end;
+                  end;
+                end;
+                INC(Index,1);
+              end;
+            end;
+            if (DataChanged) then begin
+              // update the airportG file
+              WriteCondorC3Dfile(ObjectFileName);
+            end;
+          end;
+        end;
+      end;
+    end;
+
+    // if grass3D inserted, also copy Textures/green_64.dds
+    if (Grass3DInserted) then begin
+      ForceDirectories(Airport_FolderName+'\Airports\Textures');
+      if (NOT fileExists(Airport_FolderName+'\Airports\Textures\grass_rgba.dds')) then begin
+        CopyFile(pchar(ApplicationPath+'\Condor_V2\grass_rgba.dds'),
+          pchar(Airport_FolderName+'\Airports\Textures\grass_rgba.dds'),false);
+      end;
+    end;
+
+    MessageShow('Conversion complete');
+    MessageShow('Use Condor Landscape Editor to create additional files');
+    Beep;
+
+  finally
+    Screen.Cursor := crDefault;  // no longer busy
+  end;
+
+end;
+
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.Button_XP_ConvertClick(Sender: TObject);
 type
@@ -2950,6 +3540,220 @@ begin
   end;
 end;
 
+//---------------------------------------------------------------------------
+procedure Make_Hashes(LandscapeName, BatchFileName : string);
+var
+  Batch_File : TextFile;
+
+begin
+  AssignFile(Batch_file, BatchFileName);
+  Rewrite(Batch_file);
+//  writeln(Hash_file,'C:\Condor2\CondorSceneryToolkit\LandscapeEditor.exe -hash '+ CurrentLandscape);
+  writeln(Batch_file,LEfolder+'\LandscapeEditor.exe -hash '+ LandscapeName);
+  // close the file
+  CloseFile(Batch_file);
+end;
+
+//---------------------------------------------------------------------------
+//Procedure Execute_BatchFile(FilePath, FileName, Params : String);
+Function Execute_BatchFile(FilePath, FileName, Params : String) : DWORD;
+//var
+//  ExitCode : DWORD;
+begin
+  Result := Shell_Execute(FilePath, FileName, Params, true);
+  case Result of
+    DWORD(-1): begin
+      MessageShow('ERROR - Cannot execute Batch file');
+    end;
+    0: begin
+      MessageShow('Batch file done');
+    end;
+    else begin
+      MessageShow(format('ERROR batch file exit code= %d',[Result]));
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+Procedure xExecute_BatchFile(FilePath, FileName, Params : String);
+var
+  SEInfo: TShellExecuteInfo;
+  ExitCode: DWORD;
+  ExecuteFile, ParamString, StartInString: string;
+begin
+  ExecuteFile:=FilePath+'\'+FileName;
+  MessageShow('Executing batch file: '+FileName);
+
+  FillChar(SEInfo, SizeOf(SEInfo), 0) ;
+  SEInfo.cbSize := SizeOf(TShellExecuteInfo) ;
+  with SEInfo do begin
+    fMask := SEE_MASK_NOCLOSEPROCESS;
+    Wnd := Application.Handle;
+    lpFile := PChar(ExecuteFile) ;
+{
+  ParamString can contain the
+  application parameters.
+}
+//  lpParameters := PChar(ParamString) ;
+{
+  StartInString specifies the
+  name of the working directory.
+  If ommited, the current directory is used.
+}
+//  lpDirectory := PChar(StartInString) ;
+    nShow := SW_SHOWNORMAL;  // i.e. show the command window
+  end;
+  if ShellExecuteEx(@SEInfo) then begin
+    repeat
+      Application.ProcessMessages;
+      GetExitCodeProcess(SEInfo.hProcess, ExitCode) ;
+    until (ExitCode <> STILL_ACTIVE) or Application.Terminated;
+    if (ExitCode = 0) then begin
+      MessageShow('Batch file done');
+    end else begin
+      MessageShow(format('ERROR batch file exit code= %d',[ExitCode]));
+    end;
+  end else begin
+    MessageShow('ERROR - Cannot execute Batch file');
+  end;
+end;
+
 //-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_Hash_ExecuteClick(Sender: TObject);
+begin
+  if (NOT ((HeaderOpen) AND (TileOpen)) ) then begin
+    MessageShow('Need Header file first');
+    Beep; Exit;
+  end;
+  // first make a batch file
+  Make_Hashes(LandscapeName, Working_Folder+'\Make_Hash.bat');
+  // then execute it
+  Execute_BatchFile(Working_Folder, 'Make_Hash.bat', '');
+end;
+
+//-------------------------------------------------------------------------------------
+procedure FormatConvert(nType : TileNameType);
+var
+  PatchColumnCount, PatchRowCount : integer;
+  InBaseFileName, OutBaseFileName : string;
+  FileName, FileFormat : string;
+  FilePath, LandscapePath : string;
+
+// - - - - - - - - - - - - - - - - - - - - - -
+Procedure RenameFiles(FilePath, Prefix, Suffix : string);
+var
+  i, j : integer;
+
+begin
+  ProgressBar_Status.Max := (PatchRowCount)*(PatchColumnCount);
+  for i := 0 to PatchRowCount-1 do begin
+    for j := 0 to PatchColumnCount-1 do begin
+      case ntype of
+        xxyy: begin
+          InBaseFileName :=  format('%s%3.3d%3.3d%s',[Prefix,j,i,Suffix]);
+          OutBaseFileName := format('%s%2.2d%2.2d%s',[Prefix,j,i,Suffix]);
+        end;
+        xxxyyy: begin
+          InBaseFileName :=  format('%s%2.2d%2.2d%s',[Prefix,j,i,Suffix]);
+          OutBaseFileName := format('%s%3.3d%3.3d%s',[Prefix,j,i,Suffix]);
+        end;
+      end;
+      RenameFile(FilePath+'\'+InBaseFileName, FilePath+'\'+OutBaseFileName);
+      ProgressBar_Status.StepIt;
+      Application.ProcessMessages;
+    end;
+  end;
+  ProgressBar_Status.Position := 0;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - -
+begin
+  // need landscape header and tile extent
+  if NOT ((HeaderOpen) AND (TileOpen)) then begin
+    MessageShow('Need a V2 or V3 landscape selected and Read Header file first');
+    Beep;
+    Exit;
+  end;
+
+  LandscapePath := ExpandFileName(Working_Folder+'\..');
+  PatchColumnCount := ColumnCount DIV pColumns;
+  PatchRowCount    := RowCount DIV pRows;
+
+  if (NOT DirectoryExists(LandscapePath+'\HeightMaps') ) then begin
+    MessageShow(LandscapeName + ' not a V2 or V3 landscape');
+    Beep;
+    Exit;
+  end;
+
+  case ntype of
+    xxyy: begin
+      FileName := '0000';
+      FileFormat := 'XXYY';
+    end;
+    xxxyyy: begin
+      FileName := '000000';
+      FileFormat := 'XXXYYY';
+    end;
+  end;
+
+  if (FileExists(LandscapePath+'\HeightMaps\h'+FileName+'.tr3')) then begin
+    MessageShow(LandscapeName + ' already in '+FileFormat+' format');
+    Beep;
+    Exit;
+  end;
+
+  if MessageDlg('Are you sure you want convert "'+LandscapeName+'" scenery to file format '+FileFormat+' ?', mtConfirmation,
+    [mbYes, mbNo], 0) = mrNo then begin
+    Exit;
+  end;
+
+  Screen.Cursor := crHourGlass;  // Let user know we're busy...
+  try
+    // rename files in heightmaps folder
+    FilePath := LandscapePath+'\HeightMaps';
+    RenameFiles(FilePath, 'h', '.tr3');
+
+    // rename files in forests folder
+    FilePath := LandscapePath+'\ForestMaps';
+    RenameFiles(FilePath, '', '.for');
+
+    // rename files in textures folder
+    FilePath := LandscapePath+'\Textures';
+    RenameFiles(FilePath, 't', '.dds');
+
+    // rename files in autogen folder
+    if (DirectoryExists(LandscapePath+'\AutoGen')) then begin
+      FilePath := LandscapePath+'\AutoGen';
+      RenameFiles(FilePath, 'o', '.c3d');
+    end;
+
+    // rename files in 22.5m folder
+    if (DirectoryExists(LandscapePath+'\HeightMaps\22.5m')) then begin
+      FilePath := LandscapePath+'\HeightMaps\22.5m';
+      RenameFiles(FilePath, 'h', '.tr3f');
+    end;
+
+  finally
+    Screen.Cursor := crDefault;  // no longer busy
+  end;
+  beep;
+  MessageShow(LandscapeName + ' converted');
+
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_To_XXXYYYClick(Sender: TObject);
+begin
+  FormatConvert(xxxyyy);
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_To_XXYYClick(Sender: TObject);
+begin
+  FormatConvert(xxyy);
+end;
+
+//-------------------------------------------------------------------------------------
+begin
 end.
 

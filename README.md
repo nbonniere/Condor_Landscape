@@ -1,11 +1,11 @@
 ## Condor Tiles
 
-This program has been developped over the years to help with the creation 
+This program has been developed over the years to help with the creation 
 of Condor Soaring Simulator landscapes.
 
 ## License
 
-Copyright (C) 2012-2022 Nick Bonnière
+Copyright (C) 2012-2024 Nick Bonnière
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

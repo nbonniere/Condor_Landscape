@@ -149,7 +149,6 @@ var
   library_Folder : string;           // external path for library
   sZIPfolder : string;               // external path for 7-zip
   WGETfolder : string;               // external path for Wget
-  LEfolder : string;                 // external path for Landscape Editor
   CondorVersion : string;
   ApplicationPath : string;
 
@@ -167,8 +166,9 @@ IMPLEMENTATION
 {$R *.DFM}
 
 uses
-  FileCtrl, Math, ShellAPI,
-  u_SceneryHdr, u_TileList, u_UTM, u_MakeKML, u_Terrain, u_Exec, u_Util;
+  FileCtrl, Math,
+  u_SceneryHdr, u_TileList, u_UTM, u_MakeKML, u_Terrain,
+  u_Util, Unit_Utilities;
 
 const
   CondorTileSize = tColumns * Resolution;  // 256*90=23040 metres
@@ -1121,20 +1121,6 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure Make_Hashes;
-var
-  DEM_File : TextFile;
-
-begin
-  AssignFile(DEM_file, File_folder+'\..\Make_Hash.bat');
-  Rewrite(DEM_file);
-//  writeln(DEM_file,'C:\Condor2\CondorSceneryToolkit\LandscapeEditor.exe -hash '+ CurrentLandscape);
-  writeln(DEM_file,LEfolder+'\LandscapeEditor.exe -hash '+ CurrentLandscape);
-  // close the file
-  CloseFile(DEM_file);
-end;
-
-//---------------------------------------------------------------------------
 procedure TForm_DEM.Button_Make_TR3Click(Sender: TObject);
 var
   Columns, Rows : integer;
@@ -1161,7 +1147,7 @@ begin
   RAW_To_TR3(File_folder+'\UTM_cropped.RAW', File_folder+'\..\..\HeightMaps');
 
   // now make a batch file to create the hash files
-  Make_Hashes;
+  Make_Hashes(CurrentLandscape, File_folder+'\..\Make_Hash.bat');
 end;
 
 //---------------------------------------------------------------------------
@@ -1238,70 +1224,6 @@ procedure TForm_DEM.RadioButton_ExtentClick(Sender: TObject);
 begin
   GroupBox_ByCoord.Enabled := false;
   GroupBox_ByExtent.Enabled := true;
-end;
-
-//---------------------------------------------------------------------------
-//Procedure Execute_BatchFile(FilePath, FileName, Params : String);
-Function Execute_BatchFile(FilePath, FileName, Params : String) : DWORD;
-//var
-//  ExitCode : DWORD;
-begin
-  Result := Shell_Execute(FilePath, FileName, Params, true);
-  case Result of
-    DWORD(-1): begin
-      MessageShow('ERROR - Cannot execute Batch file');
-    end;
-    0: begin
-      MessageShow('Batch file done');
-    end;
-    else begin
-      MessageShow(format('ERROR batch file exit code= %d',[Result]));
-    end;
-  end;
-end;
-
-//---------------------------------------------------------------------------
-Procedure xExecute_BatchFile(FilePath, FileName, Params : String);
-var
-  SEInfo: TShellExecuteInfo;
-  ExitCode: DWORD;
-  ExecuteFile, ParamString, StartInString: string;
-begin
-  ExecuteFile:=FilePath+'\'+FileName;
-  MessageShow('Executing batch file: '+FileName);
-
-  FillChar(SEInfo, SizeOf(SEInfo), 0) ;
-  SEInfo.cbSize := SizeOf(TShellExecuteInfo) ;
-  with SEInfo do begin
-    fMask := SEE_MASK_NOCLOSEPROCESS;
-    Wnd := Application.Handle;
-    lpFile := PChar(ExecuteFile) ;
-{
-  ParamString can contain the
-  application parameters.
-}
-//  lpParameters := PChar(ParamString) ;
-{
-  StartInString specifies the
-  name of the working directory.
-  If ommited, the current directory is used.
-}
-//  lpDirectory := PChar(StartInString) ;
-    nShow := SW_SHOWNORMAL;  // i.e. show the command window
-  end;
-  if ShellExecuteEx(@SEInfo) then begin
-    repeat
-      Application.ProcessMessages;
-      GetExitCodeProcess(SEInfo.hProcess, ExitCode) ;
-    until (ExitCode <> STILL_ACTIVE) or Application.Terminated;
-    if (ExitCode = 0) then begin
-      MessageShow('Batch file done');
-    end else begin
-      MessageShow(format('ERROR batch file exit code= %d',[ExitCode]));
-    end;
-  end else begin
-    MessageShow('ERROR - Cannot execute Batch file');
-  end;
 end;
 
 //---------------------------------------------------------------------------

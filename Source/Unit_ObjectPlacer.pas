@@ -72,6 +72,7 @@ type
     RadioButton_DDS: TRadioButton;
     RadioButton_Terragen: TRadioButton;
     Label_ObjectCount: TLabel;
+    OpenDialog_FileName: TOpenDialog;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -112,6 +113,7 @@ type
       Shift: TShiftState);
     procedure FormKeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
+    procedure Edit_FileNameDblClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -127,7 +129,9 @@ var
 
   Memo_Message : TMemo;  // external TMemo for messages
   CurrentLandscape : string;
+  LandscapePathName : string;
   opVersion : string;
+  WorkingFolder : string;
 
 //---------------------------------------------------------------------------
 implementation
@@ -135,9 +139,9 @@ implementation
 {$R *.DFM}
 
 uses
-   ClipBrd,
-   Unit_Main, Unit_Graphics, Unit_Coords,
-   u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
+  ClipBrd,
+  Unit_Main, Unit_Graphics, Unit_Coords,
+  u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
 
 var
   GUI_State : (IdleScreen, SelectScreen, ScrollScreen, CancelScreen);
@@ -356,7 +360,8 @@ begin
   Col := trunc(Easting /(QT_Range/2));
   Row := trunc(Northing/(QT_Range/2));
   // airport quarter tile DDS name
-  Form_ObjectPlacer.Label_Tile.Caption := format('(q)%2.2d%2.2d',[Col div 2, Row div 2]);
+//  Form_ObjectPlacer.Label_Tile.Caption := format('(q)%2.2d%2.2d',[Col div 2, Row div 2]);
+  Form_ObjectPlacer.Label_Tile.Caption := format('(q)%s',[MakeTileName(Col div 2, Row div 2, TileNameMode)]);
   // find BR quarter tile
   Col := trunc((Col+1)/2)-1;      // bottom right DDS tile
   Row := trunc((Row+1)/2)-1;      // bottom right DDS tile
@@ -449,7 +454,8 @@ begin
           DDS_Size := 0;
           for i := 0 to 2-1 do begin
             for j := 0 to 2-1 do begin
-              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+//              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+              FileName := format('%s\Textures\t%s.dds',[Object_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
               Temp := DXT_ImageWidth(FileName);
               if (Temp > DDS_Size) then begin
                 DDS_Size := temp;
@@ -489,7 +495,8 @@ begin
             // load 4 dds tiles and draw onto Image_Tile
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
-                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+//                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                FileName := format('%s\Textures\t%s.dds',[Object_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
                 if (NOT FileExists(FileName)) then begin
 //                BitmapAvail := false; // change - allow even if no files
                   // blank image
@@ -665,6 +672,8 @@ begin
 //        default coScale ?
 //        default coRotation ?
 //        default coElevation ?
+        // now update the screen
+        Object_Change_Show(True, True);
       end;
     end;
   end;
@@ -904,6 +913,7 @@ begin
 
   CurrentLandscape := '';
   BitMap_Save := TBitMap.Create;
+  Image_tile.Hint := 'Ctrl-Left-Mouse to Pan'#13#10'Shift-Left Mouse to select';
 end;
 
 //---------------------------------------------------------------------------
@@ -1091,5 +1101,22 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Edit_FileNameDblClick(Sender: TObject);
+begin
+  // dialog to select object file - must be .c3d extension
+  OpenDialog_FileName.Filter :=
+    'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
+  OpenDialog_FileName.FileName := '';
+  OpenDialog_FileName.InitialDir := Object_FolderName+'\World\Objects';
+  if (OpenDialog_FileName.Execute) then begin
+    // extract relative filename
+    Edit_FileName.Text := ExtractRelativePath(
+      Object_FolderName+'\World\Objects\',
+      OpenDialog_FileName.FileName);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+
 end.
 

@@ -169,6 +169,8 @@ var
    BlueShift, BlueMult,
    AlphaShift, AlphaMult : Byte;
    trans : Boolean;
+   SkipMip : boolean;
+
 begin
    stream.Read(header, Sizeof(TDDSHeader));
 
@@ -187,30 +189,56 @@ begin
       Width:=dwWidth;
       Height:=dwHeight;
 
+      // for 32 bit system, need a limit
+      SkipMip := false;
+{ works ok but for large DDS there is a memory issue anyway
+      if ((Width > 8192) or (Height > 8192)) then begin
+        if (dwMipMapCount > 1) then begin
+          Width:=dwWidth div 2;
+          Height:=dwHeight div 2;
+          SkipMip := true;
+//          Dec(dwMipMapCount);
+        end else begin
+          raise EDDSException.Create('DDS too large');
+        end;
+      end;
+}
+      // 16 pixel blocks, 4x4, to compressed 8 or 16 bytes
+      // output is 32 bit color, 24 bit and alpha -> 4 bytes
       if (ddpfPixelFormat.dwFlags and DDPF_FOURCC)>0 then begin
 //         GetMem(buf, dwPitchOrLinearSize);   // NICK - moved
-         GetMem(decoded, Width*Height*4);
+       //  GetMem(decoded, Width*Height*4);
+         GetMem(decoded, trunc(Width+3)*trunc(Height+3)*4); // need to round up for padding when not divsible by 4
 //         Stream.Read(buf[0], dwPitchOrLinearSize);   // NICK - moved
          try
             case ddpfPixelFormat.dwFourCC of
                FOURCC_DXT1 : begin
                   // NICK - moved here for files with dwPitchOrLinearSize = 0
-                  GetMem(buf, Width*Height*4 div 8);
-                  Stream.Read(buf[0], Width*Height*4 div 8);
+                  if (SkipMip) then begin
+                    Stream.Seek((Width*Height div 2) * 4,soFromCurrent); // top mip 4 times bigger
+                  end;
+                  GetMem(buf, Width*Height div 2);
+                  Stream.Read(buf[0], Width*Height div 2); // W/4*H/4 * 8
                   DecodeDXT1toBitmap32(buf, decoded, Width, Height, trans);
                   Transparent:=trans;
                end;
                FOURCC_DXT3 : begin
                   // NICK - moved here for files with dwPitchOrLinearSize = 0
-                  GetMem(buf, Width*Height*4 div 4);
-                  Stream.Read(buf[0], Width*Height*4 div 4);
+                  if (SkipMip) then begin
+                    Stream.Seek(Width*Height * 4,soFromCurrent); // top mip 4 times bigger
+                  end;
+                  GetMem(buf, Width*Height);
+                  Stream.Read(buf[0], Width*Height); // W/4*H/4 * 16
                   DecodeDXT3toBitmap32(buf, decoded, Width, Height);
                   Transparent:=True;
                end;
                FOURCC_DXT5 : begin
                   // NICK - moved here for files with dwPitchOrLinearSize = 0
-                  GetMem(buf, Width*Height*4 div 4);
-                  Stream.Read(buf[0], Width*Height*4 div 4);
+                  if (SkipMip) then begin
+                    Stream.Seek(Width*Height * 4,soFromCurrent); // top mip 4 times bigger
+                  end;
+                  GetMem(buf, Width*Height);
+                  Stream.Read(buf[0], Width*Height); // W/4*H/4 * 16
                   DecodeDXT5toBitmap32(buf, decoded, Width, Height);
                   Transparent:=True;
                end;

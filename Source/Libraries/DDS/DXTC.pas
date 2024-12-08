@@ -66,8 +66,10 @@ begin
    if not (Assigned(encData) and Assigned(decData)) then exit;
 
    temp:=PByte(encData);
-   for y:=0 to (h div 4)-1 do begin
-      for x:=0 to (w div 4)-1 do begin
+//   for y:=0 to (h div 4)-1 do begin
+   for y:=0 to ((h+3) div 4)-1 do begin    // +3 to round up - must be divisible by 4
+//      for x:=0 to (w div 4)-1 do begin
+      for x:=0 to ((w+3) div 4)-1 do begin // +3 to round up - must be divisible by 4
          col0:=PWord(temp)^;        Inc(temp, 2);
          col1:=PWord(temp)^;        Inc(temp, 2);
          bitmask:=PCardinal(temp)^; Inc(temp, 4);

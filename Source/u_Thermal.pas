@@ -83,6 +83,7 @@ function ReadThermalBitmapTileIndexes(FileName:string) : boolean;
 Procedure ClearThermalGrid;
 Procedure TDM_To_Greyscale_Bitmap(TDM_FileName,Greyscale_FileName : string);
 Procedure Greyscale_Bitmap_To_TDM(Greyscale_FileName,TDM_FileName : string);
+Procedure TM3_To_Color_Bitmap(TM3_FileName,Color_FileName : string);
 // for merging
 Procedure WriteTDMHeader(TDM_FileName : string);
 //Procedure ForceTDMsize(TDM_FileName : string);
@@ -92,11 +93,18 @@ procedure Merge_TDM_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongIn
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
 
+procedure MakeDummyBlank_TM3(Default_Value, Column, Row : integer; FilePath, Filename:string);
+procedure MakeDummyTDM_TM3(LandscapePath,LandscapeName : string);
+Procedure ForceTM3size(TM_FileName : string; Default_Value : integer);
+procedure Merge_TM3_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongInt;
+                          FilePath,Filename,
+                          FilePath_a,Filename_a : string);
+
 //===========================================================================
 IMPLEMENTATION
 
 uses
-  forms, Windows, SysUtils, Graphics,
+  forms, Windows, SysUtils, Graphics, u_Terrain,
   u_TileList, u_BMP, u_MakeThermal, u_Forest, Unit_Graphics;
 
 var
@@ -418,7 +426,8 @@ var
 
 begin
   Result := false;
-  TileName := format('%2.2d%2.2d',[i,j]);
+//  TileName := format('%2.2d%2.2d',[i,j]);
+  TileName := MakeTileName(i,j, TileNameMode);
   tFileName := TileName+'_t.bmp';
   // need to pick correct one for V1 or V2 !  ???  and correct path too !
   fFileName := TileName+'_f.bmp';
@@ -1007,6 +1016,81 @@ begin
   end;
 end;
 
+// Note: TM3 has data reversed in horizontal direction
+{----------------------------------------------------------------------------}
+Procedure TM3_To_Color_Bitmap(TM3_FileName,Color_FileName : string);
+const
+  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+//  pColor : ColorConvert;
+  TRN_File : File of byte;
+  TRN_FileName : string;
+  TM3_File : File of byte;
+  Color_File : File of byte;
+  TRN_Header : CondorTerrainHeader;
+//  ByteCount : longint;
+  P : PByteArray;
+
+begin
+  if (NOT FileExists(TM3_FileName)) then begin
+    MessageShow('TM3 file not found');
+    Exit;
+  end;
+  begin
+    // need to find dimensions from TRN file
+    TRN_FileName := copy(TM3_FileName,1,length(TM3_FileName)-4)+'.trn';
+    if (NOT FileExists(TRN_FileName)) then begin
+      MessageShow('TRN file not found');
+      Exit;
+    end;
+    AssignFile(TRN_File,TRN_FileName);
+    Reset(TRN_File);
+    seek(TRN_File,0);
+    BlockRead(TRN_File,TRN_Header,sizeof(TRN_Header));
+    close(TRN_File);
+
+    AssignFile(TM3_File,TM3_FileName);
+    Reset(TM3_File);
+    seek(TM3_File,0);
+    MessageShow('Converting TM3 file to color bitmap...');
+    AssignFile(Color_File,Color_FileName);
+    Rewrite(Color_File);
+    // create a BMP header
+    with xBitmapHeader_24bitColor do begin
+      bDib.bWidth := TRN_Header.tWidth;
+      bDib.bHeight := TRN_Header.tHeight;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
+
+      BlockWrite(Color_File,xBitmapHeader_24bitColor,
+        sizeof(xBitmapHeader_24bitColor));
+
+      try
+        P := AllocMem(TRN_Header.tWidth*xColor24Size div 8); // one row at a time
+        ProgressBar_Status.Max := TRN_Header.tHeight;
+        for i := 0 to TRN_Header.tHeight-1 do begin
+          BlockRead(TM3_File,P^,TRN_Header.tWidth*xColor24Size div 8);
+          SwapRGBBlockEndToEnd(PRGBArray(P),TRN_Header.tWidth);
+          BlockWrite(Color_File,P^,TRN_Header.tWidth*xColor24Size div 8);
+
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
+      end;
+      ProgressBar_Status.Position := 0;
+    end;
+
+    Close(TM3_File);
+    Close(Color_File);
+    MessageShow('TM3 to color bitmap created');
+  end;
+end;
+
 {----------------------------------------------------------------------------}
 Procedure WriteTDMHeader(TDM_FileName : string);
 const
@@ -1090,6 +1174,48 @@ begin
  end;
 
   Close(TDM_File);
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ForceTM3size(TM_FileName : string; Default_Value : integer);
+var
+  TM_File : File of byte;
+  P : PByteArray;
+  ByteCount : longint;
+begin
+  AssignFile(TM_File,TM_FileName);
+  if (NOT FileExists(TM_FileName)) then begin
+    MessageShow('Thermal tm3 file not found');
+    beep; Exit;
+  end;
+  reset(TM_File);
+  // read dummy header
+  BlockRead(TM_File,TDM_Header,sizeof(TDM_Header));
+  // got back to beginning
+  seek(TM_File,0);
+ try
+  with TDM_Header do begin
+    P := AllocMem(512); // initial values
+    for ByteCount := 0 to 512-1 do begin
+      P^[ByteCount] := Default_Value;
+    end;
+
+    ByteCount := Width*Height * 3;
+    while (ByteCount > 0) do begin
+      if (ByteCount > 512) then begin
+        BlockWrite(TM_File,P^,512);
+      end else begin
+        BlockWrite(TM_File,P^,ByteCount);
+      end;
+      DEC(ByteCount,512);
+    end;
+  end;
+
+ finally
+   freemem(P);
+ end;
+
+  Close(TM_File);
 end;
 
 {----------------------------------------------------------------------------}
@@ -1280,6 +1406,220 @@ begin
     end;
   end;
   CloseFile(TDM_File);
+end;
+
+// TM3 same as TDM but 3 bytes instead of one, and no header
+// could be combined with Merge_TDM_File with a parameter - TDM/TM3
+// could be combined with Merge_BMP24_File with a parameter - TDM/TM3/BMP24/BMP32
+{----------------------------------------------------------------------------}
+procedure Merge_TM3_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongInt;
+                          FilePath,Filename,
+                          FilePath_a,Filename_a : string);
+const
+  value_Size = 3;
+var
+  TM_File : File of Byte;
+  TM_File_a : File of Byte;
+  P : PByteArray;
+  i, i_Min, i_Max : integer;
+  FileIndex : LongInt;
+  cWidth, cHeight : integer;
+  gWidth, gHeight : integer;
+  TRN_Header : CondorTerrainHeader;
+  j_DeltaL, j_DeltaR, j_Index, j_Width : integer;
+
+begin
+  if (NOT FileExists(FilePath+'\'+Filename)) then begin
+    MessageShow('TM3 file not found');
+    Beep; Exit;
+  end;
+  // need to read size from TRN file first
+  AssignFile(TM_File,FilePath+'\'+copy(FileName,1,pos('.tm3',FileName)-1)+'.trn');
+  Reset(TM_File);
+  BlockRead(TM_File,TRN_Header,sizeof(TRN_Header));
+  // keep width and height
+  cWidth  := TRN_Header.tWidth;
+  cHeight := TRN_Header.tHeight;
+  CloseFile(TM_File);
+  // now open the TM3 file
+  AssignFile(TM_File,FilePath+'\'+Filename);
+  Reset(TM_File);
+
+  if (NOT FileExists(FilePath_a+'\'+Filename_a)) then begin
+//    MessageShow('Warning: '+Filename_a+' file not found');
+    Beep;
+  end else begin
+    // need to read size from TRN file first
+    AssignFile(TM_File_a,FilePath_a+'\'+copy(FileName_a,1,pos('.tm3',FileName_a)-1)+'.trn');
+    Reset(TM_File_a);
+    BlockRead(TM_File_a,TRN_Header,sizeof(TRN_Header));
+    // keep width and height
+    gWidth  := TRN_Header.tWidth;
+    gHeight := TRN_Header.tHeight;
+    CloseFile(TM_File_a);
+    // now open the TM3 file
+    AssignFile(TM_File_a,FilePath_a+'\'+Filename_a);
+    Reset(TM_File_a);
+
+    try
+      // need a buffer
+      P := AllocMem(gWidth * value_Size);
+// make limit calc common for BMP, TDM and TRN ???
+      // calculate vertical crop limits i_Min and i_Max
+      if (Min_Y > Offset_Y) then begin
+        i_Min := Min_Y - Offset_Y;
+      end else begin
+        i_Min := 0;
+      end;
+      if (Max_Y > Offset_Y + gHeight) then begin
+        i_Max := gHeight;
+      end else begin
+        i_Max := Max_Y - Offset_Y;
+      end;
+      // calculate horizontal crop limits j_Delta, j_Index and j_Width
+      if ( ((-Offset_X)+gWidth)< Max_X) then begin // crop left ?
+        j_Index := cWidth - ((-Offset_X)+gWidth - Min_X);
+        j_DeltaL := 0;
+      end else begin
+        j_Index := 0;
+        j_DeltaL := (-Offset_X)+gWidth - Max_X;
+      end;
+      j_DeltaR := 0;
+      j_Width := gWidth - j_DeltaL;
+      if (Min_X > (-Offset_X)) then begin // crop right ?
+        j_DeltaR := Min_X + (-Offset_X);
+        j_Width := j_Width - j_DeltaR;
+      end;
+
+      ProgressBar_Status.Max := gHeight;
+      for i := i_Min to i_Max-1 do begin
+        // get input data    // do seek only once and then just sequential ?
+        FileIndex := 0 +
+          ((i) * gWidth) * value_Size;
+        seek(TM_File_a,FileIndex);
+        BlockRead(TM_File_a,P^,gWidth * value_Size);
+        // write output data
+        FileIndex := 0 +
+          ((i + Offset_Y - Min_Y) * cWidth) * value_Size +
+        // need to reverse order for TM3
+//          (j_Index) * value_Size;
+          (cWidth - j_Width - j_Index) * value_Size;
+        seek(TM_File,FileIndex);
+        // use delta right offset because data in in reverse order for TDM
+        BlockWrite(TM_File,P^[j_DeltaR * value_Size],j_Width * value_Size);
+        ProgressBar_Status.StepIt;
+        Application.ProcessMessages;
+      end;
+    finally
+      Freemem(P);
+      CloseFile(TM_File_a);
+      ProgressBar_Status.Position := 0;
+    end;
+  end;
+  CloseFile(TM_File);
+end;
+
+{
+TM3 is like an RGB bitmap. One of the colour layers is the Condor2 thermal map.
+The other 2 channels are Alpiness (measure of how mountenous the terrain is)
+and Convexity (measures of how convex/concave the terrain is.
+}
+
+//---------------------------------------------------------------------------
+procedure MakeDummyTDM_TM3(LandscapePath, LandscapeName : string);
+const
+  Convexity : byte = 127; // signed(?) byte  127: flat, 0: very convex, 255: very concave
+  Alpiness : byte = 0;  // unsigned byte, 0: flat, 255: very hilly
+
+var
+  i, j :integer;
+//  FileByte : byte;
+  pColor : ColorConvert;
+  TDM_File : File of byte;
+  TM3_File : File of byte;
+  TDM_Header : TDM_Header_Type;
+//  ByteCount : longint;
+  P, P3 : PByteArray;
+  TDM_Filename : string;
+  TM3_Filename : string;
+
+begin
+  // use the TDM and
+  // make the values an even colour for Convexity and Alpiness
+  TDM_Filename := LandscapePath+'\'+LandscapeName+'.tdm';
+  if (NOT FileExists(TDM_FileName)) then begin
+    MessageShow('TDM file not found');
+    Exit;
+  end;
+  begin
+    AssignFile(TDM_File,TDM_FileName);
+    Reset(TDM_File);
+    seek(TDM_File,0);
+    BlockRead(TDM_File,TDM_Header,sizeof(TDM_Header));
+    MessageShow('Converting TDM file to partial TM3...');
+    TM3_Filename := LandscapePath+'\'+LandscapeName+'.tm3';
+    AssignFile(TM3_File,TM3_FileName);
+    Rewrite(TM3_File);
+
+      try
+        P := AllocMem(TDM_Header.Width); // one row at a time
+        P3 := AllocMem(TDM_Header.Width *3);
+        ProgressBar_Status.Max := TDM_Header.Height;
+        for i := 0 to TDM_Header.Height-1 do begin
+          BlockRead(TDM_File,P^,TDM_Header.Width);
+          for j := 0 to TDM_Header.Width do begin
+            P3^[j*3]   := P^[j];      // BLUE
+            P3^[j*3+1] := Alpiness;   // GREEN   could be reversed
+            P3^[j*3+2] := Convexity;  // RED     could be reversed
+          end;
+          BlockWrite(TM3_File,P3^,TDM_Header.Width*3);
+
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P3);
+        freemem(P);
+      end;
+      ProgressBar_Status.Position := 0;
+
+    Close(TM3_File);
+    Close(TDM_File);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure MakeDummyBlank_TM3(Default_Value, Column, Row : integer; FilePath, Filename:string);
+var
+  TM_File : File of byte;
+  P : PByteArray;
+  ByteCount : longint;
+
+begin
+  AssignFile(TM_File,FilePath+'\'+Filename);
+  rewrite(TM_File);
+
+ try
+    P := AllocMem(512); // initial values
+    for ByteCount := 0 to 512-1 do begin
+      P^[ByteCount] := Default_Value;
+    end;
+
+    ByteCount := Column * Row * 3;
+    while (ByteCount > 0) do begin
+      if (ByteCount > 512) then begin
+        BlockWrite(TM_File,P^,512);
+      end else begin
+        BlockWrite(TM_File,P^,ByteCount);
+      end;
+      DEC(ByteCount,512);
+    end;
+
+ finally
+   freemem(P);
+ end;
+
+  Close(TM_File);
 end;
 
 {----------------------------------------------------------------------------}

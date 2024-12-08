@@ -103,9 +103,11 @@ type
   tMaterial = record
     tName: string;
     tRGBA: tFloatArray;  // ambient color RGBA
-    tPower: Double;      // specular (reflective) exponent
+    tPower: Double;      // specular (reflective) exponent 0.0-1.0
     tRGBs: tFloatArray;  // specular (reflective) color RGB
     tRGBr: tFloatArray;  // emissive color RGB
+//    tC3D: tFloatArray;   // Condor C3D color control
+// use tRGBs instead and tPower=999 as a flag
   end;
 
   pMaterialList = ^tMaterialList;
@@ -180,8 +182,8 @@ type
 
 //  p3Dmaterial = ^t3Dmaterial;
 //  t3Dmaterial = record
-//    tRGBA: tFloatArray; // ambient color RGBA ?
-//    tRGBr: tFloatArray; // emissive color RGB ?
+//    tRGBA: tFloatArray; // ambient color RGBA
+//    tC3D: tFloatArray; // Condor Color control
 //  end;
 
 //  // option 1
@@ -231,7 +233,7 @@ type
   end;
 
 var
-//  Memo_Message : TMemo;  // external TMemo for messages (uses StdCtrls)
+  Memo_Message : TMemo;  // external TMemo for messages (uses StdCtrls)
   Path : string; // external path for Condor program folder
   tvBitmap : TBitmap;
   mBitmap : TBitmap;
@@ -305,6 +307,16 @@ function FindNodebyType(oTreeView : TTreeView;Index : integer;
 Procedure sExtract(oTreeView : TTreeView; Index : integer; var o_Object : TArray_CoordXY_Array);
 Procedure vExtract(oTreeView : TTreeView; Index : integer; var o_Object : TCoordXY_Array);
 
+//function CopyAndAddFrame(oTreeView : TTreeView; Index : integer) : integer;
+//Procedure ExtractVarray(vPtr : pCountFloatArray; oTreeView : TTreeView; Index : integer);
+Procedure ExtractFrame(var NewFrame : tFrame; oTreeView : TTreeView; Index : integer);
+Procedure ExtractMesh(var NewMesh : tMesh; oTreeView : TTreeView; Index : integer);
+Procedure ExtractNormals(var NewNormals : tMeshNormals; oTreeView : TTreeView; Index : integer);
+Procedure ExtractTcoords(var NewTcoords : tMeshTcoord; oTreeView : TTreeView; Index : integer);
+Procedure ExtractMaterialList(var NewMaterialList : tMaterialList; oTreeView : TTreeView; Index : integer);
+Procedure ExtractMaterial(var NewMaterial : tMaterial; oTreeView : TTreeView; Index : integer);
+Procedure ExtractTFileName(var NewFileName : tpFileName; oTreeView : TTreeView; Index : integer);
+
 //===========================================================================
 IMPLEMENTATION
 
@@ -317,6 +329,14 @@ const
 
 type
   V2_Mesh = (mNormal,mGrass,mGrassPaint,mAsphalt,mAsphlatPaint);
+
+{----------------------------------------------------------------------------}
+Procedure MessageShow(Info : string);
+begin
+  if assigned(Memo_Message) then begin
+    Memo_Message.lines.add(Info);
+  end;
+end;
 
 {----------------------------------------------------------------------------
 Normally 5 significant digits plus one digit to specify the number
@@ -605,24 +625,75 @@ var
   pMaterialReferenceData : pMaterialReference;
 
 {----------------------------------------------------------------------------}
+Procedure xClearTreeView(oTreeView : TTreeView);
+begin
+  with oTreeView do begin
+    while (Items.Count > 0) do begin
+      Items[0].delete;  // doesn't delete allocated memory ! fix !
+    end;
+  end;
+  oTreeView.Items.Clear; //make sure it's empty
+end;
+
+{----------------------------------------------------------------------------}
 Procedure ClearTreeView(oTreeView : TTreeView);
 var
   k : integer;
+  Heap : THeapStatus;
 
 begin
-  // walk the tree and dispose of existing memory allocations TBD !
+//// look for memory leak
+//Heap := GetHeapStatus;
+//MessageShow(Format('Heap: %d',[Heap.TotalAllocated]));
   with oTreeView do begin
-//    for k := 0 to Items.Count-1 do begin
-    while (Items.Count > 0) do begin
-      Items[0].delete;
-{      if (Items[k].data <> nil) then begin
+    // walk the tree and dispose of existing memory allocations
+    for k := 0 to Items.Count-1 do begin
+      if (Items[k].data <> nil) then begin
         if (pObjectItem(Items[k].data)^.oPointer <> nil) then begin
-          dispose(pObjectItem(Items[k].data)^.oPointer);
+          // Need to dispose by pointer type else only the pointer is disposed of.
+          case pObjectItem(Items[k].data)^.oType of
+            oMagic:
+              dispose(pMagic(pObjectItem(Items[k].data)^.oPointer));
+            oHeader:
+              dispose(pHeader(pObjectItem(Items[k].data)^.oPointer));
+            oFrame:
+              dispose(pFrame(pObjectItem(Items[k].data)^.oPointer));
+            oFTM:
+              dispose(pFTM(pObjectItem(Items[k].data)^.oPointer));
+            oMesh :
+              dispose(pMesh(pObjectItem(Items[k].data)^.oPointer));
+            oMeshNormals:
+              dispose(pMeshNormals(pObjectItem(Items[k].data)^.oPointer));
+            oMaterialList:
+              dispose(pMaterialList(pObjectItem(Items[k].data)^.oPointer));
+            oMaterial:
+              dispose(pMaterial(pObjectItem(Items[k].data)^.oPointer));
+            oMaterialReference:
+              dispose(pMaterialReference(pObjectItem(Items[k].data)^.oPointer));
+            oMeshTextureCoord:
+              dispose(pMeshTcoord(pObjectItem(Items[k].data)^.oPointer));
+            oFileName:
+              dispose(pFileName(pObjectItem(Items[k].data)^.oPointer));
+            o3Dmagic:
+              dispose(p3Dmagic(pObjectItem(Items[k].data)^.oPointer));
+            o3Dheader:
+              dispose(p3Dheader(pObjectItem(Items[k].data)^.oPointer));
+            oOBJ8magic:
+              dispose(pMagic(pObjectItem(Items[k].data)^.oPointer));
+            oOBJ8header:
+              dispose(p3Dheader(pObjectItem(Items[k].data)^.oPointer));
+            else
+              dispose(pObjectItem(Items[k].data)^.oPointer);
+          end;
         end;
-        dispose(Items[k].data);
+        dispose(pObjectItem(Items[k].data));
       end;
-}    end;
+//Heap := GetHeapStatus;
+//MessageShow(Format('Heap: %d',[Heap.TotalAllocated]));
+    end;
   end;
+//Heap := GetHeapStatus;
+//MessageShow(Format('Heap: %d',[Heap.TotalAllocated]));
 
   oTreeView.Items.Clear; //make sure it's empty
 end;
@@ -2244,7 +2315,7 @@ end;
 Procedure sPlotIt(Ptr : pointer);
 var
   i, j : integer;
-  Xcentre, Ycentre,Scale : double;
+//  Xcentre, Ycentre,Scale : double;
   iX, iY : integer;
   sArray : pCountSurfaceArray;
 
@@ -2580,6 +2651,186 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
+Procedure ExtractFrame(var NewFrame : tFrame; oTreeView : TTreeView; Index : integer);
+var
+ P : pFrame;
+begin
+  with oTreeView do begin
+    P := pFrame(pObjectItem(Items[Index].data)^.oPointer);
+    with NewFrame do begin
+      tName := P^.tName;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractMesh(var NewMesh : tMesh; oTreeView : TTreeView; Index : integer);
+var
+ P : pMesh;
+ i, j : longword;
+begin
+  with oTreeView do begin
+    P := pMesh(pObjectItem(Items[Index].data)^.oPointer);
+    with NewMesh do begin
+      tName := P^.tName;
+      // tMinMaxArray := P^.tMinMaxArray;
+      for i := 0 to 9-1 do begin
+        tMinMaxArray[i] := P^.tMinMaxArray[i];
+      end;
+      tRotation := P^.tRotation;
+      tX:= P^.tX;
+      tY:= P^.tY;
+      tHeight:= P^.tHeight;
+      tScale:= P^.tScale;
+      // tArray := P^.tArray;
+      tArray.aCount := P^.tArray.aCount;
+      setlength(tArray.aArray,tArray.aCount,3);
+      for i := 0 to tArray.aCount-1 do begin
+        for j := 0 to 3-1 do begin
+          tArray.aArray[i][j] := P^.tArray.aArray[i][j];
+        end;
+      end;
+    //test  P^.tArray.aArray[0][1] := 9999;
+      //sArray := P^.sArray;
+      sArray.aCount := P^.sArray.aCount;
+      setlength(sArray.aArray,sArray.aCount);
+      for i := 0 to sArray.aCount-1 do begin
+        sArray.aArray[i].aCount := P^.sArray.aArray[i].aCount;
+        setlength(sArray.aArray[i].aArray,sArray.aArray[i].aCount);
+        for j := 0 to 3-1 do begin
+          sArray.aArray[i].aArray[j] := P^.sArray.aArray[i].aArray[j];
+        end;
+      end;
+   //test  P^.sArray.aArray[0].aArray[0] := 8888;
+//    CommonSurfaces := sArray;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractNormals(var NewNormals : tMeshNormals; oTreeView : TTreeView; Index : integer);
+var
+ P : pMeshNormals;
+ i, j : longword;
+begin
+  with oTreeView do begin
+    P := pMeshNormals(pObjectItem(Items[Index].data)^.oPointer);
+    with NewNormals do begin
+      tName := P^.tName;
+      // tArray := P^.tArray;
+      tArray.aCount := P^.tArray.aCount;
+      setlength(tArray.aArray,tArray.aCount,3);
+      for i := 0 to tArray.aCount-1 do begin
+        for j := 0 to 3-1 do begin
+          tArray.aArray[i][j] := P^.tArray.aArray[i][j];
+        end;
+      end;
+    //test  P^.tArray.aArray[0][1] := 9999;
+      //sArray := P^.sArray;
+      sArray.aCount := P^.sArray.aCount;
+      setlength(sArray.aArray,sArray.aCount);
+      for i := 0 to sArray.aCount-1 do begin
+        sArray.aArray[i].aCount := P^.sArray.aArray[i].aCount;
+        setlength(sArray.aArray[i].aArray,sArray.aArray[i].aCount);
+        for j := 0 to 3-1 do begin
+          sArray.aArray[i].aArray[j] := P^.sArray.aArray[i].aArray[j];
+        end;
+      end;
+   //test  P^.sArray.aArray[0].aArray[0] := 8888;
+//    sArray := CommonSurfaces;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractTcoords(var NewTcoords : tMeshTCoord; oTreeView : TTreeView; Index : integer);
+var
+ P : pMeshTcoord;
+ i, j : longword;
+begin
+  with oTreeView do begin
+    P := pMeshTcoord(pObjectItem(Items[Index].data)^.oPointer);
+    with NewTcoords do begin
+      tName := P^.tName;
+      // tArray := P^.tArray;
+      tArray.aCount := P^.tArray.aCount;
+      setlength(tArray.aArray,tArray.aCount,2);
+      for i := 0 to tArray.aCount-1 do begin
+        for j := 0 to 2-1 do begin
+          tArray.aArray[i][j] := P^.tArray.aArray[i][j];
+        end;
+      end;
+    //test  P^.tArray.aArray[0][1] := 7777;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractMaterialList(var NewMaterialList : tMaterialList; oTreeView : TTreeView; Index : integer);
+var
+ P : pMaterialList;
+ i : longword;
+begin
+  with oTreeView do begin
+    P := pMaterialList(pObjectItem(Items[Index].data)^.oPointer);
+    with NewMaterialList do begin
+      tName := P^.tName;
+      tCount := P^.tCount;
+      tsCount := P^.tsCount;
+      //sArray : tIntArray;
+      setlength(sArray,tsCount);
+      for i := 0 to tsCount-1 do begin
+        sArray[i] := P^.sArray[i];
+      end;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractMaterial(var NewMaterial : tMaterial; oTreeView : TTreeView; Index : integer);
+var
+ P : pMaterial;
+ i, j : longword;
+begin
+  with oTreeView do begin
+    P := pMaterial(pObjectItem(Items[Index].data)^.oPointer);
+    with NewMaterial do begin
+      tName := P^.tName;
+      //tRGBA := P^.tRGBA;
+      setlength(tRGBA,4);
+      for i := 0 to 4-1 do begin
+        tRGBA[i] := P^.tRGBA[i];
+      end;
+      tPower := P^.tPower;
+      //tRGBs := P^.tRGBs;
+      setlength(tRGBs,3);
+      for i := 0 to 3-1 do begin
+        tRGBs[i] := P^.tRGBs[i];
+      end;
+      //tRGBr := P^.tRGBr;
+      setlength(tRGBr,3);
+      for i := 0 to 3-1 do begin
+        tRGBr[i] := P^.tRGBr[i];
+      end;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractTFileName(var NewFileName : tpFileName; oTreeView : TTreeView; Index : integer);
+var
+ P : pFileName;
+begin
+  with oTreeView do begin
+    P := pFileName(pObjectItem(Items[Index].data)^.oPointer);
+    with NewFileName do begin
+      tName := P^.tName;
+      tqName := P^.tqName;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
 Procedure sExtract(oTreeView : TTreeView; Index : integer; var o_Object : TArray_CoordXY_Array);
 var
   i, j : integer;
@@ -2625,7 +2876,7 @@ end;
 {----------------------------------------------------------------------------}
 Procedure vExtract(oTreeView : TTreeView; Index : integer; var o_Object : TCoordXY_Array);
 var
-  i, j : integer;
+  i{, j} : integer;
 //  Xcentre, Ycentre,Scale : double;
 //  iX, iY : integer;
   Ptr : pointer;
@@ -2659,6 +2910,147 @@ begin
       end;
     end;
   end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ExtractVarray(vPtr : pCountFloatArray; oTreeView : TTreeView; Index : integer);
+begin
+  setlength(vPtr^.aArray,3);
+  // verify it's a frame
+  if ( (oTreeView.Items[Index].data <> nil) AND
+       (pObjectItem(oTreeView.Items[Index].data)^.oType in
+       [oFrame]) ) then begin
+    with pFrame(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+      New(pObjectData); //allocate space for an object data
+      pObjectData^.oType := oFrame;
+      New(pFrameData); //allocate space for a frame data
+      pObjectData^.oPointer := pFrameData;
+      pFrameData^.tName := tname+'3D';
+//      fTreeNode := oTreeView.Items.AddChildObject(nil, 'Frame '+pFrameData^.tName, pObjectData);
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+function CopyAndAddFrame(oTreeView : TTreeView; Index : integer) : integer;
+var
+ fTreeNode,fTreeNode2 : TTreeNode;
+begin
+  // verify it's a frame
+  if ( (oTreeView.Items[Index].data <> nil) AND
+       (pObjectItem(oTreeView.Items[Index].data)^.oType in
+       [oFrame]) ) then begin
+    with pFrame(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+      New(pObjectData); //allocate space for an object data
+      pObjectData^.oType := oFrame;
+      New(pFrameData); //allocate space for a frame data
+      pObjectData^.oPointer := pFrameData;
+      pFrameData^.tName := tname+'3D';
+//      fTreeNode := oTreeView.Items.AddChildObject(nil, 'Frame '+pFrameData^.tName, pObjectData);
+//      result := oTreeView.Items.Count-1;
+//      fTreeNode := oTreeView.Items.AddObjectFirst(oTreeView.Items[Index], 'Frame '+pFrameData^.tName, pObjectData);
+      fTreeNode := oTreeView.Items.InsertObject(oTreeView.Items[Index], 'Frame '+pFrameData^.tName, pObjectData);
+      result := Index;
+    end;
+  end;
+  INC(index,2); // 2 because just inserted and extra one above
+  // mesh
+  with pMesh(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := oMesh;
+    New(pMeshData); //allocate space for data
+    pMeshData^.tName := tname+'3D';
+    pMeshData^.tRotation := tRotation;
+    pMeshData^.tMinMaxArray := tminMaxArray;
+    pMeshData^.tX := tX;
+    pMeshData^.tY := tY;
+    pMeshData^.tHeight := tHeight;
+    pMeshData^.tScale := tScale;
+    // Do vertices
+    pMeshData^.tArray.aCount := tArray.aCount;
+    setLength(pMeshData^.tArray.aArray,pMeshData^.tArray.aCount);
+    pMeshData^.tArray := tArray;
+    // Do surfaces
+    pMeshData^.sArray.aCount := sArray.aCount;
+    setLength(pMeshData^.sArray.aArray,pMeshData^.sArray.aCount);
+    pMeshData^.sArray := sArray;
+    pObjectData^.oPointer := pMeshData;
+    fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, 'Mesh '+pMeshData^.tName, pObjectData);
+  end;
+  INC(index,2);
+  // mesh normals
+  with pMeshNormals(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := oMeshNormals;
+    New(pMeshNormalsData); //allocate space for data
+    pMeshNormalsData^.tName := tName+'3D';
+    pMeshNormalsData^.tArray.aCount := tArray.aCount;
+    setLength(pMeshNormalsData^.tArray.aArray,pMeshNormalsData^.tArray.aCount);
+    pMeshNormalsData^.tArray := tArray;
+    // Do surfaces
+    pMeshNormalsData^.sArray.aCount := sArray.aCount;
+    setLength(pMeshNormalsData^.sArray.aArray,pMeshNormalsData^.sArray.aCount);
+    pMeshNormalsData^.sArray := sArray;
+    pObjectData^.oPointer := pMeshNormalsData;
+    oTreeView.Items.AddChildObject(fTreeNode2, 'MeshNormals', pObjectData);
+  end;
+  INC(index,2);
+  // mesh texture coordinates
+  with pMeshTcoord(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := oMeshTextureCoord;
+    New(pMeshTcoordData); //allocate space for data
+    pMeshTcoordData^.tName := tName+'3D';
+    pMeshTcoordData^.tArray.aCount := tArray.aCount;
+    setLength(pMeshTcoordData^.tArray.aArray,pMeshTcoordData^.tArray.aCount);
+    pMeshTcoordData^.tArray := tArray;
+    pMeshTcoordData^.sIndex := pMeshData;
+    pObjectData^.oPointer := pMeshTcoordData;
+    oTreeView.Items.AddChildObject(fTreeNode2, 'MeshTextureCoords', pObjectData);
+  end;
+  INC(index,2);
+  // material list
+  with pMaterialList(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := oMaterialList;
+    New(pMaterialListData); //allocate space for data
+    pMaterialListData^.tName := tName;
+    pMaterialListData^.tCount := tCount;
+    pMaterialListData^.tsCount := tsCount;
+    SetLength(pMaterialListData^.sArray,pMaterialListData^.tsCount);
+    pMaterialListData^.sArray := sArray;
+    pObjectData^.oPointer := pMaterialListData;
+    fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, 'MaterialList',pObjectData);
+  end;
+  INC(index,2);
+  // material
+  with pMaterial(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := oMaterial;
+    New(pMaterialData); //allocate space for data
+    setLength(pMaterialData^.tRGBA,4);
+    pMaterialData^.tRGBA := tRGBA;
+    pObjectData^.oPointer := pMaterialData;
+    pMaterialData^.tPower := tPower;
+    setLength(pMaterialData^.tRGBs,3);
+    pMaterialData^.tRGBs := tRGBs;
+    setLength(pMaterialData^.tRGBr,3); // condor lighting
+    pMaterialData^.tRGBr := tRGBr;
+    // for Condor C3D
+    fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, 'Material', pObjectData);
+  end;
+  INC(index,2);
+  // filename
+  with pFileName(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    New(pObjectData); //allocate space for an object data
+    pObjectData^.oType := oFileName;
+    New(pFileNameData); //allocate space for data
+    pFileNameData^.tName := tName;
+    pFileNameData^.tqName := 'green_64.dds';
+    pObjectData^.oPointer := pFileNameData;
+    oTreeView.Items.AddChildObject(fTreeNode2, 'FileName', pObjectData);
+  end;
+
 end;
 
 {----------------------------------------------------------------------------
@@ -2951,17 +3343,17 @@ begin
     pMaterialData^.tRGBA[1] := Objects_C3D[i].Lighting.b_Lighting;
     pMaterialData^.tRGBA[2] := Objects_C3D[i].Lighting.c_Lighting;
     pMaterialData^.tRGBA[3] := Objects_C3D[i].Lighting.d_Lighting;
-    setLength(pMaterialData^.tRGBr,3);
-    pMaterialData^.tRGBr[0] := Objects_C3D[i].Lighting.f_Lighting; // reflective, shiny
-    pMaterialData^.tRGBr[1] := Objects_C3D[i].Lighting.f_Lighting;
-    pMaterialData^.tRGBr[2] := Objects_C3D[i].Lighting.f_Lighting;
     pObjectData^.oPointer := pMaterialData;
-    // dummy specular (?) data
-    pMaterialData^.tPower := 1.0;
+    pMaterialData^.tPower := 999.0;  // Flag for Condor lighting
     setLength(pMaterialData^.tRGBs,3);
-    pMaterialData^.tRGBs[0] := Objects_C3D[i].Lighting.e_Lighting; // specular
-    pMaterialData^.tRGBs[1] := Objects_C3D[i].Lighting.e_Lighting;
-    pMaterialData^.tRGBs[2] := Objects_C3D[i].Lighting.e_Lighting;
+    pMaterialData^.tRGBs[0] := Objects_C3D[i].Lighting.e_Lighting;  // not used
+    pMaterialData^.tRGBs[1] := Objects_C3D[i].Lighting.f_Lighting;
+    pMaterialData^.tRGBs[2] := Objects_C3D[i].Lighting.g_Lighting;
+    setLength(pMaterialData^.tRGBr,3); // condor lighting
+    pMaterialData^.tRGBr[0] := 0.0;
+    pMaterialData^.tRGBr[1] := 0.0;
+    pMaterialData^.tRGBr[2] := 0.0;
+    // for Condor C3D
 //    fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, 'Material', pObjectData);
     fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, 'Material', pObjectData);
 
@@ -3003,7 +3395,7 @@ begin
         for i := 0 to Number_Objects-1 do begin
           blockRead (C3D_file,Objects_C3D[i].name[0],1);  // get length of object name
           blockRead (C3D_file,Objects_C3D[i].name[1],integer(Objects_C3D[i].name[0])); // get object name
-// no spaces in object name !          
+// no spaces in object name !
 Objects_C3D[i].name := StringReplace(Objects_C3D[i].name, ' ', '_', [rfReplaceAll]);
           blockRead (C3D_file,Objects_C3D[i].Indexes,sizeof(Indexes_C3D)); // get object mesh data
           blockRead (C3D_file,Objects_C3D[i].TexturePath[0],1);  // get length of object name
@@ -3182,7 +3574,7 @@ end;
 //---------------------------------------------------------------------------
 Procedure UpdateTC(TCname : string; TC : Array of single);
 var
-  i : integer;
+//  i : integer;
   Index : integer;
 begin
 //  Index := FindTCbyName(TCname);
@@ -3235,8 +3627,8 @@ begin
         Objects_C3D[ObjectIndex].Lighting.c_Lighting := tRGBA[2];
         Objects_C3D[ObjectIndex].Lighting.d_Lighting := tRGBA[3];
         Objects_C3D[ObjectIndex].Lighting.e_Lighting := tRGBs[0];
-        Objects_C3D[ObjectIndex].Lighting.f_Lighting := tRGBr[0];
-        Objects_C3D[ObjectIndex].Lighting.g_Lighting := 0;
+        Objects_C3D[ObjectIndex].Lighting.f_Lighting := tRGBs[1];
+        Objects_C3D[ObjectIndex].Lighting.g_Lighting := tRGBs[2];
       end;
 }
       if (oTreeView.Items[Index].Count <> 0) then begin
@@ -3260,14 +3652,14 @@ begin
       Objects_C3D[ObjectIndex].Lighting.c_Lighting := tRGBA[2];
       Objects_C3D[ObjectIndex].Lighting.d_Lighting := tRGBA[3];
       Objects_C3D[ObjectIndex].Lighting.e_Lighting := tRGBs[0];
-      Objects_C3D[ObjectIndex].Lighting.f_Lighting := tRGBr[0];
-      Objects_C3D[ObjectIndex].Lighting.g_Lighting := 0;
+      Objects_C3D[ObjectIndex].Lighting.f_Lighting := tRGBs[1];
+      Objects_C3D[ObjectIndex].Lighting.g_Lighting := tRGBs[2];
       // use default
 {      Objects_C3D[ObjectIndex].Lighting.a_Lighting := 1;
       Objects_C3D[ObjectIndex].Lighting.b_Lighting := 1;
       Objects_C3D[ObjectIndex].Lighting.c_Lighting := 1;
       Objects_C3D[ObjectIndex].Lighting.d_Lighting := 1;
-      Objects_C3D[ObjectIndex].Lighting.e_Lighting := 0; // reflective, shiny
+      Objects_C3D[ObjectIndex].Lighting.e_Lighting := 0;
       Objects_C3D[ObjectIndex].Lighting.f_Lighting := 1;
       Objects_C3D[ObjectIndex].Lighting.g_Lighting := 0;
 }
@@ -3985,7 +4377,7 @@ var
 //----------------------------------------------------------------------------
 procedure XplaneOBJ8file_CreateTreeViewVersion;
 var
-  i, j, k : integer;
+  {i,} j, k : integer;
   prevCount : integer;
   fTreeNode, fTreeNode2 : TTreeNode;
 
@@ -4130,10 +4522,6 @@ begin
     pMaterialData^.tRGBA[1] := 1.0;
     pMaterialData^.tRGBA[2] := 1.0;
     pMaterialData^.tRGBA[3] := 1.0;
-    setLength(pMaterialData^.tRGBr,3);
-    pMaterialData^.tRGBr[0] := 0.0; // reflective, shiny
-    pMaterialData^.tRGBr[1] := 0.0;
-    pMaterialData^.tRGBr[2] := 0.0;
     pObjectData^.oPointer := pMaterialData;
     // dummy specular (?) data
     pMaterialData^.tPower := 1.0;
@@ -4141,6 +4529,10 @@ begin
     pMaterialData^.tRGBs[0] := 0.0; // specular
     pMaterialData^.tRGBs[1] := 0.0;
     pMaterialData^.tRGBs[2] := 0.0;
+    setLength(pMaterialData^.tRGBr,3);
+    pMaterialData^.tRGBr[0] := 0.0; // reflective, shiny
+    pMaterialData^.tRGBr[1] := 0.0;
+    pMaterialData^.tRGBr[2] := 0.0;
 //    fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode, 'Material', pObjectData);
     fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, 'Material', pObjectData);
 
@@ -4167,8 +4559,8 @@ var
 //  Temp_File : File; alternate untyped file IO
   TempSTR : string;
   pString : string;
-  ch : char;
-  TextBuffer: array[1..1024] of Char;  { 1K buffer }
+//  ch : char;
+//  TextBuffer: array[1..1024] of Char;  { 1K buffer }
 
 // - - - - - - - - - - - - - - - - - - - - - - -
 {

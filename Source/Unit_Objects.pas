@@ -50,6 +50,21 @@ type
     CheckBox_zAbsolute: TCheckBox;
     OpenDialog_FileName: TOpenDialog;
     SaveDialog_FileName: TSaveDialog;
+    GroupBox_MaterialColor: TGroupBox;
+    Edit_Red: TEdit;
+    Edit_Green: TEdit;
+    Edit_Blue: TEdit;
+    Edit_Alpha: TEdit;
+    Edit_Spec: TEdit;
+    Edit_Shiny: TEdit;
+    Edit_Env: TEdit;
+    Label_Red: TLabel;
+    Label_Green: TLabel;
+    Label_Blue: TLabel;
+    Label_Alpha: TLabel;
+    Label_Spec: TLabel;
+    Label_Shiny: TLabel;
+    Label_Env: TLabel;
     procedure Button_ExitClick(Sender: TObject);
     procedure Button_OpenClick(Sender: TObject);
     procedure TreeView_ObjectMouseDown(Sender: TObject;
@@ -71,7 +86,7 @@ var
   Form_Objects: TForm_Objects;
 
 var
-  ApplicationPathName : string;
+  ApplicationPath : string;
   Memo_Message : TMemo;  // external TMemo for messages
   CondorFolder : string; // external path for Condor program folder
   WorkingFolder : string;
@@ -83,7 +98,9 @@ var
 implementation
 
 uses FileCtrl,
-  u_X_CX, u_CalibImport, u_CalibExport, u_Exec,
+  u_X_CX,
+  u_CalibImport, u_CalibExport, // for dialogs
+  u_Exec,
   pngimage,
   u_BMP, JPEG, TGA, DDS;
 
@@ -127,7 +144,7 @@ begin
 //  Shell_Execute(ApplicationPathName+'/Viewer', 'ObjectViewer', oFolder+'\'+TempFileName, false);
   // use ObjectFolder in case object already open
   // need "" in case there are spaces in folder or filenames
-  Shell_Execute(ApplicationPathName+'/Viewer', 'ObjectViewer', '"'+ObjectFolder+'\'+TempFileName+'"', false);
+  Shell_Execute(ApplicationPath+'/Viewer', 'ObjectViewer', '"'+ObjectFolder+'\'+TempFileName+'"', false);
 //  DeleteFile(oFolder+TempFileName);
   DeleteFile(ObjectFolder+'\'+TempFileName);
 end;
@@ -229,11 +246,12 @@ begin
 
     // make sure treeView is selected
     u_X_CX.oTreeView := TreeView_Object;
+// u_X_Cx.Memo_Message := Memo_Message;
 
     if (FileExists(imFileName)) then begin
       FileType := uppercase(ExtractFileExt(imFileName));
       if (FileType = '.C3D') then begin
-        ReadCondorC3Dfile(imFileName);
+        ReadCondorC3Dfile(imFileName, false);
       end else begin
         if (FileType = '.OBJ') then begin
           readXplaneOBJ8file(imFileName); // assume Xplane OBJ8, not Wavefront OBJ
@@ -251,18 +269,28 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-Procedure ShowColor(cArray : tFloatArray);
+Procedure ShowColor(cArray, sArray : tFloatArray);
 var
   cColor : ColorConvert;
 
 begin
-  with Form_Objects.Image_Texture do begin
-    cColor.ByteValue[0] := trunc(cArray[0]*255);  //Red
-    cColor.ByteValue[1] := trunc(cArray[1]*255);  //Green
-    cColor.ByteValue[2] := trunc(cArray[2]*255);  //Blue
-    cColor.ByteValue[3] := 0;
-    Canvas.Brush.Color := cColor.ColorValue;
-    Canvas.FillRect(rect(0,0,Picture.Width,Picture.Height));
+  with Form_Objects do begin
+    GroupBox_MaterialColor.visible := true;
+    Edit_Red.Text   := format('%1.2f',[cArray[0]]);
+    Edit_Green.Text := format('%1.2f',[cArray[1]]);
+    Edit_Blue.Text  := format('%1.2f',[cArray[2]]);
+    Edit_Alpha.Text := format('%1.2f',[cArray[3]]);
+    Edit_Spec.Text  := format('%1.2f',[sArray[0]]);
+    Edit_Shiny.Text := format('%1.2f',[sArray[1]]);
+    Edit_Env.Text   := format('%1.2f',[sArray[2]]);
+    with {Form_Objects.}Image_Texture do begin
+      cColor.ByteValue[0] := trunc(cArray[0]*255);  //Red
+      cColor.ByteValue[1] := trunc(cArray[1]*255);  //Green
+      cColor.ByteValue[2] := trunc(cArray[2]*255);  //Blue
+      cColor.ByteValue[3] := 0; //trunc(cArray[3]*255);  //Alpha
+      Canvas.Brush.Color := cColor.ColorValue;
+      Canvas.FillRect(rect(0,0,Picture.Width,Picture.Height));
+    end;
   end;
 end;
 
@@ -271,9 +299,11 @@ Procedure ShowBitmap(FileName:String);
 var
   FileSubstitute : string;
   FilePicture: TPicture; // work around for PNG
-  Offset : integer;
+//  Offset : integer;
+  AspectRatio : real;
 
 begin
+  Form_Objects.GroupBox_MaterialColor.visible := false;
   with Form_Objects.Image_Texture do begin
     // assume size for now for TextOut to be reasonable size
     Picture.Bitmap.Width := 256;
@@ -324,7 +354,7 @@ begin
           try
             if (uppercase(ExtractFileExt(FileName)) = '.BMP') then begin
 //              FileSubstitute := WorkingFolder+'\Temp\'+ExtractFileName(FileName);
-              FileSubstitute := ApplicationPathName+'\Temp\'+ExtractFileName(FileName);
+              FileSubstitute := ApplicationPath+'\Temp\'+ExtractFileName(FileName);
               if (LoadBMPfileFixAndSaveAsBMP(FileName,FileSubstitute)) then begin
                 Picture.LoadFromFile(FileSubstitute);
               end else begin
@@ -338,7 +368,17 @@ begin
                 FilePicture.LoadFromFile(FileName);
                 try
 //                  with Picture.Bitmap do begin
-                    Canvas.StretchDraw(Rect(0, 0, Width-1, Height-1), FilePicture.Graphic);
+                    SetStretchBltMode(Canvas.Handle, HALFTONE); // linear interpolation
+                    // aspect ratio 1:1 for showing in relative texture coords
+                    // aspect ratio correction if showing absolute bitmap
+//                    AspectRatio := FilePicture.Width / FilePicture.Height;
+                    AspectRatio := 1.0;
+                    if (AspectRatio >= 1.0) then begin
+                      Canvas.StretchDraw(Rect(0, 0, Width-1, round(Height/AspectRatio)-1), FilePicture.Graphic);
+// for testing                      Canvas.Draw(0, 0, FilePicture.Graphic);
+                    end else begin
+                      Canvas.StretchDraw(Rect(0, 0, round(Width*AspectRatio)-1, Height-1), FilePicture.Graphic);
+                    end;
 //                  end;
                 finally
                 end;
@@ -380,7 +420,7 @@ begin
             with pMaterial(pObjectItem(Items[i].data)^.oPointer)^ do begin
               if (tName = matName) then begin
                 mFound := true;
-                ShowColor(tRGBA);
+                ShowColor(tRGBA,tRGBs);
                 //see if it contains a filename
                 // for now, if there is an object, it must be a filename
                 if (oTreeView.Items[i].Count <> 0) then begin
@@ -445,7 +485,7 @@ begin
             end;
             oMaterial: begin
               Label_Name.Caption := pMaterial(oPointer)^.tName;
-              ShowColor(pMaterial(oPointer)^.tRGBA);
+              ShowColor(pMaterial(oPointer)^.tRGBA,pMaterial(oPointer)^.tRGBs);
             end;
             oMaterialReference: begin
               Label_Name.Caption := pMaterialReference(oPointer)^.tName;
@@ -465,7 +505,7 @@ begin
 //            o3Dmaterial: begin
 //              Label_Name.Caption := '';
 //              // show ambient color
-//              ShowColor(p3Dmaterial(oPointer)^.tRGBA);
+//              ShowColor(p3Dmaterial(oPointer)^.tRGBA,p3Dmaterial(oPointer)^.tRGBs);
 //            end;
 //            o3Dmesh: begin
 //              Label_Name.Caption := '';

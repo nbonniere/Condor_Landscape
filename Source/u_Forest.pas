@@ -371,7 +371,8 @@ begin
     ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
     for i := 0 to TileColumnCount-1 do begin
       for j := 0 to TileRowCount-1 do begin
-        TileName := format('%2.2d%2.2d',[i,j]);
+//        TileName := format('%2.2d%2.2d',[i,j]);
+        TileName := MakeTileName(i,j, TileNameMode);
 //        MessageShow(TileName);
         // need to read both decideous and coniferous files
         FilePath := SourceForestFolder +'\Terragen\ForestMaps';
@@ -462,7 +463,8 @@ begin
   ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
   for i := 0 to TileColumnCount-1 do begin
     for j := 0 to TileRowCount-1 do begin
-      TileName := format('%2.2d%2.2d',[i,j]);
+//      TileName := format('%2.2d%2.2d',[i,j]);
+      TileName := MakeTileName(i,j, TileNameMode);
 //      MessageShow(TileName);
       //first check if geoDatabase V1 format file is present
       FileName := 'f'+TileName+'.bmp';
@@ -750,7 +752,8 @@ begin
   ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
   for i := 0 to TileColumnCount-1 do begin
     for j := 0 to TileRowCount-1 do begin
-      TileName := format('%2.2d%2.2d',[i,j]);
+//      TileName := format('%2.2d%2.2d',[i,j]);
+      TileName := MakeTileName(i,j, TileNameMode);
 //      MessageShow(TileName);
       if (ForestResolution = 2) then begin
         //first check if geoDatabase V1 format file is present
@@ -1048,7 +1051,8 @@ begin
   ProgressBar_Status.Max := st_ColumnCount*st_RowCount;
   for st_X := 0 to st_ColumnCount-1 do begin
     for st_Y := 0 to st_RowCount-1 do begin
-      FileName := FOR_FilePath+'\'+format('%2.2d%2.2d.for',[st_X,st_Y]);
+//      FileName := FOR_FilePath+'\'+format('%2.2d%2.2d.for',[st_X,st_Y]);
+      FileName := FOR_FilePath+'\'+format('%s.for',[MakeTileName(st_X,st_Y, TileNameMode)]);
       AssignFile(FOR_File,FileName);
       Rewrite(FOR_File);
       st_X_Offset := (st_ColumnCount-1- st_X) * (pColumns * 2);
@@ -1241,7 +1245,8 @@ begin
   for y := 0 to 4-1 do begin    // for each row of 4, from bottom
     for x := 0 to 4-1 do begin  // for each column of 4, from right
       ForestGrid_To_V2_FOR_Indexed(pColumns,
-        format('%s\%2.2d%2.2d.for',[FilePath,Column*4+x,Row*4+y]),
+//        format('%s\%2.2d%2.2d.for',[FilePath,Column*4+x,Row*4+y]),
+        format('%s\%s.for',[FilePath,MakeTileName(Column*4+x,Row*4+y, TileNameMode)]),
         (4-1-x)*tColumns div 4 *ForestResolution,
         (4-1-y)*tRows div 4 *ForestResolution);
     end;
@@ -1586,8 +1591,10 @@ begin
   ProgressBar_Status.Max := st_ColumnCount*st_RowCount;
   for st_X := 0 to st_ColumnCount-1 do begin
     for st_Y := 0 to st_RowCount-1 do begin
-      SrcFileName := SourceForestFolder+'\'+format('%2.2d%2.2d.for',[st_X,st_Y]);
-      DestFileName := format('%2.2d%2.2d.bmp',[st_X,st_Y]);
+//      SrcFileName := SourceForestFolder+'\'+format('%2.2d%2.2d.for',[st_X,st_Y]);
+      SrcFileName := SourceForestFolder+'\'+format('%s.for',[MakeTileName(st_X,st_Y, TileNameMode)]);
+//      DestFileName := format('%2.2d%2.2d.bmp',[st_X,st_Y]);
+      DestFileName := format('%s.bmp',[MakeTileName(st_X,st_Y, TileNameMode)]);
       if (FileExists(SrcFileName)) then begin
         V2_qFOR_To_ForestGrid(SrcFileName);
         ForestGrid_To_256Color_Bitmap(pColumns,fDeciduous,DestinationForestFolder+'\b'+DestFileName);

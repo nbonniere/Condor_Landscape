@@ -84,6 +84,7 @@ var
 //  File_Name : string;   // external name for file
 //  DXT_Type : string;
   LandscapeList : Tstrings;
+  mgVersion : string;
 
 //===========================================================================
 IMPLEMENTATION
@@ -93,8 +94,8 @@ IMPLEMENTATION
 uses
   FileCtrl,
   Unit_DEM,
-  u_UTM, u_Terrain, u_Thermal, u_BMP, u_DXT,
-  u_Object, u_Airport, u_INI, u_CUP;
+  u_UTM, u_Terrain, u_Thermal, u_BMP, u_DXT, u_X_CX,
+  u_Object, u_Airport, u_INI, u_CUP, u_Airspace, u_TileList;
 
 type
   Merge_Type = record
@@ -221,10 +222,14 @@ begin
     // create an initial dummy .trn file.
     WriteTerrainHeader(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.trn');
     // create an initial dummy .tdm file.
-MessageShow(Format('W= %d, H= %d',[u_Terrain.TerrainHeader.twidth,u_Terrain.TerrainHeader.tHeight]));
+//MessageShow(Format('W= %d, H= %d',[u_Terrain.TerrainHeader.twidth,u_Terrain.TerrainHeader.tHeight]));
     WriteTDMHeader(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tdm');
     // create an initial dummy .bmp file.
     WriteBMP24Header(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.bmp');
+    // create a dummy TM3 file
+    if (mgVersion = 'V3') then begin
+      WriteTDMHeader(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tm3');
+    end;
     // save landscape list as a 'merge flag'
     Save_Merge_List;
     Button_Merge.Enabled := true;
@@ -276,7 +281,8 @@ begin
     end;
 
     // convert to UTM
-    LatLongToUTM(LatRef, LongRef, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+    LatLongToUTM(LatRef, LongRef,
+      IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
     ReferencePoint.X := round(uEasting); ReferencePoint.Y := round(uNorthing); // reference point
 
     ReferencePointDefined:= true;
@@ -534,7 +540,7 @@ begin
 end;
 
 type
-  IndexFile_Type = (Type_TR3, Type_FOR, Type_DDS);
+  IndexFile_Type = (Type_TR3, Type_FOR, Type_DDS, Type_TR3F, Type_C3D);
 
 {----------------------------------------------------------------------------}
 procedure Create_Dummy_Files(IF_Type : IndexFile_Type;
@@ -556,6 +562,12 @@ begin
       File_Folder := 'HeightMaps';
       FileBytes := 193*193*2;
     end;
+//    Type_TR3f: begin   // not needed
+//      File_Prefix := 'h';
+//      File_Ext := '.tr3f';
+//      File_Folder := 'HeightMaps\22.5';
+//      FileBytes := 257*257*4;
+//    end;
     Type_FOR: begin
       File_Prefix := '';
       File_Ext := '.for';
@@ -586,7 +598,8 @@ begin
     for i := 0 to (tWidth div 64)-1 do begin
       for j := 0 to (tHeight div 64)-1 do begin
         File_Name := FilePath+'\'+File_Folder+'\'+
-          format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//          format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+          format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
         if (NOT FileExists(File_Name)) then begin
           AssignFile(Dummy_File,File_Name);
           Rewrite(Dummy_File);
@@ -631,6 +644,11 @@ begin
       File_Ext := '.tr3';
       File_Folder := 'HeightMaps';
     end;
+    Type_TR3f: begin
+      File_Prefix := 'h';
+      File_Ext := '.tr3f';
+      File_Folder := 'HeightMaps\22.5m';
+    end;
     Type_FOR: begin
       File_Prefix := '';
       File_Ext := '.for';
@@ -640,6 +658,11 @@ begin
       File_Prefix := 't';
       File_Ext := '.dds';
       File_Folder := 'Textures';
+    end;
+    Type_C3D: begin
+      File_Prefix := 'o';
+      File_Ext := '.c3d';
+      File_Folder := 'AutoGen';
     end;
     else begin
       Beep; Exit;
@@ -659,10 +682,20 @@ begin
              (j+  Offset_Y  >= Min_Y) AND (j+  Offset_Y  < Max_Y) ) then begin
 //        if (true) then begin
 //          File_Name := format('%s%2.2d%2.2d%s',[File_Prefix,i+(-Offset_X),j+Offset_Y,File_Ext]);
-          File_Name := format('%s%2.2d%2.2d%s',[File_Prefix,i+(-Offset_X)-Min_X,j+Offset_Y-Min_Y,File_Ext]);
-          File_Name_a := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//          File_Name := format('%s%2.2d%2.2d%s',[File_Prefix,i+(-Offset_X)-Min_X,j+Offset_Y-Min_Y,File_Ext]);
+          File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i+(-Offset_X)-Min_X,j+Offset_Y-Min_Y, TileNameMode),File_Ext]);
+//          File_Name_a := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+          File_Name_a := format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
           CopyFile(pchar(FilePath_a+'\'+File_Folder+'\'+File_Name_a),
             pchar(FilePath+'\'+File_Folder+'\'+File_Name),false);
+          if (IF_Type = Type_C3D) then begin
+//      MessageShow(FilePath_a+'\'+File_Folder+'\'+File_Name_a);
+          ReadCondorC3Dfile(FilePath_a+'\'+File_Folder+'\'+File_Name_a, false);
+          // Need to copy textures for this object
+          CopyObjectTextures(FilePath+'\'+File_Folder,File_Name,
+                             FilePath_a+'\'+File_Folder,File_Name_a,
+                             '');
+          end;
         end;
       end;
       ProgressBar_Status.StepIt;
@@ -747,7 +780,7 @@ begin
   // that obviously have been flatened
   // else copy all .tr3 files from other landscapes and fill in the rest with default
   // could use symbolic links instead of copies ???
-  MessageShow('Merging HeightMaps');
+  MessageShow('Merging tr3 HeightMaps');
   for i := 0 to Merge_Count-1 do begin
     with Merge_Array[i] do begin
       Copy_ReIndex_Files(Type_TR3,
@@ -757,6 +790,21 @@ begin
     end;
   end;
 
+  if (mgVersion = 'V3') then begin
+    // 'HeightMaps\22.5m' folder (extra floating-point version for higher resolution)
+    // need to offset XY tile indexes/names
+    // could use symbolic links instead of copies ???
+    MessageShow('Merging tr3f HeightMaps');
+    for i := 0 to Merge_Count-1 do begin
+      with Merge_Array[i] do begin
+        Copy_ReIndex_Files(Type_TR3F,
+          trunc(qtX), trunc(qtY), Crop_Min_X, Crop_Max_X, Crop_Min_Y, Crop_Max_Y,
+          Condor_folder+'\Landscapes\'+LandscapeName,
+          Condor_folder+'\Landscapes\'+Name, Name);
+      end;
+    end;
+  end;
+  
   // then add dummy missing files for empty areas
   // fix seams after to also make a good transition edge
   MessageShow('Adding missing tiles');
@@ -829,8 +877,7 @@ begin
   Create_Dummy_Files(Type_DDS,
     Condor_folder+'\Landscapes\'+LandscapeName, LandscapeName);
 
-  // merge flight planner map bitmaps
-  // ??? what about 24 versus 32 bit color ???
+  // merge flight planner map bitmaps - use 24 bit color, convert to 24 if needed
   MessageShow('Merging FlightPlanner');
   u_BMP.Memo_Message := Memo_Message;
   u_BMP.ProgressBar_Status := ProgressBar_Status;
@@ -849,6 +896,10 @@ begin
         Condor_folder+'\Landscapes\'+Name,Name+'.bmp');
     end;
   end;
+  // now convert to 32 bit - TBD ???
+//  RenameFile(FileName, FileName+'.bmp');
+//  Bitmap_24_To_Bitmap_32(FileName+'.bmp',FileName, false,1.0);
+//  DeleteFile(FileName+'.bmp');
 
   // for other map bitmaps, make list of all bitmaps and then merge by matching name
   MessageShow('Merging alternate FlightPlanner(s)');
@@ -886,6 +937,10 @@ begin
           Condor_folder+'\Landscapes\'+Name,FileList[j]);
       end;
     end;
+    // now convert to 32 bit - TBD ???
+//  RenameFile(FileName, FileName+'.bmp');
+//  Bitmap_24_To_Bitmap_32(FileName+'.bmp',FileName, false,1.0);
+//  DeleteFile(FileName+'.bmp');
   end;
   MessageShow('Delete incomplete alternate flightplanner(s) as desired');
 
@@ -961,8 +1016,32 @@ begin
     end;
   end;
 
+  if (mgVersion = 'V3') then begin
+    // merge .tm3 thermal files
+    MessageShow('Merging thermal tm3 map');
+    u_Thermal.Memo_Message := Memo_Message;
+    u_Thermal.ProgressBar_Status := ProgressBar_Status;
+    // first force size
+//    ForceTM3size(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tm3');
+    ForceTM3size(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.tm3',128);
+    // now merge
+    for i := 0 to Merge_Count-1 do begin
+      with Merge_Array[i] do begin
+        Merge_TM3_File(trunc(qtX) * (256 div 4),
+                       trunc(qtY) * (256 div 4),
+                       Crop_Min_X * (256 div 4),
+                       Crop_Max_X * (256 div 4),
+                       Crop_Min_Y * (256 div 4),
+                       Crop_Max_Y * (256 div 4),
+          Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName+'.tm3',
+          Condor_folder+'\Landscapes\'+Name,Name+'.tm3');
+      end;
+    end;
+  end;
+
   // merge .cup files
   MessageShow('Merging Turnpoints');
+  u_CUP.Memo_Message := Memo_Message;
   // make sure there is no old file
   DeleteFile(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.cup');
   // lat and long only, no UTM, so copy is straight forward
@@ -973,6 +1052,22 @@ begin
     Append_CUP_File(ce,
       Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
       Condor_folder+'\Landscapes\'+Merge_Array[i].Name,Merge_Array[i].Name);
+  end;
+
+  if (mgVersion = 'V3') then begin
+    // merge .air files
+    MessageShow('Merging Airspace');
+    // make sure there is no old file
+    DeleteFile(Condor_folder+'\Landscapes\'+LandscapeName+'\'+LandscapeName+'.air');
+    // lat and long only, no UTM, so copy is straight forward
+    // - ??? how to deal with duplicate airspace names ???
+    // remove/crop airspace when cropping enabled
+    // can open file and each line for each airspace
+    for i := 0 to Merge_Count-1 do begin
+      Append_AIR_File(ce,
+        Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
+        Condor_folder+'\Landscapes\'+Merge_Array[i].Name,Merge_Array[i].Name);
+    end;
   end;
 
   // merge the 'Images' folders
@@ -996,6 +1091,23 @@ begin
       end;
     end;
   end;
+
+ u_X_Cx.Memo_Message := Memo_Message;
+ if (mgVersion = 'V3') then begin
+  // merge the 'AutoGen' folder - only copy textures that are actually used
+  // need to offset XY tile indexes/names
+  // could use symbolic links instead of copies ???
+  MessageShow('Merging AutoGen Folder');
+  for i := 0 to Merge_Count-1 do begin
+    with Merge_Array[i] do begin
+      Copy_ReIndex_Files(Type_C3D,
+        trunc(qtX), trunc(qtY),  Crop_Min_X, Crop_Max_X, Crop_Min_Y, Crop_Max_Y,
+        Condor_folder+'\Landscapes\'+LandscapeName,
+        Condor_folder+'\Landscapes\'+Name, Name);
+    end;
+  end;
+  // ??? could also merge OHA since each file has its AutoGen .c3d own HASH entry ???
+ end;
 
   // create new .ini file
   MessageShow('Creating INI version file');

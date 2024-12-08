@@ -378,7 +378,8 @@ begin
     for i := 0 to (tWidth div 64)-1 do begin
       for j := 0 to (tHeight div 64)-1 do begin
         File_Name := FilePath+'\'+File_Folder+'\'+
-          format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//          format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+          format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
         if (NOT FileExists(File_Name)) then begin
           AssignFile(Dummy_File,File_Name);
           Rewrite(Dummy_File);
@@ -452,10 +453,12 @@ begin
     ProgressBar_Status.Max := endX-startX+1;
     for i := startX to endX-1 do begin
       // is there a file above ?
-      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i,j+1,File_Ext]);
+//      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i,j+1,File_Ext]);
+      FileName_a := format('%s%s%s',[File_Prefix,MakeTileName(i,j+1, TileNameMode),File_Ext]);
       if (FileExists(FilePath+'\HeightMaps\'+FileName_a)) then begin
         // open both files and copy overlap
-        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+        FileName := format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
         AssignFile(Data_File_a,FilePath+'\HeightMaps\'+Filename_a);
         Reset(Data_File_a);
         AssignFile(Data_File,FilePath+'\HeightMaps\'+Filename);
@@ -485,10 +488,12 @@ begin
     ProgressBar_Status.Max := endX-startX+1;
     for i := startX to endX-1 do begin
       // is there a file below ?
-      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i,j-1,File_Ext]);
+//      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i,j-1,File_Ext]);
+      FileName_a := format('%s%s%s',[File_Prefix,MakeTileName(i,j-1, TileNameMode),File_Ext]);
       if (FileExists(FilePath+'\HeightMaps\'+FileName_a)) then begin
         // open both files and copy overlap
-        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+        FileName := format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
         AssignFile(Data_File_a,FilePath+'\HeightMaps\'+Filename_a);
         Reset(Data_File_a);
         AssignFile(Data_File,FilePath+'\HeightMaps\'+Filename);
@@ -518,10 +523,12 @@ begin
     ProgressBar_Status.Max := endY-startY+1;
     for j := startY to endY-1 do begin
       // is there a file to the right ?
-      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i-1,j,File_Ext]);
+//      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i-1,j,File_Ext]);
+      FileName_a := format('%s%s%s',[File_Prefix,MakeTileName(i-1,j, TileNameMode),File_Ext]);
       if (FileExists(FilePath+'\HeightMaps\'+FileName_a)) then begin
         // open both files and copy overlap
-        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+        FileName := format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
         AssignFile(Data_File_a,FilePath+'\HeightMaps\'+Filename_a);
         Reset(Data_File_a);
         AssignFile(Data_File,FilePath+'\HeightMaps\'+Filename);
@@ -549,10 +556,12 @@ begin
     ProgressBar_Status.Max := endY-startY+1;
     for j := startY to endY-1 do begin
       // is there a file to the left ?
-      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i+1,j,File_Ext]);
+//      FileName_a := format('%s%2.2d%2.2d%s',[File_Prefix,i+1,j,File_Ext]);
+      FileName_a := format('%s%s%s',[File_Prefix,MakeTileName(i+1,j, TileNameMode),File_Ext]);
       if (FileExists(FilePath+'\HeightMaps\'+FileName_a)) then begin
         // open both files and copy overlap
-        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+//        FileName := format('%s%2.2d%2.2d%s',[File_Prefix,i,j,File_Ext]);
+        FileName := format('%s%s%s',[File_Prefix,MakeTileName(i,j, TileNameMode),File_Ext]);
         AssignFile(Data_File_a,FilePath+'\HeightMaps\'+Filename_a);
         Reset(Data_File_a);
         AssignFile(Data_File,FilePath+'\HeightMaps\'+Filename);
@@ -1868,7 +1877,8 @@ begin
     ProgressBar_Status.Max := st_ColumnCount*st_RowCount;
     for st_X := 0 to st_ColumnCount-1 do begin
       for st_Y := 0 to st_RowCount-1 do begin
-        FileName := TR3_FilePath+'\h'+format('%2.2d%2.2d.tr3',[st_X,st_Y]);
+//        FileName := TR3_FilePath+'\h'+format('%2.2d%2.2d.tr3',[st_X,st_Y]);
+        FileName := TR3_FilePath+'\h'+format('%s.tr3',[MakeTileName(st_X,st_Y, TileNameMode)]);
         st_X_Offset := (st_ColumnCount-1- st_X) * (256 * 3 div 4);
         st_Y_Offset := (st_RowCount-1- st_Y) * (256 * 3 div 4);
 
@@ -1967,7 +1977,8 @@ begin
     ProgressBar_Status.Max := st_ColumnCount*st_RowCount;
     for st_X := 0 to st_ColumnCount-1 do begin
       for st_Y := 0 to st_RowCount-1 do begin
-        FileName := TR3_FilePath+'\h'+format('%2.2d%2.2d.tr3',[st_X,st_Y]);
+//        FileName := TR3_FilePath+'\h'+format('%2.2d%2.2d.tr3',[st_X,st_Y]);
+        FileName := TR3_FilePath+'\h'+format('%s.tr3',[MakeTileName(st_X,st_Y, TileNameMode)]);
 //        st_X_Offset := (st_ColumnCount-1- st_X) * (256 * 3 div 4);
         st_X_Offset := (st_ColumnCount-1- st_X) * (pColumns * 3);
 //        st_Y_Offset := (st_RowCount-1- st_Y) * (256 * 3 div 4);

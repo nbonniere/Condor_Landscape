@@ -348,6 +348,37 @@ v0.9.3 - Mar 2024
 v0.9.3a - Jun 2024
   - remove symboli link creation dur to Windows issues.
 
+v0.9.3b - Jun 2024
+  - hi-res runway - add missing 'frame {'
+  - add silo (cylinder object) in SimpleObjects
+  - add double-click on object name box to select World Object in ObjectPlacer
+  - fix .obj file not found in Utilities Export Object list lat/long
+
+v0.10.0 beta - Nov 2024
+  - fix DDS load when width, height not divisible by 4 - needs padding
+  - add utilities - V2 to V3 conversion
+    - add fix for black and white runways - airportG file
+  - airportPlacer - add HiRes runway tile-relative
+  - airportPlacer - fix Shift-S action to match 'Hint'
+  - add utilities - TM3-to-BMP - converts 3 bytes to 24-bit color
+  - add selectable alpha to converter 24->32bit BMP
+  - add selectable alpha file to Add Alpha
+  - add support for xxxyyy tile name format
+
+v0.10.0 beta-2 - Nov 2024
+  - add format conversion XXYY to XXXYYY and vice-versa
+  - toUTM at zone boundary
+  - allow edit of paths in EditBox, not just with Browse button
+  - add merge of AutoGen, TM3 (AutoGen without textures)
+
+v0.10.0 - Nov 2024
+  - add merge of TR3F
+  - improve CUP file parsing - allow lat/long variable number of decimals
+  - fix airport merge southern hemisphere bug
+  - fix memory leak, and finish Autogen merge
+  - add tileSize and zoomLevel hints
+  - add nearest binary for tileSize, and range check for Zoomlevel
+  - add parsing for {z}{x}{y} for generic tile download
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

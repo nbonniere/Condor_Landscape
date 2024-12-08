@@ -97,6 +97,8 @@ type
     Label_7zip: TLabel;
     Edit_7zipPath: TEdit;
     Button_7zipPath: TButton;
+    GroupBox_FileNameFormat: TGroupBox;
+    ComboBox_FileNameFormat: TComboBox;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -121,7 +123,6 @@ type
     procedure Button_ObjectPlaceClick(Sender: TObject);
     procedure MakeDummyAirportList(FilePath,Filename:string);
     procedure xMakeDummyAirportList(FilePath,Filename:string);
-    procedure MakeDummyOBJ(FilePath,Filename:string);
     procedure Button_UtilitiesClick(Sender: TObject);
     procedure Button_AirportPlaceClick(Sender: TObject);
     function  GetTileFile(TileName:string):boolean;
@@ -136,6 +137,31 @@ type
     procedure Button_LEpathClick(Sender: TObject);
     procedure Button_7zipPathClick(Sender: TObject);
     procedure Button_WgetPathClick(Sender: TObject);
+    procedure ComboBox_VersionChange(Sender: TObject);
+    procedure ComboBox_FileNameFormatChange(Sender: TObject);
+    procedure Edit_CondorPathEnter(Sender: TObject);
+    procedure Edit_CondorPathExit(Sender: TObject);
+    procedure Edit_CondorPathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_LEpathEnter(Sender: TObject);
+    procedure Edit_LEpathExit(Sender: TObject);
+    procedure Edit_LEpathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_GDALpathEnter(Sender: TObject);
+    procedure Edit_GDALpathExit(Sender: TObject);
+    procedure Edit_GDALpathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_7zipPathEnter(Sender: TObject);
+    procedure Edit_7zipPathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_7zipPathExit(Sender: TObject);
+    procedure Edit_WgetPathEnter(Sender: TObject);
+    procedure Edit_WgetPathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_WgetPathExit(Sender: TObject);
+    procedure Edit_DownloaderPathEnter(Sender: TObject);
+    procedure Edit_DownloaderPathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_DownloaderPathExit(Sender: TObject);
+    procedure Edit_CompressorPathEnter(Sender: TObject);
+    procedure Edit_CompressorPathKeyPress(Sender: TObject; var Key: Char);
+    procedure Edit_CompressorPathExit(Sender: TObject);
+    procedure ComboBox_ZoomLevelExit(Sender: TObject);
+    procedure ComboBox_TileSizeExit(Sender: TObject);
   private
     { Private declarations }
   public
@@ -161,7 +187,7 @@ uses
   u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
   u_Terrain, u_Forest, u_Thermal, u_UTM,
   u_X_CX, u_CalibImport, u_LandsatMet,
-  u_CalibExport, u_Object, u_CUP, u_INI, u_DXT,
+  u_CalibExport, u_Object, u_CUP, u_Airspace, u_INI, u_DXT,
   u_Airport, u_ReduceColors, u_Tile_XYZ, u_TIFF,
   u_BrowseFolder{, u_FTR};
 
@@ -178,6 +204,7 @@ var
   sZipPathName : string;
 
   CondorLandscapeName : string;
+  LandscapePathName : string;
   ApplicationPathName : string;
   WorkingPathName : string;
   TileName : string;
@@ -277,7 +304,8 @@ end;
 procedure MakeWorkingPath;
 begin
   if ((CondorPathName <> '') AND (CondorLandscapeName <> '')) then begin
-    WorkingPathName := CondorPathName + '\Landscapes\' + CondorLandscapeName + '\Working';
+    LandscapePathName := CondorPathName + '\Landscapes\' + CondorLandscapeName;
+    WorkingPathName := LandscapePathName + '\Working';
   end else begin
     WorkingPathName := '';
   end;  
@@ -299,16 +327,29 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.Button_CondorPathClick(Sender: TObject);
-
-var S : String;
-
+procedure TForm_Main.Edit_CondorPathEnter(Sender: TObject);
 begin
-  S := BrowseForFolder('Condor program folder',CondorPathName);
-  if (S <> '') then begin
-    CondorPathName := S;
+  if (Edit_CondorPath.Text <> CondorPathName) then begin
+    Edit_CondorPath.Text := CondorPathName;
+  end;
+end;
 
-    Edit_CondorPath.Text := ShortenFolderString(CondorPathName,ShortPathNameLength);
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_CondorPathKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_CondorPath.SetFocus; // create an exit, by changing focus
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_CondorPathExit(Sender: TObject);
+begin
+  if (Edit_CondorPath.Text <> CondorPathName) then begin
+    CondorPathName := Edit_CondorPath.Text;
     Edit_CondorPath.Hint := CondorPathName;
     FIniFile.WriteString('Paths','CondorPath',CondorPathName);
 
@@ -322,22 +363,50 @@ begin
     TerrainOpen := false;
     TileOpen := false;
   end;
+  Edit_CondorPath.Text := ShortenFolderString(CondorPathName,ShortPathNameLength);
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.Button_GDALpathClick(Sender: TObject);
-var
-  S : String;
+procedure TForm_Main.Button_CondorPathClick(Sender: TObject);
+
+var S : String;
 
 begin
-  S := BrowseForFolder('GDAL library folder',GDALpathName);
-  if (S <> '') then begin
-    GDALpathName := S;
-
-    Edit_GDALpath.Text := ShortenFolderString(GDALpathName,ShortPathNameLength);
-    Edit_GDALpath.Hint := GDALpathName;
-    FIniFile.WriteString('Paths','GDALpath',GDALpathName);
+  Edit_CondorPathEnter(Sender);
+  S := BrowseForFolder('Condor program folder',CondorPathName);
+  if ((S <> '') AND (S <> CondorPathName)) then begin
+    Edit_CondorPath.Text := S;
   end;
+  Edit_CondorPathExit(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_LEpathEnter(Sender: TObject);
+begin
+  if (Edit_LEpath.Text <> CondorLEpathName) then begin
+    Edit_LEpath.Text := CondorLEpathName;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_LEpathKeyPress(Sender: TObject; var Key: Char);
+begin
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_LEpath.SetFocus; // create an exit, by changing focus
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_LEpathExit(Sender: TObject);
+begin
+  if (Edit_LEpath.Text <> CondorLEpathName) then begin
+    CondorLEpathName := Edit_LEpath.Text;
+    Edit_LEpath.Hint := CondorLEpathName;
+    FIniFile.WriteString('Paths','CondorLEpath',CondorLEpathName);
+  end;
+  Edit_LEpath.Text := ShortenFolderString(CondorLEpathName,ShortPathNameLength);
 end;
 
 //---------------------------------------------------------------------------
@@ -346,46 +415,85 @@ var
   S : String;
 
 begin
+  Edit_LEpathEnter(Sender);
   S := BrowseForFolder('Condor Landscape Editor folder',CondorLEpathName);
-  if (S <> '') then begin
-    CondorLEpathName := S;
+  if ((S <> '') AND (S <>CondorLEpathName)) then begin
+    Edit_LEpath.Text := S;
+  end;
+  Edit_LEpathExit(Sender);
+end;
 
-    Edit_LEpath.Text := ShortenFolderString(CondorLEpathName,ShortPathNameLength);
-    Edit_LEpath.Hint := CondorLEpathName;
-    FIniFile.WriteString('Paths','CondorLEpath',CondorLEpathName);
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_GDALpathEnter(Sender: TObject);
+begin
+  if (Edit_GDALpath.Text <> GDALpathName) then begin
+    Edit_GDALpath.Text := GDALpathName;
   end;
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.Button_7zipPathClick(Sender: TObject);
-var
-  S : String;
-
+procedure TForm_Main.Edit_GDALpathKeyPress(Sender: TObject; var Key: Char);
 begin
-  S := BrowseForFolder('7-zip Archiver folder',sZIPpathName);
-  if (S <> '') then begin
-    sZIPpathName := S;
-
-    Edit_7zipPath.Text := ShortenFolderString(sZIPpathName,ShortPathNameLength);
-    Edit_7zipPath.Hint := sZIPpathName;
-    FIniFile.WriteString('Paths','7zipPath',sZIPpathName);
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_GDALpath.SetFocus; // create an exit, by changing focus
   end;
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.Button_WgetPathClick(Sender: TObject);
+procedure TForm_Main.Edit_GDALpathExit(Sender: TObject);
+begin
+  if (Edit_GDALpath.Text <> GDALpathName) then begin
+    GDALpathName := Edit_GDALpath.Text;
+    Edit_GDALpath.Hint := GDALpathName;
+    FIniFile.WriteString('Paths','GDALpath',GDALpathName);
+  end;
+  Edit_GDALpath.Text := ShortenFolderString(GDALpathName,ShortPathNameLength);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_GDALpathClick(Sender: TObject);
 var
   S : String;
 
 begin
-  S := BrowseForFolder('Wget downloader folder',WgetPathName);
-  if (S <> '') then begin
-    WgetPathName := S;
-
-    Edit_WgetPath.Text := ShortenFolderString(WgetPathName,ShortPathNameLength);
-    Edit_WgetPath.Hint := WgetPathName;
-    FIniFile.WriteString('Paths','WgetPath',WgetPathName);
+  Edit_GDALpathEnter(Sender);
+  S := BrowseForFolder('GDAL library folder',GDALpathName);
+  if ((S <> '') AND (S <> GDALpathName)) then begin
+    Edit_GDALpath.Text := S;
   end;
+  Edit_GDALpathExit(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_CompressorPathEnter(Sender: TObject);
+begin
+  if (Edit_CompressorPath.Text <> CompressorPathName) then begin
+    Edit_CompressorPath.Text := CompressorPathName;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_CompressorPathKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_TextureCompressorPath.SetFocus; // create an exit, by changing focus
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_CompressorPathExit(Sender: TObject);
+begin
+  if (Edit_CompressorPath.Text <> CompressorPathName) then begin
+    CompressorPathName := Edit_CompressorPath.Text;
+    Edit_CompressorPath.Hint := CompressorPathName;
+    FIniFile.WriteString('Paths','CompressorPath',CompressorPathName);
+  end;
+  Edit_CompressorPath.Text := ShortenFolderString(CompressorPathName,ShortPathNameLength);
 end;
 
 //---------------------------------------------------------------------------
@@ -394,39 +502,154 @@ var
   S : String;
 
 begin
+  Edit_CompressorPathEnter(Sender);
   S := BrowseForFolder('Texture compressor folder',CompressorPathName);
-  if (S <> '') then begin
-    CompressorPathName := S;
+  if ((S <> '') AND (S <> CompressorPathName)) then begin
+    Edit_CompressorPath.Text := S;
+  end;
+  Edit_CompressorPathExit(Sender);
+end;
 
-    Edit_CompressorPath.Text := ShortenFolderString(CompressorPathName,ShortPathNameLength);
-    Edit_CompressorPath.Hint := CompressorPathName;
-    FIniFile.WriteString('Paths','CompressorPath',CompressorPathName);
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_7zipPathEnter(Sender: TObject);
+begin
+  if (Edit_7zipPath.Text <> sZIPpathName) then begin
+    Edit_7zipPath.Text := sZIPpathName;
   end;
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.Button_DownloaderPathClick(Sender: TObject);
+procedure TForm_Main.Edit_7zipPathKeyPress(Sender: TObject; var Key: Char);
+begin
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_7zipPath.SetFocus; // create an exit, by changing focus
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_7zipPathExit(Sender: TObject);
+begin
+  if (Edit_7zipPath.Text <> sZIPpathName) then begin
+    sZIPpathName := Edit_7zipPath.Text;
+    Edit_7zipPath.Hint := sZIPpathName;
+    FIniFile.WriteString('Paths','7zipPath',sZIPpathName);
+  end;
+  Edit_7zipPath.Text := ShortenFolderString(sZIPpathName,ShortPathNameLength);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_7zipPathClick(Sender: TObject);
 var
   S : String;
+
+begin
+  Edit_7zipPathEnter(Sender);
+  S := BrowseForFolder('7-zip Archiver folder',sZIPpathName);
+  if ((S <> '') AND (S <> sZIPpathName)) then begin
+    Edit_7zipPath.Text := S;
+  end;
+  Edit_7zipPathExit(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_WgetPathEnter(Sender: TObject);
+begin
+  if (Edit_WgetPath.Text <> WgetPathName) then begin
+    Edit_WgetPath.Text := WgetPathName;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_WgetPathKeyPress(Sender: TObject; var Key: Char);
+begin
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_WGETpath.SetFocus; // create an exit, by changing focus
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_WgetPathExit(Sender: TObject);
+begin
+  if (Edit_GDALpath.Text <> WgetPathName) then begin
+    WgetPathName := Edit_WgetPath.Text;
+    Edit_WgetPath.Hint := WgetPathName;
+    FIniFile.WriteString('Paths','WgetPath',WgetPathName);
+  end;
+  Edit_WgetPath.Text := ShortenFolderString(WgetPathName,ShortPathNameLength);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_WgetPathClick(Sender: TObject);
+var
+  S : String;
+
+begin
+  Edit_WGETpathEnter(Sender);
+  S := BrowseForFolder('Wget downloader folder',WgetPathName);
+  if ((S <> '') AND (S <> WgetPathName)) then begin
+    Edit_WGETpath.Text := S;
+  end;
+  Edit_WGETpathExit(Sender);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_DownloaderPathEnter(Sender: TObject);
+begin
+  if (Edit_DownloaderPath.Text <> DownloaderPathName) then begin
+    Edit_DownloaderPath.Text := DownloaderPathName;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_DownloaderPathKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if ord(Key) = VK_RETURN then
+  begin
+    Key := #0; // prevent beeping
+    Button_DownloaderPath.SetFocus; // create an exit, by changing focus
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Edit_DownloaderPathExit(Sender: TObject);
+var
   Ext_File : TextFile;
   fExt : string;
 
 begin
-  S := BrowseForFolder('Downloader/Combiner folder',DownloaderPathName);
-  if (S <> '') then begin
-    DownloaderPathName := S;
-    if (FileExists(S+'\INI\t.txt')) then begin
-      AssignFile(Ext_File,S+'\INI\t.txt');
+  if (Edit_DownloaderPath.Text <> DownloaderPathName) then begin
+    DownloaderPathName := Edit_DownloaderPath.Text;
+    Edit_DownloaderPath.Hint := DownloaderPathName;
+
+    if (FileExists(Edit_DownloaderPath.Text+'\INI\t.txt')) then begin
+      AssignFile(Ext_File,Edit_DownloaderPath.Text+'\INI\t.txt');
       Reset(Ext_File);
       readln(Ext_File,fExt);
       ComboBox_MapType.Text := fExt;
       CloseFile(Ext_File);
     end;
 
-    Edit_DownloaderPath.Text := ShortenFolderString(DownloaderPathName,ShortPathNameLength);
-    Edit_DownloaderPath.Hint := DownloaderPathName;
     FIniFile.WriteString('Paths','DownloaderPath',DownloaderPathName);
   end;
+  Edit_DownloaderPath.Text := ShortenFolderString(DownloaderPathName,ShortPathNameLength);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_DownloaderPathClick(Sender: TObject);
+var
+  S : String;
+begin
+  Edit_DownloaderPathEnter(Sender);
+  S := BrowseForFolder('Downloader/Combiner folder',DownloaderPathName);
+  if ((S <> '') AND (S <> DownloaderPathName)) then begin
+    Edit_DownloaderPath.Text := S;
+  end;
+  Edit_DownloaderPathExit(Sender);
 end;
 
 //---------------------------------------------------------------------------
@@ -500,17 +723,6 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_Main.MakeDummyOBJ(FilePath,Filename:string);
-var
-  OBJ_File : TextFile;
-begin
-  AssignFile(OBJ_File,FilePath+Filename);
-  Rewrite(OBJ_File);
-  // empty file
-  CloseFile(OBJ_File);
-end;
-
-//---------------------------------------------------------------------------
 procedure TForm_Main.Button_HeaderClick(Sender: TObject);
 var
   CurrentRow, CurrentColumn : integer;
@@ -518,6 +730,7 @@ var
 //  SSf : double;
 //  ErrorCode :integer;
   ItemCount : integer;
+  FileName : string;
 
 begin
   Memo_Info.Lines.Clear;
@@ -556,6 +769,13 @@ begin
             if (DirectoryExists(WorkingPathName+'\..\HeightMaps')) then begin
               ComboBox_Version.text := 'V2';
             end;
+            if (FileExists(WorkingPathName+'\..\HeightMaps\h000000.tr3')) then begin
+              ComboBox_Version.text := 'V3';
+            end else begin
+              if (FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.air')) then begin
+                ComboBox_Version.text := 'V3';
+              end;
+            end;
           end;
           if (ComboBox_Version.text = 'V1') then begin
             UTM_ZoneNS := UTMgridConvert(tUTMgrid[0]);
@@ -575,13 +795,15 @@ begin
           cResolution := tResolution;     // typically 90m
           cDeltaX := tDeltaX;             // actual horizontal resolution in m (calibrated)
           cDeltaY := tDeltaY;             // actual vertical resolution in m (calibrated)
+          // adjust FileNameFormat as needed
+          ComboBox_VersionChange(Sender);
         end;
         // information is now valid
         HeaderOpen := true;
         // cannot override terrain file since it is used
         Button_OverrideCalib.enabled := false;
       end;
-    end else begin // scenery header not terrain header
+    end else begin // scenery header, not terrain header
       Button_OverrideCalib.enabled := true;
       if (DEM_Res = 30) then begin
         ComboBox_Version.text := 'V2';
@@ -640,20 +862,33 @@ begin
           MakeDummyCUP(WorkingPathName,'..\'+CondorLandscapeName+'.cup');
         end;
         if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.obj')) then begin
-          MakeDummyOBJ(WorkingPathName,'\..\'+CondorLandscapeName+'.obj');
+          MakeDummyFile(WorkingPathName,'\..\'+CondorLandscapeName+'.obj');
         end;
         if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.tdm')) then begin
           MakeThermal_Blank(WorkingPathName+'\..\'+CondorLandscapeName+'.tdm', ColumnCount, RowCount, 192);
         end;
-        if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.bmp')) then begin
+        FileName := WorkingPathName+'\..\'+CondorLandscapeName+'.bmp';
+        if (NOT FileExists(FileName)) then begin
 // too          TRN_To_Color_Bitmap(WorkingPathName+'\..\'+CondorLandscapeName+'.trn',
 // slow           WorkingPathName+'\..\'+CondorLandscapeName+'.bmp');
-          MakeGEO_Blank_24bit(WorkingPathName+'\..\'+CondorLandscapeName+'.bmp', ColumnCount, RowCount, 192);
+          MakeGEO_Blank_24bit(FileName, ColumnCount, RowCount, 192);
+          // bmp for V3 needs to be 32 bit color RGBA
+          if (ComboBox_Version.text = 'V3') then begin //TBD
+            RenameFile(FileName, FileName+'.bmp');
+            Bitmap_24_To_Bitmap_32(FileName+'.bmp', FileName, true, 1.0);
+            DeleteFile(FileName+'.bmp');
+          end;
         end;
         // dummy \Forestmaps\*.for  not needed, .tha needed, plane not controllable
-        if (NOT FileExists(WorkingPathName+'\..\Textures\t0000.dds')) then begin
+//        if (NOT FileExists(WorkingPathName+'\..\Textures\t0000.dds')) then begin
+        if (NOT FileExists(WorkingPathName+'\..\Textures\t'+MakeTileName(0,0, TileNameMode)+'.dds')) then begin
           ForceDirectories(WorkingPathName+'\..\Textures');
-          DXT_MakeEmpty(WorkingPathName+'\..\Textures\t0000.dds');
+          DXT_MakeEmpty(WorkingPathName+'\..\Textures\t'+MakeTileName(0,0, TileNameMode)+'.dds');
+        end;
+        if (ComboBox_Version.text = 'V3') then begin
+          if (NOT FileExists(WorkingPathName+'\..\'+CondorLandscapeName+'.air')) then begin
+            MakeDummy_AIR(WorkingPathName,'..\'+CondorLandscapeName+'.air');
+          end;
         end;
       end;
 
@@ -771,7 +1006,8 @@ begin
 
     if (NOT u_MakeGMID.OpenDLL) then begin
       Memo_Info.Lines.Add('Unable to Open DLL to create symbolic links');
-      Beep; Exit;
+//      Beep; Exit;
+      Memo_Info.Lines.Add('Defaulting to folders');
     end;
 
     u_MakeGMID.Memo_Message := Memo_Info;
@@ -813,6 +1049,15 @@ begin
         MakeGMID_All_Combine_BatchFile;
 
       end else begin // individual tile only
+        if (NOT GetTileIndex(TileName,TileColumn, TileRow)) then begin
+          Memo_Info.Lines.Add('Select a tile name first');
+          Beep;
+        end else begin
+          TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
+          MakeGMIDprojectFile(false, TileIndex);
+          MakeGMIDprojectFile(true, TileIndex); // make geid version
+        end;
+{
         if (length(TileName) <> 4) then begin
            Memo_Info.Lines.Add('Select a tile name first');
            Beep;
@@ -824,7 +1069,7 @@ begin
           MakeGMIDprojectFile(false, TileIndex);
           MakeGMIDprojectFile(true, TileIndex); // make geid version
         end;
-      end;
+}     end;
     end;
 
     u_MakeGMID.CloseDLL;
@@ -934,7 +1179,14 @@ begin
       u_MakeGEO.MakeGEO_GO_batchFile;
 
     end else begin // only individual tile
-      if (length(TileName) <> 4) then begin
+      if (NOT GetTileIndex(TileName,TileColumn, TileRow)) then begin
+        Memo_Info.Lines.Add('Select a tile name first');
+        Beep;
+      end else begin
+        TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
+        MakeGeoBatch(TileIndex);
+      end;
+{      if (length(TileName) <> 4) then begin
          Memo_Info.Lines.Add('Select a tile name first');
          Beep;
       end else begin
@@ -944,7 +1196,7 @@ begin
         TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
         MakeGeoBatch(TileIndex);
       end;
-    end;
+}    end;
     if (ComboBox_GEO.Text = 'GLC') then begin
       // show files needed
       MakeGEO_GLC_Wget;
@@ -976,7 +1228,7 @@ begin
  //   u_MakeGDAL.CompressorFolder := CompressorPathName;
  //   u_MakeGDAL.DXT_Type := ComboBox_DXT.Text;
 
-    if (ComboBox_Version.text = 'V2') then begin
+    if (ComboBox_Version.text <> 'V1') then begin
       u_MakeGDAL.File_Destination := '\Terragen\Textures';
     end else begin
       u_MakeGDAL.File_Destination := '\Terragen';
@@ -1098,8 +1350,9 @@ begin
               Exit;
             end;
 
-            Val(copy(TileName,1,2),TileColumn,ErrorCode);
-            Val(copy(TileName,3,2),TileRow,ErrorCode);
+            GetTileIndex(TileName,TileColumn, TileRow);
+//            Val(copy(TileName,1,2),TileColumn,ErrorCode);
+//            Val(copy(TileName,3,2),TileRow,ErrorCode);
   //   if errorcode or not in range -> error
             TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
 // new batch file with built-in calcs replaces check for coords and BMP size,
@@ -1200,7 +1453,14 @@ begin
           Memo_Info.Lines.Add('Select a tile name first');
           Beep;
         end else begin // not overall, individual tile
-          if (length(TileName) <> 4) then begin
+          if (NOT GetTileIndex(TileName,TileColumn, TileRow)) then begin
+            Memo_Info.Lines.Add('Select a tile name first');
+            Beep;
+          end else begin
+            TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
+            MakeDDSbatchFile(TileIndex);
+          end;
+{          if (length(TileName) <> 4) then begin
             Memo_Info.Lines.Add('Select a tile name first');
             Beep;
           end else begin // tiles
@@ -1210,7 +1470,7 @@ begin
             TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
             MakeDDSbatchFile(TileIndex);
           end;
-        end;
+}        end;
       end;
     end;
   end;
@@ -1531,14 +1791,18 @@ begin
 //  if (HeaderOpen) AND (TileOpen) then begin
   if (LandscapeOpened) then begin
     TileName := ComboBox_Single.text;
-    if (length(TileName) <> 4) then begin
+    if (NOT GetTileIndex(TileName,TileColumn, TileRow)) then begin
       Memo_Info.Lines.Add('Select a tile name first');
       Beep;
     end else begin
-      Form_Graphic.Caption := 'Forest Map '+TileName;
-      Val(copy(TileName,1,2),TileColumn,ErrorCode);
-      Val(copy(TileName,3,2),TileRow,ErrorCode);
-// if errorcode or not in range -> error
+{    if (length(TileName) <> 4) then begin
+      Memo_Info.Lines.Add('Select a tile name first');
+      Beep;
+    end else begin
+}      Form_Graphic.Caption := 'Forest Map '+TileName;
+//      Val(copy(TileName,1,2),TileColumn,ErrorCode);
+//      Val(copy(TileName,3,2),TileRow,ErrorCode);
+//// if errorcode or not in range -> error
       TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
       if (NOT GetTileFile(TileName)) then begin
         // TBD - option to import from Textures (combine 16 tiles)
@@ -1648,14 +1912,18 @@ begin
   u_Forest.ProgressBar_Status := Form_Graphic.ProgressBar_Status;
   if (LandscapeOpened) then begin
     TileName := ComboBox_Single.text;
-    if (length(TileName) <> 4) then begin
+    if (NOT GetTileIndex(TileName,TileColumn, TileRow)) then begin
       Memo_Info.Lines.Add('Select a tile name first');
       Beep;
     end else begin
-      Form_Graphic.Caption := 'Thermal Map '+TileName;
-      Val(copy(TileName,1,2),TileColumn,ErrorCode);
-      Val(copy(TileName,3,2),TileRow,ErrorCode);
-// if errorcode or not in range -> error
+{    if (length(TileName) <> 4) then begin
+      Memo_Info.Lines.Add('Select a tile name first');
+      Beep;
+    end else begin
+}      Form_Graphic.Caption := 'Thermal Map '+TileName;
+//      Val(copy(TileName,1,2),TileColumn,ErrorCode);
+//      Val(copy(TileName,3,2),TileRow,ErrorCode);
+//// if errorcode or not in range -> error
       TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
       if (NOT GetTileFile(TileName)) then begin
         // TBD - option to import from Textures (combine 16 tiles)
@@ -1799,9 +2067,10 @@ begin
   if (LandscapeOpened) then begin
     if (Unit_ObjectPlacer.CurrentLandscape <> CondorLandscapeName) then begin
       Form_ObjectPlacer.GroupBox_ObjectPlace.Caption := CondorLandscapeName;
-      Object_FolderName := WorkingPathName+'\..';
+//      Object_FolderName := WorkingPathName+'\..';
+      Object_FolderName := LandscapePathName;
       Object_FileName := CondorLandscapeName+'.obj';
-      if (NOT FileExists(Object_FolderName+'\'+Object_FileName)) then begin
+      if (NOT FileExists(LandscapePathName+'\'+Object_FileName)) then begin
         Memo_Info.Lines.Add('Object file not found: '+Object_FileName);
         Beep;
         exit;
@@ -1893,6 +2162,30 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+function CalcZoomResolution(zoomLevel : string; Latitude : single) : single;
+const
+  pixelsPerTile = 256; // base resolution of typical downloaded tile
+var
+  zL : single;
+begin
+  zL := strtofloat(zoomLevel);
+  //size in meters per pixel
+  result := (earthRadius *1000 * 2 * PI) * cos(Latitude /180 * PI) /pixelsPerTile / (power(2,zL));
+end;
+
+//---------------------------------------------------------------------------
+function CalcCondorResolution(tileSize : string) : single;
+const
+  pixelsPerTile = 256; // base resolution of typical downloaded tile
+var
+  tS : single;
+begin
+  tS := strtofloat(tileSize);
+  //condor tile size in meters
+  result := 256 * 90 / tS;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_Main.FormCreate(Sender: TObject);
 var
 //  Default : string;
@@ -1972,8 +2265,10 @@ begin
   ComboBoxMatchString(ComboBox_DXT,'');
   ComboBox_TileSize.text:= FIniFile.ReadString('Tiles','OutputSize',ComboBox_TileSize.Items[0]);
   ComboBoxMatchString(ComboBox_TileSize,'');
+  ComboBox_TileSizeExit(Sender);
   ComboBox_ZoomLevel.text:= FIniFile.ReadString('MapData','ZoomLevel',ComboBox_ZoomLevel.Items[0]);
   ComboBoxMatchString(ComboBox_ZoomLevel,'');
+  ComboBox_ZoomLevelExit(Sender);
   ComboBox_Imagery.text:= FIniFile.ReadString('MapData','Imagery',ComboBox_Imagery.Items[0]);
   ComboBoxMatchString(ComboBox_Imagery,'');
   ComboBox_GEO.text:= FIniFile.ReadString('MapData','GeoData',ComboBox_GEO.Items[0]);
@@ -1982,9 +2277,10 @@ begin
   ComboBoxMatchString(ComboBox_MapID,'');
   ComboBox_MapType.text:= FIniFile.ReadString('MapData','MapType',ComboBox_MapType.Items[0]);
   ComboBoxMatchString(ComboBox_MapType,'');
-
   ComboBox_Version.text:= FIniFile.ReadString('Condor','Version',ComboBox_Version.Items[0]);
   ComboBoxMatchString(ComboBox_Version,'');
+  ComboBox_FileNameFormat.text:= FIniFile.ReadString('Condor','FileNameFormat',ComboBox_Version.Items[0]);
+  ComboBoxMatchString(ComboBox_FileNameFormat,'');
 
   // centre vertically and offset horizontally for other windows to show memo  and progress bar
   if SystemParametersInfo(SPI_GETWORKAREA,0,@Desktop,0) then begin
@@ -2007,6 +2303,7 @@ begin
   FIniFile.WriteString('MapData','MapID',ComboBox_MapID.text);
   FIniFile.WriteString('MapData','MapType',ComboBox_MapType.text);
   FIniFile.WriteString('Condor','Version',ComboBox_Version.text);
+  FIniFile.WriteString('Condor','FileNameFormat',ComboBox_FileNameFormat.text);
 end;
 
 //---------------------------------------------------------------------------
@@ -2083,7 +2380,7 @@ begin
     Unit_DEM.sZipFolder := sZipPathName; // for 7-zip
     Unit_DEM.WGETfolder := WgetPathName; // for Wget
     Unit_DEM.ApplicationPath := ApplicationPathName;
-    Unit_DEM.LEfolder := CondorLEpathName; // for LandscapeEditor
+    Unit_Utilities.LEfolder := CondorLEpathName; // for LandscapeEditor hashes
 
 //    Form_DEM.Position := poDefault;
     // offset to be able to see status and progressbar
@@ -2104,7 +2401,10 @@ begin
   Unit_Merge.Condor_Folder := CondorPathName;
 //  Unit_Merge.Compressor_Folder := CompressorPathName;
 //  Unit_Merge.Working_Folder := WorkingPathName;
-  if (HeaderOpen) AND (TileOpen) then begin
+    Unit_Merge.mgVersion:= ComboBox_Version.text;
+//  if (HeaderOpen) AND (TileOpen) then begin
+  if (((HeaderOpen) AND (TileOpen)) OR
+      (fileExists(CondorPathName+'\Landscapes\'+CondorLandscapeName+'\MERGE.txt'))) then begin
     Unit_Merge.LandscapeName := CondorLandscapeName;
 //    Unit_Merge.Initial_Folder := CondorPathName+'\Landscapes\' + CondorLandscapeName;
   end else begin
@@ -2157,6 +2457,112 @@ begin
   Form_SimpleObjects.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_SimpleObjects.Top  := Self.Top + 0;
   Form_SimpleObjects.ShowModal;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.ComboBox_VersionChange(Sender: TObject);
+begin
+  // assume default
+  ComboBox_FileNameFormat.text := 'XXYY';
+  u_TileList.TileNameMode := xxyy;
+  GroupBox_FileNameFormat.Enabled := false;
+  // check for format allowance
+  if (ComboBox_Version.text = 'V3') then begin
+    if ((RowCount>100*64) or (ColumnCount>100*64)) then begin
+      ComboBox_FileNameFormat.text := 'XXXYYY';
+      u_TileList.TileNameMode := xxxyyy;
+    end else begin
+      if (FileExists(WorkingPathName+'\..\HeightMaps\h000000.tr3')) then begin
+        ComboBox_FileNameFormat.text := 'XXXYYY';
+        u_TileList.TileNameMode := xxxyyy;
+      end else begin
+        if (FileExists(WorkingPathName+'\..\HeightMaps\h0000.tr3')) then begin
+        end else begin // format not yet established
+          GroupBox_FileNameFormat.Enabled := true;
+        end;
+      end;
+    end;
+  end else begin
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.ComboBox_FileNameFormatChange(Sender: TObject);
+begin
+  if (ComboBox_FileNameFormat.Text = 'XXYY') then begin
+    u_TileList.TileNameMode := xxyy;
+  end else begin
+    u_TileList.TileNameMode := xxxyyy;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function FindNearestBinary(tileSize :string) : string;
+var
+  Temp : single;
+begin
+  try // avoid potential runtime error
+    Temp := strtofloat(tileSize);
+  except
+    Temp := 2048;
+  end;
+  Temp := logN(2,Temp);
+  Temp := power(2,trunc(Temp+0.5));
+  if (Temp < 256) then begin
+    result := '256';
+  end else begin
+    if (Temp >  131072) then begin
+      result := '131072';
+    end else begin
+      result := Format('%1.0f',[Temp]);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function FindNearestBinaryExponent(zoomLevel :string) : string;
+var
+  Temp : single;
+begin
+  try // avoid potential runtime error
+    Temp := strtofloat(zoomLevel);
+  except
+    Temp := 12;
+  end;
+  if (Temp < 10) then begin
+    result := '10';
+  end else begin
+    if (Temp >  20) then begin
+      result := '20';
+    end else begin
+      result := Format('%1.0f',[Temp]);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.ComboBox_TileSizeExit(Sender: TObject);
+var
+  Nearest : string;
+begin
+  Nearest := FindNearestBinary(ComboBox_TileSize.Text);
+//  if (Nearest <> ComboBox_TileSize.Text) then begin
+    ComboBox_TileSize.Text := Nearest;
+//  end;
+  ComboBox_TileSize.hint := format('%1.3f m/pixel',[CalcCondorResolution(ComboBox_TileSize.Text)]);
+end;
+
+// also need to call this function when reading landscape header to re-calc with latitude ??? TBD
+//---------------------------------------------------------------------------
+procedure TForm_Main.ComboBox_ZoomLevelExit(Sender: TObject);
+var
+  Nearest : string;
+begin
+  Nearest := FindNearestBinaryExponent(ComboBox_Zoomlevel.Text);
+//  if (Nearest <> ComboBox_Zoomlevel.Text) then begin
+    ComboBox_Zoomlevel.Text := Nearest;
+//  end;
+  ComboBox_ZoomLevel.hint := format('%1.3f m/pixel',[CalcZoomResolution(ComboBox_ZoomLevel.Text,0.0)]);
 end;
 
 //---------------------------------------------------------------------------

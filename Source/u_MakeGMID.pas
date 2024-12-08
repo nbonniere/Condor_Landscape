@@ -298,9 +298,11 @@ begin
                                LPCSTR(CommonFolder+chr(0)),
                                $01)) then begin
 
-      MessageShow('Unable to create Symbolic link');
-      MessageShow('Run Condor_Tiles as Administrator');
-      Beep; Exit;
+//      MessageShow('Unable to create Symbolic link');
+//      MessageShow('Run Condor_Tiles as Administrator');
+//      Beep; Exit;
+      // default to folders
+      ForceDirectories(SymbolicLinkFolder);
     end;
   end;
 

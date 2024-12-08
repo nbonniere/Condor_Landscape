@@ -33,18 +33,29 @@ UNIT u_CUP;
 INTERFACE
 
 uses
+  StdCtrls,
   u_Terrain;
 
 procedure MakeDummyCUP(FilePath,Filename:string);
 procedure Append_CUP_File(UTM_Limits : Extents;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
+var
+  Memo_Message : TMemo;  // external TMemo for messages
 
 {============================================================================}
 
 IMPLEMENTATION
 uses SysUtils,
   u_TileList, u_UTM;
+
+{----------------------------------------------------------------------------}
+Procedure MessageShow(Info : string);
+begin
+  if assigned(Memo_Message) then begin
+    Memo_Message.lines.add(Info);
+  end;
+end;
 
 //---------------------------------------------------------------------------
 procedure MakeDummyCUP(FilePath,Filename:string);
@@ -87,6 +98,82 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
+function SkipAfield(var cString : string) : boolean;
+var
+  CommaPos : integer;
+begin
+  CommaPos := pos(',',cString);
+  if (CommaPos = 0) then begin
+    result := false;
+  end else begin
+    cString := copy(cString,CommaPos+1,
+      length(cString)-CommaPos);
+    result := true;
+  end;
+end;
+{----------------------------------------------------------------------------}
+function GetAfield(var cString : string) : string;
+var
+  CommaPos : integer;
+begin
+  CommaPos := pos(',',cString);
+  if (CommaPos = 0) then begin
+    result := trim(cString);
+    cString := '';
+  end else begin
+    result := trim(copy(cString,1,CommaPos-1));
+    cString := copy(cString,CommaPos+1,
+      length(cString)-CommaPos);
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+function GetLatitude(var cString : string) : single;
+begin
+  try
+    result := strtofloat(copy(cString,1,2));
+    result := result + strtofloat(copy(cString,3,
+      length(cString)-2-1))/60;
+    if (uppercase(cString[length(cString)]) = 'S') then begin
+      result := -result;
+    end;
+  except
+    // IO error
+    On E : EInOutError do begin
+    // Division by zero
+    end;
+    On E : EDivByZero do begin
+    // Catch other errors
+    end;
+    else begin
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+function GetLongitude(var cString : string) : single;
+begin
+  try
+    result := strtofloat(copy(cString,1,3));
+    result := result + strtofloat(copy(cString,4,
+      length(cString)-3-1))/60;
+    if (uppercase(cString[length(cString)]) = 'W') then begin
+      result := -result;
+    end;
+  except
+    // IO error
+    On E : EInOutError do begin
+    // Division by zero
+    end;
+    On E : EDivByZero do begin
+    // Catch other errors
+    end;
+    else begin
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
 procedure Append_CUP_File(UTM_Limits : Extents;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
@@ -95,8 +182,9 @@ var
   CUP_File_a : TextFile;
   LineString : string;
   cupString : string;
+  LatLong : string;
   apLatitude, apLongitude : double;
-  CommaPos : integer;
+
 begin
   AssignFile(CUP_File,FilePath+'\'+Filename+'.cup');
   if (NOT FileExists(FilePath+'\'+Filename+'.cup')) then begin
@@ -115,26 +203,26 @@ begin
     readln(CUP_File_a,LineString);  // skip first line
     While not EOF(CUP_File_a) do begin
       readln(CUP_File_a,LineString);
+//  MessageShow(LineString);
+      cupString := Linestring;
       // parse lat and long fields and compare to limits
-      // kludge, replace first two commas and look for third as an index
-      cupString := StringReplace(LineString,',','|',[]);
-      cupString := StringReplace(cupString,',','|',[]);
-      CommaPos := pos(',',cupString);
-      if (CommaPos <> 0) then begin
-        apLatitude := strtofloat(copy(cupString,CommaPos+1,2));
-        apLatitude := apLatitude + strtofloat(copy(cupString,CommaPos+1+2,6))/60;
-        if (uppercase(cupString[CommaPos+1+2+6]) = 'S') then begin
-          apLatitude := -apLatitude;
-        end;
-        apLongitude := strtofloat(copy(cupString,CommaPos+11,3));
-        apLongitude := apLongitude + strtofloat(copy(cupString,CommaPos+11+3,6))/60;
-        if (uppercase(cupString[CommaPos+11+3+6]) = 'W') then begin
-          apLongitude := -apLongitude;
-        end;
+      if (Not SkipAfield(CupString)) then begin
+        continue; // problem - move on
       end else begin
-        continue;
+        if (Not SkipAfield(CupString)) then begin
+          continue; // problem - move on
+        end else begin
+          if (Not SkipAfield(CupString)) then begin
+            continue; // problem - move on
+          end else begin
+            LatLong := GetAfield(CupString);
+            apLatitude := GetLatitude(LatLong);
+            LatLong := GetAfield(CupString);
+            apLongitude := GetLongitude(LatLong);
+	  end;
+        end;
       end;
-
+      // now check if within scenery limits
       LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
       if (uEasting > UTM_Limits.xMax) then begin
         continue;

@@ -592,7 +592,8 @@ begin
   ForceDirectories(FilePath);
 
   TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
-  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+//  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+  TextureName := 't'+MakeTileName(CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row, TileNameMode);
   //open the file
   FileName := 'GDAL_'+TileName+'_MC.bat';
   AssignFile(GDALfile, FilePath +'\'+ FileName);
@@ -691,7 +692,8 @@ begin
   ForceDirectories(FilePath);
 
   TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
-  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+//  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+  TextureName := 't'+MakeTileName(CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row, TileNameMode);
   //open the file
 //  FileName := 'GDAL_'+TileName+'.bat';
   FileName := format('GDAL_%s_%d.bat',[TileName,epsg]);
@@ -912,15 +914,17 @@ begin
   NumMips := ConvertNumMips(BitmapWidth);
  // if not specified, nvdxt defaults to max, so no need
 }
-  Val(copy(TileName,1,2),TileColumn,ErrorCode);
-  Val(copy(TileName,3,2),TileRow,ErrorCode);
+  GetTileIndex(TileName,TileColumn, TileRow);
+//  Val(copy(TileName,1,2),TileColumn,ErrorCode);
+//  Val(copy(TileName,3,2),TileRow,ErrorCode);
 // if errorcode or not in range -> error
 
   writeln(GDALfile,'mkdir TEMP');
 
   for i := 0 to 4-1 do begin
     for j := 0 to 4-1 do begin
-      TileName := format('t%2.2d%2.2d',[TileColumn*4+i,TileRow*4+j]);
+//      TileName := format('t%2.2d%2.2d',[TileColumn*4+i,TileRow*4+j]);
+      TileName := 't'+MakeTileName(TileColumn*4+i,TileRow*4+j, TileNameMode);
       writeln(GDALfile,'set destinationbmp='+'TEMP\'+TileName+'%fext%');
       writeln(GDALfile,'set destinationdds='+'TEMP\'+TileName+'.dds');
 //      writeln(GDALfile,'gdal_translate -of BMP -srcwin '+
@@ -970,7 +974,8 @@ begin
   ForceDirectories(FilePath);
 
   TileName := TileList[TileIndex].TileName+format('_%2.2d_%2.2d',[offset_Column,offset_Row]);
-  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+//  TextureName := format('t%2.2d%2.2d',[CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row]);
+  TextureName := 't'+MakeTileName(CurrentColumn*4+offset_Column,CurrentRow*4+offset_Row, TileNameMode);
   //open the file
   FileName := 'DDS_'+TileName+'.bat';
   AssignFile(GDALfile, FilePath +'\'+ FileName);

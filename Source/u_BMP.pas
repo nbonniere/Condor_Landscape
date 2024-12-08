@@ -397,6 +397,7 @@ var
   GradientArray : array of HeightColorGradient;
   GradientFile : file of HeightColorGradient;
 
+function BMP_ColorSize(FileName : String) : Longint;
 function BMP_ImageWidth(FileName : String) : Longint;
 Procedure Bitmap_GetWidthHeight(FileName:string);
 //function ColorMatch(tColor1,tColor2 : longword):boolean;
@@ -407,9 +408,13 @@ procedure WriteGradientFile(FileName : string);
 procedure WriteBitMapToFile(mBitmap : TBitmap;FileName : string);
 //function ByteReverseOrder32(L : Longword) : Longword;
 Procedure SwapBlockEndToEnd(P : PByteArray; BlockSize : integer);
+Procedure SwapRGBBlockEndToEnd(P : PRGBArray; BlockSize : integer);
 function ByteSwapColor(Color: LongWord): LongWord; assembler;
 procedure BMP_CopyMe(tobmp: TBitmap; frbmp : TBitmap);
-Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,Bitmap_32_FileName : string);
+//Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,Bitmap_32_FileName : string);
+Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,
+                                 Bitmap_32_FileName : string;
+                                 AutoAlpha : boolean; Alpha : single);
 procedure Rotate_180(Tile : Tbitmap);
 Procedure Bitmap_24_To_Bitmap_32_Alpha(Bitmap_24_FileName,Bitmap_8_FileName,Bitmap_32_FileName : string);
 Procedure Bitmap_24_To_Masked_24(Bitmap_24_FileName,Bitmap_8_FileName:string;maskColor:Tcolor);
@@ -452,6 +457,19 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
+Procedure SwapRGBBlockEndToEnd(P : PRGBArray; BlockSize : integer);
+var
+  i : integer;
+  Temp : TRGBTriple;
+begin
+  for i := 0 to (BlockSize div 2) -1 do begin
+    Temp := P^[i];
+    P^[i] := P^[BlockSize-1-i];
+    P^[BlockSize-1-i] := Temp;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
 function ByteSwapColor(Color: LongWord): LongWord; assembler;
 asm
   BSWAP EAX
@@ -473,6 +491,19 @@ begin
   seek(BitmapFile,BitmapHeader.BitmapSignatureOffset);
   BlockRead(BitmapFile,BitmapSig,2);
   Bitmap_CheckSignature := (BitmapSig = BitmapSignature);
+end;
+
+// some 32 bitmaps indicate RLE 4bit compression, but are not
+{----------------------------------------------------------------------------}
+function ValidateNotCompressed(Header : BMP_V1_Header) : boolean;
+begin
+  with Header do begin
+    if (bDib.bComp_biField = 0) then begin
+    end else begin
+      result := (bDib.bWidth * bDib.bHeight * (bDib.bColorbits div 8) +
+        bH.bPixelArrayOffset = bh.bFileByteSize);
+    end;
+  end;
 end;
 
 {----------------------------------------------------------------------------}
@@ -538,6 +569,28 @@ begin
     end;
     Close(BitmapFile);
   end;
+end;
+
+{----------------------------------------------------------------------------}
+function BMP_ColorSize(FileName : String) : Longint;
+var
+  Bitmap_Hdr : BMP_V1_Header;
+begin
+  Result := -1; // assume at first
+  if (NOT fileExists(FileName)) then begin
+    exit;
+  end;
+  AssignFile(BitmapFile,FileName);
+  Reset(BitmapFile);
+  BlockRead(BitmapFile,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+  // check for bitmap signature
+  if (Bitmap_Hdr.bH.bSignature <> $4D42) then begin
+     Close(BitmapFile);
+    exit;
+  end;
+  // get width
+  result := Bitmap_Hdr.bDib.bColorBits;
+  Close(BitmapFile);
 end;
 
 {----------------------------------------------------------------------------}
@@ -845,7 +898,9 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,Bitmap_32_FileName : string);
+Procedure Bitmap_24_To_Bitmap_32(Bitmap_24_FileName,
+                                 Bitmap_32_FileName : string;
+                                 AutoAlpha : boolean; Alpha : single);
 const
   ZeroByte : byte = 0;
 
@@ -871,6 +926,9 @@ begin
     Reset(Bitmap_24_File);
 //    seek(Bitmap_24_File,0);
     BlockRead(Bitmap_24_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+//    if (NOT ValidateNotCompressed(Bitmap_Hdr)) then begin
+//      MessageShow('Error: Compression not allowed');
+//    end;
     AssignFile(Bitmap_32_File,Bitmap_32_FileName);
     Rewrite(Bitmap_32_File);
     // create a TDM header
@@ -884,7 +942,7 @@ begin
         bDib.bImageByteSize := bDib.bWidth * bDib.bHeight * Color32Size;
       BlockWrite(Bitmap_32_File,Bitmap_Hdr,
         sizeof(Bitmap_Hdr));
-
+      seek(Bitmap_32_File,bH.bPixelArrayOffset); // always do in case header is larger than standard
       // now read 24 bit pixels and write 32 bit pixels
 //      pColor.cAlpha := 0;
       try
@@ -895,10 +953,14 @@ begin
           BlockRead(Bitmap_24_File,P24^,bDib.bWidth * sizeof(TRGBTriple));
           for j := 0 to bDib.bWidth-1 do begin
             pColor.cRGB := P24^[j]; pColor.cAlpha := 0;
-            if (pColor.ColorValue <> 0) then begin
-              pColor.cAlpha := 255; // create mask if color not black
-            end else begin // dummy background color with alpha=0
-//              pColor.ColorValue := $00385840;  // Alpha, B, G, R  (for darker drevesa.dds)
+            if (AutoAlpha) then begin
+              if (pColor.ColorValue <> 0) then begin
+                pColor.cAlpha := 255; // create mask if color not black
+              end else begin // dummy background color with alpha=0
+//                pColor.ColorValue := $00385840;  // Alpha, B, G, R  (for darker drevesa.dds)
+              end;
+            end else begin
+              pColor.cAlpha := round(Alpha*255);
             end;
             P32^[j] := pColor.cRGBA;
           end;
@@ -1557,7 +1619,6 @@ begin
   // keep width and height and color type
   cWidth := BMP_Header.bDib.bWidth;
   cHeight := BMP_Header.bDib.bHeight;
-//  cColorBits := BMP_Header.bDib.bColorBits; // must be 24 !
 
   AssignFile(BMP_File_a,FilePath_a+'\'+Filename_a);
   Reset(BMP_File_a);
@@ -1582,6 +1643,12 @@ begin
       end;
     end;
   end;
+
+//  if (NOT ValidateNotCompressed(BMP_Header)) then begin
+//    MessageShow('Error: Compression not allowed');
+//    Beep; Exit;
+//  end;
+  seek(BMP_File_a,BMP_Header.bH.bPixelArrayOffset); // always do in case header is larger than standard
 
   try
     // need a buffer

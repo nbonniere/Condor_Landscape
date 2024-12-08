@@ -276,7 +276,10 @@ begin
 
       // only keep airports within crop area
       with (Airport_list[0]) do begin
-        LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+        LatLongToUTM(apLatitude, apLongitude,
+//          IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid); // bug
+          IntToStr(u_Terrain.TerrainHeader.tUTMzone),
+                   u_Terrain.TerrainHeader.tUTMgrid[0]);
       end;
       if (uEasting > UTM_Limits.xMax) then begin
         continue;

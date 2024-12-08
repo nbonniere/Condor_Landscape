@@ -45,8 +45,10 @@ type
     TileLongRight : real;
     TileLatBottom : real;
   end;
+  TileNameType = (xxyy, xxxyyy);
 
 var
+  TileNameMode : TileNameType;
   TileRowCount : integer;    // external
   TileColumnCount : integer; // external
   TileCount : Integer;
@@ -67,6 +69,9 @@ Procedure WriteTileList(TileFileName : string);
 Procedure WriteTileCorners(TileFileName : string);
 Procedure WriteTileRanges(TileFileName : string);
 
+function MakeTileName(TileColumn, TileRow : integer; Mode : TileNameType) : string;
+function GetTileIndex(TileName : String; var TileRow, TileColumn : integer) : boolean;
+
 //===========================================================================
 IMPLEMENTATION
 
@@ -81,6 +86,41 @@ Procedure MessageShow(Info : string);
 begin
   if (Memo_Message <> nil) then begin
     Memo_Message.lines.add(Info);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function MakeTileName(TileColumn, TileRow : integer; Mode : TileNameType) : string;
+begin
+  if (Mode = xxyy) then begin
+    result := format('%2.2d%2.2d',[TileColumn,TileRow]);
+  end else begin // xxxyyy
+    result := format('%3.3d%3.3d',[TileColumn,TileRow]);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+function GetTileIndex(TileName : String; var TileRow, TileColumn : integer) : boolean;
+var
+  ErrorCode : integer;
+begin
+  // assume OK for now
+  result := true;
+
+  case length(TileName) of
+    4: begin
+      Val(copy(TileName,1,2),TileColumn,ErrorCode);
+      Val(copy(TileName,3,2),TileRow,ErrorCode);
+      // if errorcode or not in range -> error
+    end;
+    6: begin
+      Val(copy(TileName,1,3),TileColumn,ErrorCode);
+      Val(copy(TileName,4,3),TileRow,ErrorCode);
+      // if errorcode or not in range -> error
+    end;
+    else begin
+      result := false;
+    end;
   end;
 end;
 
@@ -126,10 +166,13 @@ begin
         FileError := true;
       end else begin
         SetLength(TileList,TileCount+1);
-
-        TileList[TileCount].TileName := format('%2.2d%2.2d',[CurrentColumn,CurrentRow]);
-
-        PartialString := copy(InputString,1,CommaPosition-1);
+        TileList[TileCount].TileName := MakeTileName(CurrentColumn, CurrentRow, TileNameMode);
+{        if (TileNameMode = xxyy) then begin
+          TileList[TileCount].TileName := format('%2.2d%2.2d',[CurrentColumn,CurrentRow]);
+        end else begin // xxxyyy
+          TileList[TileCount].TileName := format('%3.3d%3.3d',[CurrentColumn,CurrentRow]);
+        end;
+}        PartialString := copy(InputString,1,CommaPosition-1);
         InputString := copy(InputString,CommaPosition+1,80);
 
         VAL(PartialString,TileList[TileCount].TileUTMRight,ErrorCode);
@@ -328,8 +371,13 @@ begin
           Easting-CurrentColumn*Resolution*tRows,UTM_Zone,UTM_ZoneNS);
         SetLength(TileList,TileCount+1);
         with TileList[TileCount] do begin
-          TileName := format('%2.2d%2.2d',[CurrentColumn,CurrentRow]);
-          TileUTMRight := CurrentColumn*Resolution*tRows;
+          TileName := MakeTileName(CurrentColumn, CurrentRow, TileNameMode);
+{          if (TileNameMode = xxyy) then begin
+            TileName := format('%2.2d%2.2d',[CurrentColumn,CurrentRow]);
+          end else begin // xxxyyy
+            TileName := format('%3.3d%3.3d',[CurrentColumn,CurrentRow]);
+          end;
+}          TileUTMRight := CurrentColumn*Resolution*tRows;
           TileUTMBottom := CurrentRow*Resolution*tRows;
           TileLatBottom := uLatitude;
           TileLongRight := uLongitude;

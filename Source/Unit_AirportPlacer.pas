@@ -696,7 +696,7 @@ var
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Procedure DrawObject(useColor : TColor);
 var
-  i, j : integer;
+  i{, j} : integer;
 begin
   with Form_AirportPlacer.Image_Tile do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
@@ -839,7 +839,8 @@ begin
   Col := trunc(Easting /(QT_Range/2));
   Row := trunc(Northing/(QT_Range/2));
   // airport quarter tile DDS name
-  Form_AirportPlacer.Label_Tile.Caption := format('(q)%2.2d%2.2d',[Col div 2, Row div 2]);
+//  Form_AirportPlacer.Label_Tile.Caption := format('(q)%2.2d%2.2d',[Col div 2, Row div 2]);
+  Form_AirportPlacer.Label_Tile.Caption := format('(q)%s',[MakeTIleName(Col div 2, Row div 2, TileNameMode)]);
   // find BR quarter tile
   Col := trunc((Col+1)/2)-1;      // bottom right DDS tile
   Row := trunc((Row+1)/2)-1;      // bottom right DDS tile
@@ -967,7 +968,8 @@ begin
           DDS_Size := 0;
           for i := 0 to 2-1 do begin
             for j := 0 to 2-1 do begin
-              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+//              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+              FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
               Temp := DXT_ImageWidth(FileName);
               if (Temp > DDS_Size) then begin
 { While (DDS_Size > 8192) do begin
@@ -1030,7 +1032,8 @@ end; }
             // load 4 dds tiles and draw onto Image_Tile
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
-                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+//                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
      // try ReducedFileName first
                 if (NOT FileExists(FileName)) then begin
 //                BitmapAvail := false; // no, change - allow even if no files
@@ -1157,21 +1160,39 @@ begin
       (Horiz * cSIN + Vert *  cCOS)
       ]);
 {
-    Horiz := trunc(apRange/30*
-      (Image_Tile.Width-1-X)/Image_Tile.Width);
-    Vert := trunc(apRange/30*
-      (Image_Tile.Height-1-Y)/Image_Tile.Height);
-
- Horiz := ScrollBox_Image.HorzScrollBar.Position;
- Vert  := ScrollBox_Image.VertScrollBar.Position;
-
+    // relative coords
     Label_H_Pos.Caption := format('%1.0f,%1.0f',[
       Horiz, Vert
       ]);
 }
+    // absolute coords
+    Label_H_Pos.Caption := format('%1.2f,%1.2f',[
+      AirportEasting+Horiz, AirportNorthing+Vert
+      ]);
+{
+    // for testing
     Label_H_Pos.Caption := format('%d,%d,%d,%d',[X,Y,
       ScrollBox_Image.HorzScrollBar.Position,
       ScrollBox_Image.VertScrollBar.Position]);
+}
+{
+    // for testing
+    Horiz := trunc(apRange/30*
+      (Image_Tile.Width-1-X)/Image_Tile.Width);
+    Vert := trunc(apRange/30*
+      (Image_Tile.Height-1-Y)/Image_Tile.Height);
+    Label_H_Pos.Caption := format('%1.0f,%1.0f',[
+      Horiz, Vert
+      ]);
+}
+{
+    // for testing
+    Horiz := ScrollBox_Image.HorzScrollBar.Position;
+    Vert  := ScrollBox_Image.VertScrollBar.Position;
+    Label_H_Pos.Caption := format('%1.0f,%1.0f',[
+      Horiz, Vert
+      ]);
+}
   end;
 end;
 
@@ -1878,14 +1899,15 @@ begin
   end;
 end;
 
-// form Keypreview must true
+// form Keypreview must be true
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.FormKeyUp(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
   case Key of
     ord('S'), ord('s'): begin
-      if (ssCtrl in Shift) then begin
+//      if (ssCtrl in Shift) then begin
+      if (ssShift in Shift) then begin
         Button_SaveClick(Sender);
         key := 0; // so that other components won't see this keypress
       end;
@@ -1900,7 +1922,7 @@ type
   tCoord = array[0..2-1] of single;
 
 //---------------------------------------------------------------------------
-Procedure Make_Px_Airport(FilePath, FileName : string;
+Procedure Make_Px_Airport(FilePath, FileName, TextureFileName : string;
   gV, gT : array of tCoord);
 var
   PXfile : text;
@@ -1910,7 +1932,8 @@ begin
   Rewrite(PXfile);
   // write PX fields
   writeln(PXfile,'xof 0303txt 0032');
-  writeln(PXfile,'Mesh AsphaltPaint {');
+  writeln(PXfile,'Frame {');
+  writeln(PXfile,'Mesh Asphalt {');
   writeln(PXfile,'4;');
   writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[0][0],gV[0][1]]));
   writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[1][0],gV[1][1]]));
@@ -1931,10 +1954,10 @@ begin
   writeln(PXfile,'}');
   writeln(PXfile,'MeshTextureCoords {');
   writeln(PXfile,'4;');
-  writeln(PXfile,format('%3.3f; %1.6f;,',[gT[0][0],gT[0][1]]));
-  writeln(PXfile,format('%3.3f; %1.6f;,',[gT[1][0],gT[1][1]]));
-  writeln(PXfile,format('%3.3f; %1.6f;,',[gT[2][0],gT[2][1]]));
-  writeln(PXfile,format('%3.3f; %1.6f;;',[gT[3][0],gT[3][1]]));
+  writeln(PXfile,format('%1.6f; %1.6f;,',[gT[0][0],gT[0][1]]));
+  writeln(PXfile,format('%1.6f; %1.6f;,',[gT[1][0],gT[1][1]]));
+  writeln(PXfile,format('%1.6f; %1.6f;,',[gT[2][0],gT[2][1]]));
+  writeln(PXfile,format('%1.6f; %1.6f;;',[gT[3][0],gT[3][1]]));
   writeln(PXfile,'}');
   writeln(PXfile,'MeshMaterialList {');
   writeln(PXfile,' 1;');
@@ -1946,7 +1969,7 @@ begin
   writeln(PXfile,' 0.0; 0.0; 0.0;;');
   writeln(PXfile,' 1.0; 1.0; 1.0;;');
   writeln(PXfile,'TextureFilename {');
-  writeln(PXfile,'"Textures/Airport.dds";');
+  writeln(PXfile,'"'+TextureFileName+'";');
   writeln(PXfile,'}');
   writeln(PXfile,'}');
   writeln(PXfile,'}');
@@ -2007,9 +2030,10 @@ var
   Airport_Direction : single;
   Airport_Length : single;
   Airport_Width : single;
-  Airport_Offset_Easting : single;
-  Airport_Offset_Northing : single;
+  Airport_WidthOffset : single;
+  Airport_LengthOffset : single;
   Airport_Corners : array[0..4-1] of tCoord;
+  Airport_R_Corners : array[0..4-1] of tCoord;
   Airport_G_Corners : array[0..4-1] of tCoord;
   Rotation_Matrix : array[0..2-1] of array[0..2-1] of single;
   X_Min, X_Max, Y_Min, Y_Max : single;
@@ -2017,6 +2041,10 @@ var
   X_Extent , Y_Extent : single;
   Longitude_m_to_degrees, Latitude_m_to_degrees : single;
   FileName, FilePath : string;
+
+  qTileColumn, qTileRow : integer;
+  qTname :string;
+  qDeltaColumn, qDeltaRow : single;
 
 begin
   // pop-up request runway details
@@ -2026,9 +2054,20 @@ begin
   Form_HiResRunway.Left := Self.Left + 50;
   Form_HiResRunway.Top  := Self.Top + 50;
 
-  // default to airport placer runway
-  Form_HiResRunway.Edit_Length.Text := Edit_Length.Text;
-  Form_HiResRunway.Edit_Width.Text := Edit_Width.Text;
+  // if G file exists already use it as a preset - TBD
+  if (false) then begin
+//    // read G file and calc parameters - TBD
+//    Form_HiResRunway.Edit_Length.Text := Y2-Y1;
+//    Form_HiResRunway.Edit_Width.Text := X2-X1;
+//    Form_HiResRunway.Edit_LengthOffset.Text := (Y2+Y1)/2;
+//    Form_HiResRunway.Edit_WidthOffset.Text := (X2+X1)/2;
+  end else begin
+    // default to airport placer runway
+    Form_HiResRunway.Edit_Length.Text := Edit_Length.Text;
+    Form_HiResRunway.Edit_Width.Text := Edit_Width.Text;
+    Form_HiResRunway.Edit_LengthOffset.Text := '0';
+    Form_HiResRunway.Edit_WidthOffset.Text := '0';
+  end;
 
   form_HiResRunway.ShowModal;
   Application.ProcessMessages;
@@ -2042,8 +2081,8 @@ begin
   // calculate corners in UTM metres
   Airport_Length := STRtoFloat(form_HiResRunway.Edit_Length.text);
   Airport_Width := STRtoFloat(form_HiResRunway.Edit_Width.text);
-  Airport_Offset_Easting := STRtoFloat(form_HiResRunway.Edit_Easting.text);
-  Airport_Offset_Northing := STRtoFloat(form_HiResRunway.Edit_Northing.text);
+  Airport_WidthOffset := STRtoFloat(form_HiResRunway.Edit_WidthOffset.text);
+  Airport_LengthOffset := STRtoFloat(form_HiResRunway.Edit_LengthOffset.text);
   Airport_Corners[0][0] :=  Airport_Width /2; Airport_Corners[0][1] :=  Airport_Length /2;
   Airport_Corners[1][0] :=  Airport_Width /2; Airport_Corners[1][1] := -Airport_Length /2;
   Airport_Corners[2][0] := -Airport_Width /2; Airport_Corners[2][1] := -Airport_Length /2;
@@ -2051,8 +2090,8 @@ begin
 
   // G file corners must include the offset
   for i := 0 to 4-1 do begin
-    Airport_G_Corners[i][0] := Airport_Corners[i][0] + Airport_Offset_Easting;
-    Airport_G_Corners[i][1] := Airport_Corners[i][1] + Airport_Offset_Northing;
+    Airport_G_Corners[i][0] := Airport_Corners[i][0] + Airport_WidthOffset;
+    Airport_G_Corners[i][1] := Airport_Corners[i][1] + Airport_LengthOffset;
   end;
 
   // get airport direction (degrees) and create rotation matrix
@@ -2116,22 +2155,48 @@ begin
   X_Extent := X_Max-X_min + 2*Margin;
   Y_Extent := Y_Max-Y_min + 2*Margin;
   // calculate rotated UTM offsets (rotate by - airportDirection)
-  X_Offset := Airport_Offset_Easting*  COS((-Airport_Direction/180*Pi))
-             +Airport_Offset_Northing*-SIN((-Airport_Direction/180*Pi));
-  Y_Offset := Airport_Offset_Easting*  SIN((-Airport_Direction/180*Pi))
-             +Airport_Offset_Northing* COS((-Airport_Direction/180*Pi));
+  X_Offset := Airport_WidthOffset*  COS((-Airport_Direction/180*Pi))
+             +Airport_LengthOffset*-SIN((-Airport_Direction/180*Pi));
+  Y_Offset := Airport_WidthOffset*  SIN((-Airport_Direction/180*Pi))
+             +Airport_LengthOffset* COS((-Airport_Direction/180*Pi));
 
   // calculate texture coords relative to extents range
   for i := 0 to 4-1 do begin
-    Airport_Corners[i][0] := (Airport_Corners[i][0] / X_Extent) + 0.5;
-    Airport_Corners[i][1] := (Airport_Corners[i][1] / Y_Extent) + 0.5;
+    Airport_R_Corners[i][0] := (Airport_Corners[i][0] / X_Extent) + 0.5;
+    Airport_R_Corners[i][1] := (Airport_Corners[i][1] / Y_Extent) + 0.5;
   end;
   // make runway .px file
   FileName := 'Airport.px';
-  Make_Px_Airport(FilePath, FileName,
-    Airport_G_Corners,Airport_Corners);
+  Make_Px_Airport(FilePath, FileName, 'Textures/AirportName.dds',
+    Airport_G_Corners,Airport_R_Corners);
 
-  // zoom_level control - TBD  
+  // try to use DDS tile in Textures folder
+  begin
+    // find tile to use
+    qTileColumn := trunc(AirportEasting/(5760));
+    qTileRow := trunc(AirportNorthing/(5760));
+//    qTname := format('../Textures/t%2.2d%2.2d.dds',[qTileColumn,qTileRow]);
+    qTname := format('../Textures/t%s.dds',[MakeTileName(qTileColumn,qTileRow, TileNameMode)]);
+    qDeltaColumn := (5760) - (AirportEasting - qTileColumn * (5760));
+    qDeltaRow := (5760) - (AirportNorthing - qTileRow * (5760));
+    qDeltaColumn := qDeltaColumn +  // add offset
+                    Rotation_Matrix[0][0] * Airport_WidthOffset +
+                    Rotation_Matrix[0][1] * Airport_LengthOffset;
+    qDeltaRow := qDeltaRow +  // add offset
+                 Rotation_Matrix[1][0] * Airport_WidthOffset +
+                 Rotation_Matrix[1][1] * Airport_LengthOffset;
+    // calculate texture coords relative to tile range
+    for i := 0 to 4-1 do begin
+      Airport_R_Corners[i][0] := (qDeltaColumn + Airport_Corners[i][0]) / (5760);
+      Airport_R_Corners[i][1] := (qDeltaRow + Airport_Corners[i][1]) / (5760);
+    end;
+    // make runway .px file
+    FileName := 'Airport_Tile.px';
+    Make_Px_Airport(FilePath, FileName, qTname,
+      Airport_G_Corners,Airport_R_Corners);
+  end;
+
+  // zoom_level control - TBD
   // Y_pix/m = (256 * 2^ZoomLevel * cos(lat)) / (earthRadius*2*Pi)
   // if Y_Extent * (Y_pix/m) > 16384 pix -> ZoomLevel-=1
   // X_pix/m = (256 * 2^ZoomLevel) / (earthRadius*2*Pi)

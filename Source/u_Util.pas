@@ -78,10 +78,13 @@ Procedure GT_ReadLine(GT_File:GT_Link; var InputString:string);
 function xxStrToFloat_DotDecimal(sString:String):real;
 procedure Force_DecimalSeparator;
 
+function CopyFolder(const SrcFolder, DestFolder: String;
+  OverWrite: Boolean; ShowDialog: Boolean): Boolean;
+
 {============================================================================}
 IMPLEMENTATION
 
-uses SysUtils, Windows;
+uses SysUtils, Windows, ShellAPI;
 
 //---------------------------------------------------------------------------
 function ShortenFolderString(S: String; Size : integer): String;
@@ -657,6 +660,41 @@ begin
     DecimalSeparator := '.';
 //    DecimalSeparator := ',';
   end;
+end;
+
+//---------------------------------------------------------------------------
+function CopyFolder(const SrcFolder, DestFolder: String;
+  OverWrite: Boolean; ShowDialog: Boolean): Boolean;
+var
+  MyFOStruct: TSHFileOpStruct;
+  Src, Dest: String;
+begin
+  Result := False;
+
+  if (SrcFolder = '') or (DestFolder = '') or
+     (CompareText(SrcFolder, DestFolder) = 0) then
+    Exit;
+
+//  Src := IncludeTrailingPathDelimiter(SrcFolder) + '*'#0;
+//  Dest := ExcludeTrailingPathDelimiter(DestFolder) + #0;
+  Src := SrcFolder + '\*'#0;
+  Dest := DestFolder + #0;
+
+  FillChar(MyFOStruct, SizeOf(MyFOStruct), 0);
+
+  with MyFOStruct do
+  begin
+    wFunc := FO_COPY;
+    pFrom := PChar(Src);
+    pTo := PChar(Dest);
+    fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMMKDIR;
+    if not OverWrite then
+      fFlags := fFlags or FOF_RENAMEONCOLLISION;
+    if not ShowDialog then
+      fFlags := fFlags or FOF_SILENT;
+  end;
+
+  Result := (SHFileOperation(MyFOStruct) = 0);
 end;
 
 //---------------------------------------------------------------------------

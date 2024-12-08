@@ -181,6 +181,14 @@ var
 
 begin
   lat := lat * PI/180.0; // convert to radians
+//  long := long * PI/180.0; // convert to radians
+  if ((zone = '1') AND (long > 90)) then begin
+    long := long-360;
+  end else begin
+    if ((zone = '60') AND (long < -90)) then begin
+      long := long-360;
+    end;
+  end;
   long := long * PI/180.0; // convert to radians
 
   // every 6 degrees starting at -180 degrees and centered on 6 degree zone

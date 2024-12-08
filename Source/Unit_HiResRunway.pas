@@ -38,12 +38,12 @@ type
     Edit_Width: TEdit;
     Label_W_m: TLabel;
     GroupBox_Offset: TGroupBox;
-    Label_Easting: TLabel;
-    Label_E_m: TLabel;
-    Label_Northing: TLabel;
-    Label_N_m: TLabel;
-    Edit_Easting: TEdit;
-    Edit_Northing: TEdit;
+    Label_WidthOffset: TLabel;
+    Label_WO_m: TLabel;
+    Label_LengthOffset: TLabel;
+    Label_LO_m: TLabel;
+    Edit_WidthOffset: TEdit;
+    Edit_LengthOffset: TEdit;
     procedure Button_CancelClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_ProceedClick(Sender: TObject);
