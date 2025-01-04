@@ -85,7 +85,7 @@ var
 begin
   x := -Relative_Easting + UTM_Right; // Condor X axis reversed
   y := Relative_Northing + UTM_Bottom;
-  UTMtoLatLong(y,x,UTM_Zone,UTM_Zone);
+  UTMtoLatLong(y,x,UTM_Zone,UTM_ZoneNS);
   Form_Coords.Edit_Longitude.Text := format('%1.6f',[uLongitude]);
   Form_Coords.Edit_Latitude.Text  := format('%1.6f',[uLatitude]);
 end;

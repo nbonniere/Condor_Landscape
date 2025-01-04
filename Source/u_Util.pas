@@ -1,6 +1,6 @@
 {
  * u_Util.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,10 @@ INTERFACE
 
 uses stdctrls;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   LatLongType = (Lat_,Long_);
 
@@ -50,6 +54,7 @@ type
 
 var
   FileError     : boolean;
+  DecimalChar   : char;
 
 function ShortenFolderString(S: String; Size : integer): String;
 function ExtractRoot(S: String): String;
@@ -648,6 +653,7 @@ begin
   end;
 end;
 
+{$IFDEF D4}
 //---------------------------------------------------------------------------
 procedure Force_DecimalSeparator;
 var
@@ -660,7 +666,26 @@ begin
     DecimalSeparator := '.';
 //    DecimalSeparator := ',';
   end;
+  DecimalChar := DecimalSeparator;
 end;
+{$ELSE}
+
+//---------------------------------------------------------------------------
+procedure Force_DecimalSeparator;
+var
+  fs: TFormatSettings;
+  changed : Boolean;
+begin
+  changed := (fs.DecimalSeparator <> '.');
+//  changed := (DecimalSeparator <> ',');
+
+  if changed then begin
+    fs.DecimalSeparator := '.';
+//    DecimalSeparator := ',';
+  end;
+  DecimalChar := ANSIChar(fs.DecimalSeparator);
+end;
+{$ENDIF}
 
 //---------------------------------------------------------------------------
 function CopyFolder(const SrcFolder, DestFolder: String;

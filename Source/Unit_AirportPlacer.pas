@@ -1017,7 +1017,8 @@ end; }
           end;
 
           with Image_Tile.Picture.Bitmap do begin
-            Image_Tile.Align := alClient;
+//            Remove for new Delphi          
+//            Image_Tile.Align := alClient;
             Image_Tile.AutoSize := true;
             Width := DDS_Size * 2;
             Height := DDS_Size * 2;
@@ -1295,7 +1296,8 @@ begin
       beep; Exit;
     end;
     // set image to auto take its size from picture 1:1 and fit in window
-    Image_Tile.Align := alClient;
+// remove causes issue with new Delphi
+//    Image_Tile.Align := alClient;
     Image_Tile.AutoSize := true;
     Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
 //    tFileName := Path+'\'+TileName+'.bmp';

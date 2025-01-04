@@ -27,7 +27,8 @@ The Landsat .met file is provided with landsat 7 bands.
 {============================================================================}
 INTERFACE
 
-uses StdCtrls;
+uses
+  StdCtrls;
 
 type
   LandsatMetFileInfo = record
@@ -55,7 +56,9 @@ Procedure ReadLandsatTileCoords(MetFileName : string);
 {============================================================================}
 IMPLEMENTATION
 
-uses SysUtils;
+uses
+  SysUtils,
+  u_Util;
 
 Type
   FieldFoundType = (UL_Lat,UL_Lon,UR_Lat,UR_Lon,LL_Lat,LL_Lon,LR_Lat,LR_Lon);
@@ -76,14 +79,16 @@ end;
 {----------------------------------------------------------------------------}
 Procedure ReadMetFileLines;
 var
-  InputString  : String[255];
-  PartialString  : String[255];
+//  InputString  : String[255];
+  InputString  : String;
+//  PartialString  : String[255];
+  PartialString  : String;
   ErrorCode   : Integer;
   EqualPosition : byte;
   i : byte;
 
 {----------------------------------------------------------------------------}
-Procedure ReadLine;
+{Procedure ReadLine;
 var
   Ch: Char;
 
@@ -97,14 +102,15 @@ begin
     Read(Met_File, Ch);
   end;
 end;
-
+}
 {----------------------------------------------------------------------------}
 begin
   with LandsatMetFiles[FileCount] do begin
     FieldFoundFlag := [];
     while (NOT Eof(MET_File)) AND (NOT FileError) AND
           (FieldFoundFlag <> [UL_Lat,UL_Lon,UR_Lat,UR_Lon,LL_Lat,LL_Lon,LR_Lat,LR_Lon]) do begin
-      ReadLine;
+//      ReadLine;
+      ReadLine(@MET_File,InputString);
       EqualPosition := pos('=',InputString);
       if (EqualPosition <> 0) then begin
         PartialString := trim(copy(InputString,1,EqualPosition-1));

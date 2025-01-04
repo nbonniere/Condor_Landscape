@@ -46,7 +46,8 @@ var
 {============================================================================}
 
 IMPLEMENTATION
-uses SysUtils,
+uses
+  SysUtils,
   u_TileList, u_UTM;
 
 {----------------------------------------------------------------------------}
@@ -223,7 +224,8 @@ begin
         end;
       end;
       // now check if within scenery limits
-      LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+//      LatLongToUTM(apLatitude, apLongitude, IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+      LatLongToUTM(apLatitude, apLongitude, u_Terrain.TerrainHeader.tUTMzone, uGrid);
       if (uEasting > UTM_Limits.xMax) then begin
         continue;
       end;
@@ -245,7 +247,6 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-begin
 end.
 
 {=== end of file ============================================================}

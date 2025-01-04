@@ -155,7 +155,8 @@ begin
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -271,7 +272,8 @@ begin
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -432,7 +434,8 @@ begin
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -526,7 +529,8 @@ begin
   Tile_R_Long := Tile_L_Long + 23040;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -628,7 +632,8 @@ begin
   Tile_L_Long  := Tile_R_Long - 23040 /4;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -771,7 +776,8 @@ begin
   Tile_L_Long  := Tile_R_Long - 23040 /4;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -1064,7 +1070,8 @@ begin
   Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -1177,7 +1184,8 @@ begin
   Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -1301,7 +1309,8 @@ begin
   Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -1391,7 +1400,8 @@ begin
   Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -1470,7 +1480,8 @@ begin
   Tile_R_Long := Tile_L_Long + Resolution * ColumnCount;
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin
@@ -1775,7 +1786,8 @@ begin
   writeln(GDALfile,'rem del %sourcebmp%');
 
   writeln(GDALfile,'rem crop to UTM coordinates');
-  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+//  writeln(GDALfile,'set utm_zone='+UTM_Zone);
+  writeln(GDALfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GDALfile,'set utm_grid=north');
   end else begin

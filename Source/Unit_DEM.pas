@@ -348,7 +348,7 @@ begin
   UTM_Top := UTM_Bottom + Rows * CondorTileSize;
 
   // show results
-  Edit_Zone.Text   := UTM_Zone;
+  Edit_Zone.Text   := intTostr(UTM_Zone);
   Edit_ZoneNS.Text := UTM_ZoneNS;
   Edit_UTMnorth.Text := format('%d',[trunc(UTM_Top)]);
   Edit_UTMsouth.Text := format('%d',[trunc(UTM_Bottom)]);
@@ -451,7 +451,7 @@ begin
   UTM_Top := UTM_Bottom + Rows * CondorTileSize;
 
   // show results
-  Edit_Zone.Text   := UTM_Zone;
+  Edit_Zone.Text   := intTostr(UTM_Zone);
   Edit_ZoneNS.Text := UTM_ZoneNS;
   Edit_UTMnorth.Text := format('%d',[trunc(UTM_Top)]);
   Edit_UTMsouth.Text := format('%d',[trunc(UTM_Bottom)]);
@@ -615,14 +615,17 @@ begin
   result := false; // assume for now
 
   try
-    UTM_Zone := Edit_Zone.Text;
-    temp := StrToInt(UTM_Zone);
-    if ( (temp <= 0) OR (temp > 60) ) then begin
+//    UTM_Zone := Edit_Zone.Text;
+    UTM_Zone := strToint(Edit_Zone.Text);
+//    temp := StrToInt(UTM_Zone);
+//    if ( (temp <= 0) OR (temp > 60) ) then begin
+    if ( (UTM_Zone <= 0) OR (UTM_Zone > 60) ) then begin
       MessageShow('DEM: UTM zone not in range');
       exit;
     end;
 
-    UTM_ZoneNS := Edit_ZoneNS.Text;
+//    UTM_ZoneNS := Edit_ZoneNS.Text;
+    UTM_ZoneNS := ANSIChar(Edit_ZoneNS.Text[1]);
     if ( NOT ((UTM_ZoneNS = 'N') OR (UTM_ZoneNS = 'S')) ) then begin
       MessageShow('DEM: UTM zone must be ''N'' or ''S''');
       exit;
@@ -1025,7 +1028,8 @@ begin
     // then warp to UTM and crop
     writeln(DEM_file,'rem create a DEM with the desired UTM easting and northing');
     writeln(DEM_file,'rem crop to desired UTM coordinates');
-    writeln(DEM_file,'set utm_zone='+UTM_Zone);
+//    writeln(DEM_file,'set utm_zone='+UTM_Zone);
+    writeln(DEM_file,format('set utm_zone=%d',[UTM_Zone]));
     if (UTM_ZoneNS = 'N') then begin
       writeln(DEM_file,'set utm_grid=north');
     end else begin
@@ -1105,7 +1109,8 @@ begin
       MessageShow(format('DEM: Columns: %d',[ColumnCount]));
       MessageShow(format('DEM: Rows: %d',[RowCount]));
     end;
-    MessageShow('DEM: UTM_Zone: '+UTM_Zone+' '+ UTM_ZoneNS);
+//    MessageShow('DEM: UTM_Zone: '+UTM_Zone+' '+ UTM_ZoneNS);
+    MessageShow(format('DEM: UTM_Zone: %d %s',[UTM_Zone,UTM_ZoneNS]));
     MessageShow(format('DEM: UTM_Right: %1.0f',[(UTM_Right)]));
     MessageShow(format('DEM: UTM_Bottom: %1.0f',[(UTM_Bottom)]));
 
@@ -1138,8 +1143,10 @@ begin
       tDeltaY := 90;                    // actual horizontal resolution in m (calibrated)
       tRightMapEasting := UTM_Right;    // UTM absolute Easting, bottom right
       tBottomMapNorthing := UTM_Bottom; // UTM absolute Northing, bottom right
-      tUTMzone := StrToInt(UTM_Zone);   // UTM zone number
-      tUTMgrid[0] := UTM_ZoneNS[1];     // UTM zone grid (A..Z or N/S) (only first char used (?))
+//      tUTMzone := StrToInt(UTM_Zone);   // UTM zone number
+      tUTMzone := UTM_Zone;             // UTM zone number
+//      tUTMgrid[0] := UTM_ZoneNS[1];     // UTM zone grid (A..Z or N/S) (only first char used (?))
+      tUTMgrid[0] := UTM_ZoneNS;        // UTM zone grid (A..Z or N/S) (only first char used (?))
     end;
   end;
   u_Terrain.Memo_Message := Memo_Message;
@@ -1168,8 +1175,10 @@ begin
       tDeltaY := 90;                    // actual horizontal resolution in m (calibrated)
       tRightMapEasting := UTM_Right;    // UTM absolute Easting, bottom right
       tBottomMapNorthing := UTM_Bottom; // UTM absolute Northing, bottom right
-      tUTMzone := StrToInt(UTM_Zone);   // UTM zone number
-      tUTMgrid[0] := UTM_ZoneNS[1];     // UTM zone grid (A..Z or N/S) (only first char used (?))
+//      tUTMzone := StrToInt(UTM_Zone);   // UTM zone number
+      tUTMzone := UTM_Zone;             // UTM zone number
+//      tUTMgrid[0] := UTM_ZoneNS[1];     // UTM zone grid (A..Z or N/S) (only first char used (?))
+      tUTMgrid[0] := UTM_ZoneNS;        // UTM zone grid (A..Z or N/S) (only first char used (?))
     end;
   end;
   u_Terrain.Memo_Message := Memo_Message;
@@ -1192,11 +1201,14 @@ begin
       UTM_Left := UTM_Right - tWidth * 90;
       UTM_Bottom := tBottomMapNorthing; // UTM absolute Northing, bottom right
       UTM_Top := UTM_Bottom + tHeight * 90;
-      UTM_Zone := IntToStr(tUTMzone);   // UTM zone number
-      UTM_ZoneNS[1] := tUTMgrid[0];     // UTM zone grid (A..Z or N/S) (only first char used (?))
+//      UTM_Zone := IntToStr(tUTMzone);   // UTM zone number
+      UTM_Zone := tUTMzone;             // UTM zone number
+//      UTM_ZoneNS[1] := tUTMgrid[0];     // UTM zone grid (A..Z or N/S) (only first char used (?))
+      UTM_ZoneNS := tUTMgrid[0];        // UTM zone grid (A..Z or N/S) (only first char used (?))
     end;
 
-    Edit_Zone.Text   := UTM_Zone;
+//    Edit_Zone.Text   := UTM_Zone;
+    Edit_Zone.Text   := intTostr(UTM_Zone);
     Edit_ZoneNS.Text := UTM_ZoneNS;
     Edit_UTMnorth.Text := format('%d',[trunc(UTM_Top)]);
     Edit_UTMsouth.Text := format('%d',[trunc(UTM_Bottom)]);

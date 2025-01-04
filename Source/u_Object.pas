@@ -252,7 +252,8 @@ begin
     with Object_list[i] do begin
       with TerrainHeader do begin
 //        UTMtoLatLong(tBottomMapNorthing+coNorthing, tRightMapEasting-coEasting, IntToStr(tUTMzone), tUTMgrid[0]);
-        UTMtoLatLong(tBottomMapNorthing+coNorthing*tDeltaY/90.0, tRightMapEasting+coEasting*tDeltaX/90.0, IntToStr(tUTMzone), tUTMgrid[0]);
+//        UTMtoLatLong(tBottomMapNorthing+coNorthing*tDeltaY/90.0, tRightMapEasting+coEasting*tDeltaX/90.0, IntToStr(tUTMzone), tUTMgrid[0]);
+        UTMtoLatLong(tBottomMapNorthing+coNorthing*tDeltaY/90.0, tRightMapEasting+coEasting*tDeltaX/90.0, tUTMzone, tUTMgrid[0]);
       end;
       writeln(CSV_File,format('%s,%1.7f,%1.7f,%1.6f,%1.6f,%1.6f',[
         coName, uLongitude, uLatitude, coElevation, coScale, coRotation
@@ -297,7 +298,8 @@ begin
       end;
       // convert lat/long to relative UTM
       with TerrainHeader do begin
-        LatLongToUTM(uLatitude,uLongitude,IntToStr(tUTMzone), tUTMgrid[0]);
+//        LatLongToUTM(uLatitude,uLongitude,IntToStr(tUTMzone), tUTMgrid[0]);
+        LatLongToUTM(uLatitude,uLongitude,tUTMzone, tUTMgrid[0]);
         coNorthing := (uNorthing - tBottomMapNorthing)*90.0/tDeltaY;
         coEasting := (uEasting - tRightMapEasting)*90.0/tDeltaX;
       end;

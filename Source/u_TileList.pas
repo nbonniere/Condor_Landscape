@@ -37,6 +37,10 @@ INTERFACE
 
 uses StdCtrls, comctrls, u_Util;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   TileRecord = record
     TileName      : string;
@@ -70,7 +74,7 @@ Procedure WriteTileCorners(TileFileName : string);
 Procedure WriteTileRanges(TileFileName : string);
 
 function MakeTileName(TileColumn, TileRow : integer; Mode : TileNameType) : string;
-function GetTileIndex(TileName : String; var TileRow, TileColumn : integer) : boolean;
+function GetTileIndex(TileName : String; var TileColumn, TileRow : integer) : boolean;
 
 //===========================================================================
 IMPLEMENTATION
@@ -100,7 +104,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-function GetTileIndex(TileName : String; var TileRow, TileColumn : integer) : boolean;
+function GetTileIndex(TileName : String; var TileColumn, TileRow : integer) : boolean;
 var
   ErrorCode : integer;
 begin

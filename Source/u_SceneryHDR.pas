@@ -31,7 +31,12 @@ The HDR file is generated from the elevation data.
 {============================================================================}
 INTERFACE
 
-uses StdCtrls;
+uses
+  StdCtrls;
+
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
 
 const
   pColumns = 64;    //horizontal resolution of one patch (1/4 tile)
@@ -41,8 +46,8 @@ const
   Resolution = 90;  //90 metre
 
 var
-  UTM_Zone     : string;
-  UTM_ZoneNS   : string;
+  UTM_Zone     : integer;
+  UTM_ZoneNS   : char;
   UTM_Right    : double;
   UTM_Bottom   : double;
   UTM_Left     : double;
@@ -67,7 +72,9 @@ Procedure WriteSceneryHeader(HeaderFileName : string);
 {============================================================================}
 IMPLEMENTATION
 
-uses SysUtils;
+uses
+  SysUtils,
+  u_Util;
 
 Type
   FieldFoundType = (fUTMzone,fUTMright,fUTMbottom,fUTMleft,fUTMtop,fRows,fColumns);
@@ -88,14 +95,16 @@ end;
 {----------------------------------------------------------------------------}
 Procedure ReadHeaderFileLines;
 var
-  InputString  : String[255];
-  PartialString  : String[255];
+//  InputString  : String[255];
+  InputString  : String;
+//  PartialString  : String[255];
+  PartialString  : String;
   ErrorCode   : Integer;
   EqualPosition : integer;
   i : byte;
 
 {----------------------------------------------------------------------------}
-Procedure ReadLine;
+{Procedure ReadLine;
 var
   Ch: Char;
 
@@ -109,7 +118,7 @@ begin
     Read(Header_File, Ch);
   end;
 end;
-
+}
 {----------------------------------------------------------------------------}
 Function ExtractZoneNumber(InString:string) : string;
 begin
@@ -144,7 +153,7 @@ begin
   while ((length(InString) > i) AND (InString[i+1] in ['0'..'9'])) do begin
     INC(i);
   end;
-  UTM_Zone := copy(InString,1,i);
+  UTM_Zone := strToInt(copy(InString,1,i));
   Instring := copy(InString,i+1,length(InString));
   i := 0;
   while ((length(InString) >= i) AND NOT (InString[i+1] in ['n','N','s','S'])) do begin
@@ -203,12 +212,12 @@ begin
                   if (CommaPosition <> 0) then begin
                     pString := trim(copy(InString,1,CommaPosition-1));
                     InString := copy(InString,CommaPosition+1,length(InString));
-                    UTM_Zone := pString;
+                    UTM_Zone := strToint(pString);
                     CommaPosition := pos(',',InString);
                     if (CommaPosition <> 0) then begin
-                      pString := trim(copy(InString,1,CommaPosition-1));
+                      pString := uppercase(trim(copy(InString,1,CommaPosition-1)));
                       InString := copy(InString,CommaPosition+1,length(InString));
-                      UTM_ZoneNS := UpperCase(copy(pString,1,1));
+                      UTM_ZoneNS := ANSIChar(pString[1]);
                     end;
                   end;
                 end;
@@ -241,7 +250,8 @@ begin
   FieldFoundFlag := [];
   while (NOT Eof(Header_File)) AND (NOT FileError) AND
         (FieldFoundFlag <> [fUTMzone,fUTMright,fUTMbottom,fUTMleft,fUTMtop,fRows,fColumns]) do begin
-    ReadLine;
+//    ReadLine;
+    ReadLine(@Header_File,InputString);
     EqualPosition := pos('=',InputString);
     if (EqualPosition <> 0) then begin
       PartialString := trim(copy(InputString,1,EqualPosition-1));
@@ -368,7 +378,7 @@ begin
     Rewrite(Header_File);
 //file_title             = cropped
 //data_format            = int16
-    writeln(Header_File,format('map_projection         = UTM Zone %s%s',[UTM_Zone,UTM_ZoneNS]));
+    writeln(Header_File,format('map_projection         = UTM Zone %d%s',[UTM_Zone,UTM_ZoneNS]));
 //ellipsoid              = WGS84
     writeln(Header_File,format('left_map_x             = %1.0f',[UTM_Left]) );
     writeln(Header_File,format('lower_map_y            = %1.0f',[UTM_Bottom]) );

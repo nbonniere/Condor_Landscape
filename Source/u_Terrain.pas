@@ -50,6 +50,10 @@ INTERFACE
 uses
   StdCtrls, comctrls;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   CondorTerrainHeader = packed record
     tWidth : longword;              // number of columns
@@ -921,7 +925,9 @@ begin
     //write 256 color palette
     seek(CG_File,54);
     for i := 0 to 256-1 do begin
-      Write(CG_File,byte(i),byte(i),byte(i),ZeroByte);
+//      Write(CG_File,byte(i),byte(i),byte(i),ZeroByte);
+      FileByte := Byte(i); // needed for new Delphi
+      Write(CG_File,FileByte,FileByte,FileByte,ZeroByte);
     end;
 
 // create a bitmap and savetofile instead? faster?

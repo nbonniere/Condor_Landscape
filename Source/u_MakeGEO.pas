@@ -580,7 +580,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -703,7 +704,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -832,7 +834,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -958,7 +961,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -1089,7 +1093,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -1284,7 +1289,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem convert to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -1364,7 +1370,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin
@@ -1570,7 +1577,8 @@ begin
   Tile_R_Long  := Tile_L_Long + 23040;
 
   writeln(GEOfile,'rem crop to UTM coordinates');
-  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+//  writeln(GEOfile,'set utm_zone='+UTM_Zone);
+  writeln(GEOfile,format('set utm_zone=%d',[UTM_Zone]));
   if (UTM_ZoneNS = 'N') then begin
     writeln(GEOfile,'set utm_grid=north');
   end else begin

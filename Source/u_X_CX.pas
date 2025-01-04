@@ -33,6 +33,10 @@ uses
   Graphics, Comctrls, StdCtrls,
   u_VectorXY;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   X_CX_type = (fx, fcx, fpx);
   X_Proc = procedure(var S : String);

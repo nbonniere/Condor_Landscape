@@ -272,8 +272,10 @@ begin
     // allow range +1 or -1
      // need to check wrap-around ???
     if (uGrid <> u_Terrain.TerrainHeader.tUTMgrid[0])
-     OR (DifferenceUTMzone(StrToInt(uZone), u_Terrain.TerrainHeader.tUTMzone) >  1)
-     OR (DifferenceUTMzone(StrToInt(uZone), u_Terrain.TerrainHeader.tUTMzone) < -1)
+//     OR (DifferenceUTMzone(StrToInt(uZone), u_Terrain.TerrainHeader.tUTMzone) >  1)
+     OR (DifferenceUTMzone(uZone, u_Terrain.TerrainHeader.tUTMzone) >  1)
+//     OR (DifferenceUTMzone(StrToInt(uZone), u_Terrain.TerrainHeader.tUTMzone) < -1)
+     OR (DifferenceUTMzone(uZone, u_Terrain.TerrainHeader.tUTMzone) < -1)
     then begin
 //      MessageShow('Zone mismatch');
 //      Beep;
@@ -282,7 +284,8 @@ begin
 
     // convert to UTM
     LatLongToUTM(LatRef, LongRef,
-      IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+//      IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid);
+      u_Terrain.TerrainHeader.tUTMzone, uGrid);
     ReferencePoint.X := round(uEasting); ReferencePoint.Y := round(uNorthing); // reference point
 
     ReferencePointDefined:= true;

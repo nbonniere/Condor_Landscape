@@ -32,7 +32,12 @@ function Shell_Execute(FilePath, FileName, Params : string;
 //===========================================================================
 IMPLEMENTATION
 
-uses SysUtils, ShellAPI, Forms;
+uses
+  SysUtils, ShellAPI, Forms;
+
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
 
 //-----------------------------------------------------------------------------
 function WinExecAndWait32(FileName: string; Visibility: Integer): dWord;
@@ -52,7 +57,7 @@ begin
   StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
   StartupInfo.wShowWindow := Visibility;
   if not CreateProcess(nil,
-           zAppName, { pointer to command line string }
+           @zAppName, { pointer to command line string }
            nil, { pointer to process security attributes }
            nil, { pointer to thread security attributes }
            false, { handle inheritance flag }

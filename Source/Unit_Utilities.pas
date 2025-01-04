@@ -1810,6 +1810,7 @@ begin
         u_BMP.ProgressBar_Status := ProgressBar_Status;
         ForceDirectories(File_Folder+'\Saved');
         RenameFile(FullFileName,File_Folder+'\Saved\'+File_Name);
+//        CopyFile(FullFileName,File_Folder+'\Saved\'+File_Name);
 //        Bitmap_24_To_Bitmap_32_Alpha(FullFileName,
 //                                     File_Folder+'\..\WaterMaps\'+File_Name,
 //                                     File_Folder+'\'+File_Name_NoExt+'-32.bmp'
@@ -2669,7 +2670,8 @@ end;
 {----------------------------------------------------------------------------}
 // new variables for use with Grass3D generation based on Grass
 const
-  MaxEdgeSize = 100;
+//  MaxEdgeSize = 100;
+  MaxEdgeSize = 50;
 var
   NewFrameData   : pFrame;
   NewMeshData    : pMesh;
@@ -2914,7 +2916,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure AdjustMaterial(oTreeView : TTreeView; Index, Which : integer);
+Procedure AdjustMaterial(oTreeView : TTreeView; Index, Which : integer; Value : single);
 begin
   // check if indeed oFileName
   if ( (oTreeView.Items[Index].data <> nil) AND
@@ -2924,13 +2926,13 @@ begin
       case Which of
         0: begin
           //change material Alpha to 0.0
-          tRGBA[3] := 0.0;
+          tRGBA[3] := Value;
         end;
         1: begin
           //change material color to 0.55, 0.55, 0.55
-          tRGBA[0] := 0.55;
-          tRGBA[1] := 0.55;
-          tRGBA[2] := 0.55;
+          tRGBA[0] := Value;
+          tRGBA[1] := Value;
+          tRGBA[2] := Value;
         end;
       end;
     end;
@@ -2953,16 +2955,41 @@ begin
          (pObjectItem(oTreeView.Items[Index+5].data)^.oType in
          [oFileName]) ) then begin
       TextureFileName := pFileName(pObjectItem(oTreeView.Items[Index+5].data)^.oPointer)^.tqName;
-      if (upperCase(TextureFileName) = 'TRANSPARENT.DDS') then begin
+//      if (upperCase(TextureFileName) = 'TRANSPARENT.DDS') then begin
+      if (pos('TRANSPARENT.DDS',upperCase(TextureFileName)) <> 0) then begin
         //change material Alpha to 0.0
-        AdjustMaterial(u_X_CX.oTreeView, Index+4, 0);
+        AdjustMaterial(u_X_CX.oTreeView, Index+4, 0, 0.0);
         MessageShow('- Adjust: Alpha ');
       end else begin
         if ((TextureFileName) = '') then begin
           //change material color to 0.55, 0.55, 0.55
-          AdjustMaterial(u_X_CX.oTreeView, Index+4, 1);
+          AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.55);
           MessageShow('- Adjust: Color ');
         end;
+      end;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure AdjustAsphaltPaintMesh(oTreeView : TTreeView; Index : integer);
+var
+  TextureFileName : string;
+begin
+  // examine the texturefilename 5 nodes ahead
+  if (oTreeView.Items.Count < Index+5) then begin
+    // error
+    Exit;
+  end else begin
+    // check if indeed oFileName
+    if ( (oTreeView.Items[Index+5].data <> nil) AND
+         (pObjectItem(oTreeView.Items[Index+5].data)^.oType in
+         [oFileName]) ) then begin
+      TextureFileName := pFileName(pObjectItem(oTreeView.Items[Index+5].data)^.oPointer)^.tqName;
+      if ((TextureFileName) = '') then begin
+        //change material color to 0.55, 0.55, 0.55
+        AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.75);
+        MessageShow('- Adjust: Color ');
       end;
     end;
   end;
@@ -3094,17 +3121,21 @@ begin
                 if (upperCase(nName) = 'ASPHALT') then begin
                   AdjustAsphaltMesh(u_X_CX.oTreeView, Index);
                 end else begin
-                  if (uppercase(nName) = 'GRASS3D') then begin
-                    // already done; skip GRASS
-                    GrassDone := true;
-       	          end else begin
-                    if ((uppercase(nName) = 'GRASS') AND (NOT GrassDone)) then begin
-                  //    CopyAndAddFrame(u_X_CX.oTreeView, Index);
-                  //    INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
-                      AddGrass3Dframe(u_X_CX.oTreeView, Index);
-                      Grass3DInserted := true;
-//                      INC(Index,7-1); // 7 because 7 processed, so just keep
-                      INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
+                  if (upperCase(nName) = 'ASPHALTPAINT') then begin
+                    AdjustAsphaltPaintMesh(u_X_CX.oTreeView, Index);
+                  end else begin
+                    if (uppercase(nName) = 'GRASS3D') then begin
+                      // already done; skip GRASS
+                      GrassDone := true;
+       	            end else begin
+                      if ((uppercase(nName) = 'GRASS') AND (NOT GrassDone)) then begin
+                    //    CopyAndAddFrame(u_X_CX.oTreeView, Index);
+                    //    INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
+                        AddGrass3Dframe(u_X_CX.oTreeView, Index);
+                        Grass3DInserted := true;
+//                        INC(Index,7-1); // 7 because 7 processed, so just keep
+                        INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
+                      end;
                     end;
                   end;
                 end;

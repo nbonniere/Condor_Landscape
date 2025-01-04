@@ -22,6 +22,10 @@ unit u_BrowseFolder;
 //===========================================================================
 INTERFACE
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 function BrowseForFolder(const browseTitle: String;
     const initialFolder: String = ''): String;
 
@@ -30,7 +34,7 @@ IMPLEMENTATION
 
 uses
   Windows, shlobj;
-  
+
 var
   lg_StartFolder: String;
 
@@ -73,7 +77,7 @@ begin
   browse_info.lpfn := BrowseForFolderCallBack;
   find_context := SHBrowseForFolder(browse_info);
   if (Assigned(find_context)) then begin
-    if SHGetPathFromIDList(find_context,folder) then begin
+    if SHGetPathFromIDList(find_context,@folder) then begin
       result := folder
     end else begin
       result := '';

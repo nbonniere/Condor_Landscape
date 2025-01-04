@@ -27,8 +27,9 @@ Based on University of Wisconsin UTM conversion routines
 //===========================================================================
 INTERFACE
 
-//type
-//  NorthSouthFlag = (uNorth, uSouth);
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
 
 const
   earthRadius = 6371.0;  // WGS84 mean radius
@@ -40,19 +41,20 @@ var
   uNorthing : double;
   uEasting : double;
 
-  uZone : string;
-  uGrid : string;
-//  uNorthSouth : NorthSouthFlag;
+  uZone : integer;
+  uGrid : char;
 
 //function ReadUTMzoneNS(sZone : string) : NorthSouthFlag;
 function ReadUTMzoneNS(sZone : string) : string;
 //Procedure CalcUTMzone(lat,long:double);
 Procedure CalcUTMzone(lat,long:double;ZoneOffset:integer);
-function UTMgridConvert(grid: char) : string;
+function UTMgridConvert(grid: char) : char;
 //Procedure LatLongToUTM(lat,long:double;zone:string;NorthSouth:NorthSouthFlag);
-Procedure LatLongToUTM(lat,long:double;zone,grid:string);
+//Procedure LatLongToUTM(lat,long:double;zone,grid:string);
+Procedure LatLongToUTM(lat,long:double;zone:integer;grid:char);
 //Procedure UTMtoLatLong(northing,easting:double;zone:string;NorthSouth:NorthSouthFlag);
-Procedure UTMtoLatLong(northing,easting:double;zone,grid:string);
+//Procedure UTMtoLatLong(northing,easting:double;zone,grid:string);
+Procedure UTMtoLatLong(northing,easting:double;zone:integer;grid:char);
 Function WrapUTMzone(Zone:integer) : integer;
 Function DifferenceUTMzone(Zone1,Zone2:integer) : integer;
 
@@ -75,7 +77,7 @@ var
 
 // convert from UTM grid to north/south
 {----------------------------------------------------------------------------}
-function UTMgridConvert(grid: char) : string;
+function UTMgridConvert(grid: char) : char;
 begin
   if ( ord(grid) < ord('O') ) then begin
     result := 'S';
@@ -98,7 +100,8 @@ begin
   end;
   //accumulate digits
   j := i;
-  while sZone[j] in ['0'..'9'] do begin
+//  while sZone[j] in ['0'..'9'] do begin
+  while ((length(sZone) >= j) AND (sZone[j] in ['0'..'9'])) do begin
     INC(j);
   end;
   //skip rest
@@ -146,7 +149,8 @@ begin
   end;
   // deg zones starting at -180 deg.
   UTMlong := trunc((long + 180) / 6) + 1;
-  uZone := format('%d',[WrapUTMzone(UTMlong+ZoneOffset)]); // need to check wrap-around ???
+//  uZone := format('%d',[WrapUTMzone(UTMlong+ZoneOffset)]); // need to check wrap-around ???
+  uZone := WrapUTMzone(UTMlong+ZoneOffset); // need to check wrap-around ???
 end;
 
 {----------------------------------------------------------------------------}
@@ -172,7 +176,7 @@ end;
 
 {----------------------------------------------------------------------------}
 //Procedure LatLongToUTM(lat,long:double;zone:string;NorthSouth:NorthSouthFlag);
-Procedure LatLongToUTM(lat,long:double;zone,grid:string);
+Procedure LatLongToUTM(lat,long:double;zone:integer;grid:char);
 var
   No0, long0, nu, p, S : double;
   A0, B0, C0, D0, E0 : double;
@@ -182,17 +186,20 @@ var
 begin
   lat := lat * PI/180.0; // convert to radians
 //  long := long * PI/180.0; // convert to radians
-  if ((zone = '1') AND (long > 90)) then begin
+//  if ((zone = '1') AND (long > 90)) then begin
+  if ((zone = 1) AND (long > 90)) then begin
     long := long-360;
   end else begin
-    if ((zone = '60') AND (long < -90)) then begin
+//    if ((zone = '60') AND (long < -90)) then begin
+    if ((zone = 60) AND (long < -90)) then begin
       long := long-360;
     end;
   end;
   long := long * PI/180.0; // convert to radians
 
   // every 6 degrees starting at -180 degrees and centered on 6 degree zone
-  long0 := ((GetZoneValue(zone)-1)*6-180+3) *PI/180.0;
+//  long0 := ((GetZoneValue(zone)-1)*6-180+3) *PI/180.0;
+  long0 := ((zone-1)*6-180+3) *PI/180.0;
 
   //rho := =a*(1-e*e)/((1-(e*SIN(lat))^2)^(3/2));
   //nu := a/((1-(e*SIN(lat))^2)^(1/2));
@@ -232,7 +239,7 @@ end;
 
 {----------------------------------------------------------------------------}
 //Procedure UTMtoLatLong(northing,easting:double;zone:string;NorthSouth:NorthSouthFlag);
-Procedure UTMtoLatLong(northing,easting:double;zone,grid:string);
+Procedure UTMtoLatLong(northing,easting:double;zone:integer;grid:char);
 var
   No0, M, mu, e1, fp, Long0 : double;
   J1, J2, J3, J4 : double;
@@ -242,7 +249,8 @@ var
 
 begin
   // every 6 degrees starting at -180 degrees and centered on 6 degree zone
-  long0 := ((GetZoneValue(zone)-1)*6-180+3) *PI/180.0;
+//  long0 := ((GetZoneValue(zone)-1)*6-180+3) *PI/180.0;
+  long0 := ((zone-1)*6-180+3) *PI/180.0;
 
   if (grid = 'N') then begin
     No0 := northing - No0_North;

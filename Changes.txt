@@ -380,6 +380,12 @@ v0.10.0 - Nov 2024
   - add nearest binary for tileSize, and range check for Zoomlevel
   - add parsing for {z}{x}{y} for generic tile download
 
+v0.10.1 - Dec 2024
+  - change grass3D triangle size to 50m
+  - adjust AsphaltPaint color to 0.75
+  - convert to V3 bug - transparent.dds not detected properly due to path
+  - adjust to compile with new Delphi
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

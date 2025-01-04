@@ -88,7 +88,8 @@ end;
 //-----------------------------------------------------------------------
 function Condor_Navicon_Close : boolean;
 begin
-  if fHandle <> null then begin
+//  if fHandle <> null then begin
+  if fHandle <> 0 then begin
     FreeLibrary(fHandle);
   end;
   Condor_Navicon_Close := true;

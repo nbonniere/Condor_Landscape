@@ -26,6 +26,10 @@ uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
   StdCtrls, Registry, Menus, ExtCtrls, ComCtrls, CheckLst;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   TForm_Main = class(TForm)
     GroupBox_CondorPath: TGroupBox;
@@ -759,7 +763,8 @@ begin
       if (TerrainOpen) then begin
         // use terrain information
         with TerrainHeader do begin
-          UTM_Zone := format('%d',[tUTMzone]);
+//          UTM_Zone := format('%d',[tUTMzone]);
+          UTM_Zone := tUTMzone;
           // convert UTM grid to N/S if needed - ambiguous - cannot be determined 100%
           // if not in ('N', 'S') then must be V1, else could be V1 or V2
           if ( NOT (tUTMgrid[0] IN ['N', 'S']) ) then begin
@@ -2195,7 +2200,8 @@ begin
   // problem with decimal separator ',' in Europe
   // try to force it to '.' or this program
   Force_DecimalSeparator;
-    Memo_Info.Lines.Add('Decimal separator: ' + DecimalSeparator);
+//    Memo_Info.Lines.Add('Decimal separator: ' + DecimalSeparator);
+    Memo_Info.Lines.Add('Decimal separator: ' + DecimalChar);
 
 //  ProgramPathName := getCurrentDir;
 // it seems that if you use a file dialog, the current directory is changed to
@@ -2279,7 +2285,7 @@ begin
   ComboBoxMatchString(ComboBox_MapType,'');
   ComboBox_Version.text:= FIniFile.ReadString('Condor','Version',ComboBox_Version.Items[0]);
   ComboBoxMatchString(ComboBox_Version,'');
-  ComboBox_FileNameFormat.text:= FIniFile.ReadString('Condor','FileNameFormat',ComboBox_Version.Items[0]);
+  ComboBox_FileNameFormat.text:= FIniFile.ReadString('Condor','FileNameFormat',ComboBox_FileNameFormat.Items[0]);
   ComboBoxMatchString(ComboBox_FileNameFormat,'');
 
   // centre vertically and offset horizontally for other windows to show memo  and progress bar

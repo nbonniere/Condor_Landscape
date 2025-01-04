@@ -1040,9 +1040,13 @@ begin
       if ((bH.bSignature <> $4D42) OR              // BitmapSignature
           (bDib.bColorBits <> 24)) then begin // 24 bit color
         MessageShow('Error: Not 24 bit color bitmap');
+        Close(Bitmap_24_File);
+        Exit;
       end else begin
         if (Bitmap_Hdr_8.bDib.bWidth <> bDib.bWidth) then begin
           MessageShow('Error: bitmap size mismatch');
+          Close(Bitmap_8_File);
+          Close(Bitmap_24_File);
           exit;
         end;
         bDib.bColorBits := 32;
@@ -1079,6 +1083,7 @@ begin
             ProgressBar_Status.StepIt;
 //            Application.ProcessMessages;
           end;
+          MessageShow('Alpha added to bitmap.');
         finally
           freemem(P32);
           freemem(P24);
@@ -1091,7 +1096,6 @@ begin
     Close(Bitmap_32_File);
     Close(Bitmap_24_File);
     Close(Bitmap_8_File);
-    MessageShow('Alpha added to bitmap.');
     ProgressBar_Status.Position := 0;
   end;
 end;
@@ -1858,7 +1862,8 @@ begin { Initialization }
   BitmapSuccess := false;
   Memo_Message := nil;
 //  SetGradientColors([-300,0,100,700,1500],[clblack,clBlue,clGreen,clRed,clWhite]);
-  SetGradientColors([-300,0,100,700,1500],[clblack,clBlue,clGreen,$0020C0E0,clWhite]);
+//  SetGradientColors([-300,0,100,700,1500],[clblack,clBlue,clGreen,$0020C0E0,clWhite]);
+  SetGradientColors([-300,0,100,500,1500,2000],[clblack,$00F6AB5D,$0068BDA2,$0096F5FB,$00496F9D,$00D0D4CE]);
 end.
 
 {--- End of File ------------------------------------------------------------}

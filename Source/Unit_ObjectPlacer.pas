@@ -331,12 +331,10 @@ end;
 Procedure ReCentre;
 begin
   with Form_ObjectPlacer do begin
-    with Object_List[ItemIndex] do begin
           ScrollBox_Image.HorzScrollBar.Position := trunc(cX *
             (ScrollBox_Image.HorzScrollBar.Range)-ScrollBox_Image.ClientWidth div 2);
           ScrollBox_Image.VertScrollBar.Position := trunc(cY *
             (ScrollBox_Image.VertScrollBar.Range)-ScrollBox_Image.ClientHeight div 2);
-    end;
   end;
 end;
 
