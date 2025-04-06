@@ -327,6 +327,7 @@ begin
     TerrainOpen := false;
     TileOpen := false;
     Memo_Info.Lines.Clear;
+    Unit_SimpleObjects.objFolderOpen := false;
   end;
 end;
 
@@ -2054,6 +2055,8 @@ begin
   Unit_Objects.CondorFolder := CondorPathName;
   Unit_Objects.WorkingFolder := WorkingPathName;
   Unit_Objects.Memo_Message := Memo_Info;
+  u_X_CX.OBJ_Type := Form_Objects.ComboBox_OBJ_Type.ItemIndex;
+
 //  if (NOT DirectoryExists(WorkingPathName+'\Temp')) then begin
 //    mkdir(WorkingPathName+'\Temp');
 //  end;
@@ -2355,6 +2358,7 @@ begin
   // offset to be able to see status and progressbar
   Form_Utilities.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_Utilities.Top  := Self.Top + 0;
+  Form_Utilities.Height  := 630;
 
   Form_Utilities.ShowModal;
 end;
@@ -2446,11 +2450,13 @@ begin
   Unit_SimpleObjects.ApplicationPath := ApplicationPathName;
   Unit_SimpleObjects.ObjectFolder := ApplicationPathName+'\SimpleObjects';
   if (HeaderOpen) AND (TileOpen) then begin
-    if (Unit_SimpleObjects.objFolder = '') then begin
+    if (Unit_SimpleObjects.objFolderOpen <> true) then begin
+      Unit_SimpleObjects.objFolderOpen := true;
       Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes\'+CondorLandscapeName+'\Working\Objects';
+      Form_SimpleObjects.InitDetailGrid;
       ForceDirectories(Unit_SimpleObjects.objFolder);
       u_MakeDDS.CompressorFolder := CompressorPathName;
-      MakeDDS_Object_Drop(Unit_SimpleObjects.objFolder, 'Make_DDS.bat');
+      MakeDDS_Object_Drop(Unit_SimpleObjects.objFolder, 'Make_DDS.bat', 'DXT1');
     end;
   end else begin
     Unit_SimpleObjects.objFolder := CondorPathName+'\Landscapes';

@@ -1,3 +1,12 @@
+{$IFNDEF D4}
+
+unit pngimage;
+interface
+implementation
+end.
+
+{$ElSE}
+
 {Portable Network Graphics Delphi 1.564      (31 July 2006)   }
 
 {This is a full, open sourced implementation of png in Delphi }
@@ -5820,5 +5829,8 @@ finalization
   {Free chunk classes}
   FreeChunkClassList;
 end.
+
+{$ENDIF}  //
+
 
 

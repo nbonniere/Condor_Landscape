@@ -496,6 +496,7 @@ begin
   // skip over space & ctrl chars
   TempStr := trim(TempStr);
   TempStr := StringReplace(TempStr,chr(9),' ',[rfReplaceAll]); // replace TAB by SPACE
+
   // keep all until space or tab or end
   Index := pos(' ',TempStr); // space
   if (Index = 0) then begin

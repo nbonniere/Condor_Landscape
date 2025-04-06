@@ -112,6 +112,7 @@ Procedure RAW_To_TR3(RAW_FileName, TR3_FilePath : string);
 Procedure TRN_To_RAW(TRN_FileName, RAW_FileName : string);
 Procedure RAW_To_RAW3(RAW_FileName, RAW3_FileName : string);
 Procedure UpdateTerrainUTMgrid_V2(TerrainFileName : string);
+function FindElevation_TR3(FileName : string; X, Y : integer) : single;
 
 //===========================================================================
 IMPLEMENTATION
@@ -1943,7 +1944,7 @@ Procedure RAW_To_TR3(RAW_FileName, TR3_FilePath : string);
 const
   st_Size = 192;
   ZeroByte : byte = 0;
-  Overlap = 1;  // overlap on left an top
+  Overlap = 1;  // overlap on left and top
   st_Width =  st_Size + Overlap;
   st_Height = st_Size + Overlap;
 var
@@ -2071,6 +2072,31 @@ begin
 
     Close(Terrain_File);
   end;
+end;
+
+// TR3 file data from Bottom_Right
+// X, Y from Bottom-Right
+{----------------------------------------------------------------------------}
+function FindElevation_TR3(FileName : string; X, Y : integer) : single;
+const
+  st_Size = 192;
+  Overlap = 1;  // overlap on left and top
+  st_Width =  st_Size + Overlap;
+  st_Height = st_Size + Overlap;
+var
+  TR3_File : File of Byte;
+  Elevation : smallInt; // 16 bit integer
+begin
+  if (NOT FileExists(FileName)) then begin
+    result := 0;
+    exit;
+  end;
+  AssignFile(TR3_File,FileName);
+  Reset(TR3_File);
+  seek(TR3_File, TerrainSize* ( ((X)*st_Height)+(Y)) );
+  BlockRead(TR3_File,Elevation,TerrainSize); // assume little-endian
+  result := Elevation;
+  CloseFile(TR3_File);
 end;
 
 {----------------------------------------------------------------------------}

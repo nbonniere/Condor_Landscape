@@ -385,6 +385,13 @@ v0.10.1 - Dec 2024
   - adjust AsphaltPaint color to 0.75
   - convert to V3 bug - transparent.dds not detected properly due to path
   - adjust to compile with new Delphi
+  
+v0.10.2 - Mar 2025
+  - add TM3 import
+  - add Wavefront OBJ Wings3D and Blender formats
+  - fix divide by zero error when a normal is 0.0,0.0,0.0
+  - add elevation to Composite Object
+  - add conversion of World Objects to Autogen Objects  
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

@@ -84,6 +84,7 @@ Procedure ClearThermalGrid;
 Procedure TDM_To_Greyscale_Bitmap(TDM_FileName,Greyscale_FileName : string);
 Procedure Greyscale_Bitmap_To_TDM(Greyscale_FileName,TDM_FileName : string);
 Procedure TM3_To_Color_Bitmap(TM3_FileName,Color_FileName : string);
+Procedure Color_Bitmap_To_TM3(Color_FileName, TM3_FileName : string);
 // for merging
 Procedure WriteTDMHeader(TDM_FileName : string);
 //Procedure ForceTDMsize(TDM_FileName : string);
@@ -1019,9 +1020,6 @@ end;
 // Note: TM3 has data reversed in horizontal direction
 {----------------------------------------------------------------------------}
 Procedure TM3_To_Color_Bitmap(TM3_FileName,Color_FileName : string);
-const
-  ZeroByte : byte = 0;
-
 var
   i, j :integer;
 //  FileByte : byte;
@@ -1088,6 +1086,68 @@ begin
     Close(TM3_File);
     Close(Color_File);
     MessageShow('TM3 to color bitmap created');
+  end;
+end;
+
+// Note: TM3 has data reversed in horizontal direction
+{----------------------------------------------------------------------------}
+Procedure Color_Bitmap_To_TM3(Color_FileName, TM3_FileName : string);
+//const
+//  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+//  pColor : ColorConvert;
+  TM3_File : File of byte;
+  Color_File : File of byte;
+  Bitmap_Hdr : BMP_V1_Header;
+//  TRN_Header : CondorTerrainHeader;
+//  ByteCount : longint;
+  P : PByteArray;
+
+begin
+  if (NOT FileExists(Color_FileName)) then begin
+    MessageShow('Color BMP file not found');
+    Exit;
+  end;
+  // need to find dimensions from BMP file
+  AssignFile(Color_File,Color_FileName);
+  Reset(Color_File);
+//  seek(Color_File,0);
+  BlockRead(Color_File,Bitmap_Hdr,sizeof(Bitmap_Hdr));
+//    if (NOT ValidateNotCompressed(Bitmap_Hdr)) then begin
+//      MessageShow('Error: Compression not allowed');
+//    end;
+  with Bitmap_Hdr do begin
+    // first confirm it is bmp and 24 bit color
+    if ((bH.bSignature <> $4D42) OR              // BitmapSignature
+        (bDib.bColorBits <> 24)) then begin // 24 bit color
+      MessageShow('Error: Not 24 bit color bitmap');
+    end else begin
+      MessageShow('Converting color bitmap to TM3 file...');
+      AssignFile(TM3_File,TM3_FileName);
+      Rewrite(TM3_File);
+      try
+        P := AllocMem(bDib.bWidth*xColor24Size div 8); // one row at a time
+        ProgressBar_Status.Max := bDib.bHeight;
+        for i := 0 to bDib.bHeight-1 do begin
+          BlockRead(Color_File,P^,bDib.bWidth*xColor24Size div 8);
+          SwapRGBBlockEndToEnd(PRGBArray(P),bDib.bWidth);
+          BlockWrite(TM3_File,P^,bDib.bWidth*xColor24Size div 8);
+
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
+      end;
+      Close(TM3_File);
+      MessageShow('Color bitmap to TM3 created');
+      ProgressBar_Status.Position := 0;
+    end;
+
+    Close(Color_File);
   end;
 end;
 

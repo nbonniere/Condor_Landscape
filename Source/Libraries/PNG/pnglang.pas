@@ -1,3 +1,12 @@
+{$IFNDEF D4}
+
+unit pnglang;
+interface
+implementation
+end.
+
+{$ElSE}
+
 {Portable Network Graphics Delphi Language Info (24 July 2002)}
 
 {Feel free to change the text bellow to adapt to your language}
@@ -353,3 +362,6 @@ resourcestring
 implementation
 
 end.
+
+{$ENDIF}
+

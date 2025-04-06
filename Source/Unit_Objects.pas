@@ -65,6 +65,7 @@ type
     Label_Spec: TLabel;
     Label_Shiny: TLabel;
     Label_Env: TLabel;
+    ComboBox_OBJ_Type: TComboBox;
     procedure Button_ExitClick(Sender: TObject);
     procedure Button_OpenClick(Sender: TObject);
     procedure TreeView_ObjectMouseDown(Sender: TObject;
@@ -228,6 +229,7 @@ var
 begin
   // dialog to select input file - must be .X .CX .PX extension
   imFileFilterString := 'Object files (*.X *.CX *.PX *.C3D *.OBJ)|*.X;*.CX;*.PX;*.C3D;*.OBJ|All files (*.*)|*.*';
+//  imFileFilterString := 'Object files (*.X *.CX *.PX *.C3D)|*.X;*.CX;*.PX;*.C3D|Wings3D (*.OBJ)|*.OBJ|Blender (*.OBJ)|*.OBJ|Xplane (*.OBJ)|*.OBJ|All files (*.*)|*.*';
   imFileName := '';
   imInitialDir := oFolder;
 //  form_CalibImport.ShowModal;
@@ -254,7 +256,18 @@ begin
         ReadCondorC3Dfile(imFileName, false);
       end else begin
         if (FileType = '.OBJ') then begin
-          readXplaneOBJ8file(imFileName); // assume Xplane OBJ8, not Wavefront OBJ
+          OBJ_Type := ComboBox_OBJ_Type.ItemIndex;
+          case OBJ_Type of
+            0,1,2: begin
+              read_wfOBJfile(imFileName); // wavefront OBJ - Wings3D(Z,-X,Y), Blender(Y,X,Z), Condor Autogen
+            end;
+            3: begin
+              readXplaneOBJ8file(imFileName);
+            end;
+            else begin
+              //
+            end;
+          end;
         end else begin
           ReadCondorXfile(imFileName, false);
         end;
@@ -531,6 +544,7 @@ begin
   Image_Mesh.Picture.Bitmap.Height := Image_Mesh.HeigHt;
   mBitmap := Image_Mesh.Picture.Bitmap;
 
+  ComboBox_OBJ_Type.ItemIndex := 0;
 end;
 
 //---------------------------------------------------------------------------

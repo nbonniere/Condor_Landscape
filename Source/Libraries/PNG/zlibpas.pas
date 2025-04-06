@@ -1,3 +1,11 @@
+{$IFNDEF D4}
+
+unit zlibpas;interface
+implementation
+end.
+
+{$ElSE}
+
 {Portable Network Graphics Delphi ZLIB linking  (16 May 2002) }
 
 {This unit links ZLIB to pngimage unit in order to implement  }
@@ -146,11 +154,4 @@ end;
 
 end.
 
-
-
-
-
-
-
-
-
+{$ENDIF}

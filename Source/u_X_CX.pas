@@ -54,8 +54,10 @@ type
               {o3Dframe,
               o3Dmesh,o3DmeshNormals,o3DmeshTextureCoord,
               o3Dmaterial,o3DfileName,}
-              // C3D types
-              oOBJ8magic,oOBJ8header
+              // OBJ8 types
+              oOBJ8magic,oOBJ8header,
+              // Wavefront OBJ types
+              owfOBJmagic,owfOBJheader
               );
 
   pIntArray = ^tIntArray;
@@ -237,6 +239,7 @@ type
   end;
 
 var
+  OBJ_Type : integer;
   Memo_Message : TMemo;  // external TMemo for messages (uses StdCtrls)
   Path : string; // external path for Condor program folder
   tvBitmap : TBitmap;
@@ -300,6 +303,8 @@ procedure CopyObjectTextures (NewLandscapePath,NewLandscapeName,
 function readXplaneOBJ8file(FileName : string) : boolean;
 function GetXplaneOBJ8texture : string;
 procedure AdjustXplaneOBJ8texture(FileName : string);
+
+function read_wfOBJfile(FileName : string) : boolean;
 
 Procedure Reset_FTM_Unity;
 Procedure UpdateFTM(FTMname : string ; FTM : Array of single);
@@ -686,6 +691,10 @@ begin
               dispose(pMagic(pObjectItem(Items[k].data)^.oPointer));
             oOBJ8header:
               dispose(p3Dheader(pObjectItem(Items[k].data)^.oPointer));
+            owfOBJmagic:
+              dispose(pMagic(pObjectItem(Items[k].data)^.oPointer));
+            owfOBJheader:
+              dispose(p3Dheader(pObjectItem(Items[k].data)^.oPointer));
             else
               dispose(pObjectItem(Items[k].data)^.oPointer);
           end;
@@ -737,10 +746,14 @@ begin
     // result[3] := 1
   end;
   // now re-normalize in case of scaling
-  UnScale := 1.0/(sqrt(sqr(Result[0])+sqr(Result[1])+sqr(Result[2])));
-  Result[0] := Result[0] * UnScale;
-  Result[1] := Result[1] * UnScale;
-  Result[2] := Result[2] * UnScale;
+  if ((Result[0] = 0) AND (Result[1] = 0) AND (Result[2] = 0)) then begin
+    Result[0] := Result[1]; // to fing bug - not bug, normals is 0,0,0 for some objects for some reason
+  end else begin
+    UnScale := 1.0/(sqrt(sqr(Result[0])+sqr(Result[1])+sqr(Result[2])));
+    Result[0] := Result[0] * UnScale;
+    Result[1] := Result[1] * UnScale;
+    Result[2] := Result[2] * UnScale;
+  end;
 end;
 
 {----------------------------------------------------------------------------}
@@ -2213,6 +2226,9 @@ begin
       while  (NodeIndex <= oTreeView.Items.Count-1) do begin
         if (oTreeView.Items[NodeIndex].data <> nil) then begin
           case pObjectItem(oTreeView.Items[NodeIndex].data)^.oType of
+            owfOBJmagic: begin
+              Write3Dmagic;
+            end;
             oOBJ8magic: begin
               Write3Dmagic;
             end;
@@ -2222,8 +2238,11 @@ begin
             oMagic: begin
               WriteMagic;
             end;
-       //     oOBJ8header: begin
-       //       WriteOBJ8header;  // not needed
+       //     owfOBJheader: begin
+       //       WriteWfOBJheader;  // not needed
+       //     end;
+       //     owfOBJheader: begin
+       //       WriteWfOBJheader;  // not needed
        //     end;
        //     o3Dheader: begin
        //       Write3Dheader;  // not needed
@@ -3311,7 +3330,8 @@ begin
     pMeshTcoordData^.tArray.aCount := Objects_C3D[i].Indexes.NumVertices;
     setLength(pMeshTcoordData^.tArray.aArray,pMeshTcoordData^.tArray.aCount);
     for j := 0 to pMeshTcoordData^.tArray.aCount-1 do begin
-      setLength(pMeshTcoordData^.tArray.aArray[j],3);
+//      setLength(pMeshTcoordData^.tArray.aArray[j],3);
+      setLength(pMeshTcoordData^.tArray.aArray[j],2);
       pMeshTcoordData^.tArray.aArray[j][0] := Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset+j].TextureX;
       pMeshTcoordData^.tArray.aArray[j][1] := Meshes_C3D[Objects_C3D[i].Indexes.Vertex_Offset+j].TextureY;
     end;
@@ -3571,6 +3591,22 @@ begin
   if (Index <> -1) then begin
     for i := 0 to 16-1 do begin
       pFTM(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^.ftmArray[i] := FTM[i];
+    end;
+  end;
+end;
+
+//----------------------------------------------------------------------------
+Procedure Reset_FTM_Unity;
+var
+  i, j : Integer;
+begin
+  for i := 0 to 4-1 do begin
+    for j := 0 to 4-1 do begin
+      if (i = j) then begin
+        FTM[i*4+j] := 1.0;
+      end else begin
+        FTM[i*4+j] := 0.0;
+      end;
     end;
   end;
 end;
@@ -3913,6 +3949,9 @@ begin
     while  (NodeIndex <= oTreeView.Items.Count-1) do begin
       if (oTreeView.Items[NodeIndex].data <> nil) then begin
         case pObjectItem(oTreeView.Items[NodeIndex].data)^.oType of
+    //      owfOBJmagic: begin
+    //        WriteWfOBJmagic;   // do separately
+    //      end;
     //      oOBJ8magic: begin
     //        WriteOBJ8magic;   // do separately
     //      end;
@@ -4082,6 +4121,10 @@ begin
       while  (NodeIndex <= oTreeView.Items.Count-1) do begin
         if (oTreeView.Items[NodeIndex].data <> nil) then begin
           case pObjectItem(oTreeView.Items[NodeIndex].data)^.oType of
+            owfOBJmagic: begin
+//              WriteWfOBJmagic;
+  INC(NodeIndex);
+            end;
             oOBJ8magic: begin
 //              WriteOBJ8magic;
   INC(NodeIndex);
@@ -4313,7 +4356,8 @@ OBJ8 file structure
 ----------------------------------------------------------------------------}
 
 const
-  OBJ8_Magic = 'OBJ';
+//  OBJ8_Magic = 'OBJ'; // dummy value
+  OBJ8_Magic = 'OBJ8'; // dummy value
 
 type
   Header_OBJ8_Type = record
@@ -4353,7 +4397,8 @@ type
     count  : integer; // vertex count multiple of 3
   end;
 
-  pOBJ8header = ^t3Dheader;
+//  pOBJ8header = ^tOBJ8header;
+  pOBJ8header = ^t3Dheader; // for now
   tOBJ8header = record
 //    s3Darray : tLongArray;
   end;
@@ -4365,8 +4410,8 @@ type
   end;
 
 var
-  pOBJ8magicData : pOBJ8magic;
-  pOBJ8headerData : pOBJ8header;
+//  pOBJ8magicData : pOBJ8magic;
+//  pOBJ8headerData : pOBJ8header;
 
   Header_OBJ8 : Header_OBJ8_Type;
   TextureFileName : TextureFileName_Type;
@@ -4496,6 +4541,7 @@ begin
     setLength(pMeshTcoordData^.tArray.aArray,pMeshTcoordData^.tArray.aCount);
     for j := 0 to pMeshTcoordData^.tArray.aCount-1 do begin
       setLength(pMeshTcoordData^.tArray.aArray[j],3);
+      // reverse/flip Y
       pMeshTcoordData^.tArray.aArray[j][0] :=       Vertex_List[j].s;
       pMeshTcoordData^.tArray.aArray[j][1] := 1.0 - Vertex_List[j].t;
     end;
@@ -4628,6 +4674,7 @@ begin
 //    GT_ReadLine(@Temp_file,oType);
     if (NOT (UpperCase(oType) = 'OBJ')) then begin
 //      ShowMessage('File type not recognized');
+      CloseFile(Temp_file);
       beep; exit;
     end;
   end;
@@ -4701,8 +4748,12 @@ end;
 
   except
 //    ShowMessage('File error - parsing');
+    CloseFile(Temp_file);
     beep; exit;
   end;
+
+  // all done reading file
+  CloseFile(Temp_file);
 
   // validate
   if (vtCount <> Counts.tris) then begin
@@ -4744,21 +4795,8 @@ begin
   XplaneOBJ8file_CreateTreeViewVersion;
 end;
 
-//----------------------------------------------------------------------------
-Procedure Reset_FTM_Unity;
-var
-  i, j : Integer;
-begin
-  for i := 0 to 4-1 do begin
-    for j := 0 to 4-1 do begin
-      if (i = j) then begin
-        FTM[i*4+j] := 1.0;
-      end else begin
-        FTM[i*4+j] := 0.0;
-      end;
-    end;
-  end;
-end;
+// also include Wavefront object type
+{$I u_WaveFront_Obj.pas}
 
 {----------------------------------------------------------------------------}
 begin { Initialization }

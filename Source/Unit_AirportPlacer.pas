@@ -2251,7 +2251,7 @@ begin
     X_Min, X_Max, Y_Min, Y_Max);
   // create DDS batch file
   FileName := 'DDS_Airport.bat';
-  MakeDDS_Generic('Airport', FilePath, FileName);
+  MakeDDS_Generic('Airport.bmp', FilePath, FileName, '');
 
   // now make a Batch ALL
   Make_Airport_All_BatchFile(3857, FilePath, FileName);

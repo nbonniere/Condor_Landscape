@@ -107,6 +107,9 @@ type
     Label32: TLabel;
     Button_To_XXYY: TButton;
     Button_To_XXXYYY: TButton;
+    Button_BMP_TM3: TButton;
+    Label33: TLabel;
+    Button_Obj_Autogen: TButton;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -142,6 +145,8 @@ type
     procedure Button_Hash_ExecuteClick(Sender: TObject);
     procedure Button_To_XXXYYYClick(Sender: TObject);
     procedure Button_To_XXYYClick(Sender: TObject);
+    procedure Button_BMP_TM3Click(Sender: TObject);
+    procedure Button_Obj_AutogenClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -185,11 +190,12 @@ IMPLEMENTATION
 
 uses
   FileCtrl, IniFiles,
-  Unit_objects, Unit_AirportPlacer, ShellAPI, u_Exec,
-  u_BMP, u_Thermal, u_Forest, u_Terrain, u_Polar, u_Convolve, u_MakeGDAL,
+  Unit_objects, Unit_AirportPlacer, ShellAPI, u_Exec, u_BMP, u_Thermal,
+  u_Forest, u_Terrain, u_Polar, u_Convolve, u_MakeGDAL,
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
   u_GMIDlog, u_DXT, DXTC, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
-  u_QuarterTile, u_Condor_NaviconDLL, u_Airspace, u_AutoGen;
+  u_QuarterTile, u_Condor_NaviconDLL, u_Airspace, u_AutoGen,
+  Unit_SimpleObjects;
 
 const
   faNormalFile = 0; // for use with FindFirst FindNext
@@ -338,6 +344,31 @@ begin
       u_Thermal.Memo_Message := Memo_Message;
       u_Thermal.ProgressBar_Status := ProgressBar_Status;
       TM3_To_Color_Bitmap(FileName,FileName+'-bmp.bmp');
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
+  end;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_BMP_TM3Click(Sender: TObject);
+var
+  Filename : String;
+
+begin
+  OpenDialog1.Options := [ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder;
+  OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      FileName := OpenDialog1.FileName;
+//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
+      // convert
+      u_Thermal.Memo_Message := Memo_Message;
+      u_Thermal.ProgressBar_Status := ProgressBar_Status;
+      Color_Bitmap_To_TM3(FileName,FileName+'-tm3.tm3');
     finally
       Screen.Cursor := crDefault;  // no longer busy
     end;
@@ -3785,6 +3816,171 @@ begin
 end;
 
 //-------------------------------------------------------------------------------------
+type
+  ObjectDetail = record
+    pIndex : integer;
+    pElevation : single; // could be from .trn, .tr3, or .tr3f
+  end;
+
+  PatchDetail = record
+    NumDetail : integer;
+    Detail : array of ObjectDetail;
+  end;
+
+var
+  Patch : array of PatchDetail;
+  TEST : single;
+
+//-------------------------------------------------------------------------------------
+function FindElevation(coEasting, coNorthing : single) : single;
+var
+  TR3fileName : string;
+  Col, Row : integer;
 begin
+//  result := FindElevation_TRN(coEasting, coNorthing);
+  Col := trunc(coEasting  / Resolution / pColumns);
+  Row := trunc(coNorthing / Resolution / pRows);
+  TR3fileName := Working_Folder +'\..\HeightMaps\h' +
+    MakeTileName(Col, Row, TileNameMode) + '.tr3';
+  result := FindElevation_TR3(TR3fileName,
+    trunc(coEasting - Col*Resolution*pColumns) div 30,
+    trunc(coNorthing- Row*Resolution*pColumns) div 30);
+        TEST := result;
+end;
+
+//-------------------------------------------------------------------------------------
+Procedure ConvertWorldObjectsToAutogen;
+var
+  i, j, k, m : integer;
+  xCol, yRow : integer;
+  Col, Row : integer;
+  TileIndex : integer;
+  AutogenFileName, oFilename, oFileExt : string;
+  X, Y, A, E : single;
+  append : boolean;
+
+begin
+  // need landscape header and tile extent
+  if Not ((HeaderOpen) AND (TileOpen)) then begin
+    MessageShow('Need Header file first');
+    Beep; Exit;
+  end;
+
+  // create a list of patch details
+  xCol := ColumnCount div pColumns;
+  yRow := RowCount div pRows;
+  setlength(Patch, xCol * yRow);
+
+  // read the .obj file
+  Object_FolderName := Initial_Folder;
+  Object_FileName := LandscapeName+'.obj';
+  if (FileExists(Object_FolderName+'\'+Object_FileName)) then begin
+    ReadObjectFile;
+  end else begin
+    MessageShow('File '+Object_FileName+' not found');
+    Beep; exit;
+  end;
+
+  // for each object, identify its patch
+  for i := 0 to Object_Count-1 do begin
+    with Object_list[i] do begin
+      // calc patch Column, Row
+      Col := trunc(coEasting  / Resolution / pColumns);
+      Row := trunc(coNorthing / Resolution / pRows);
+      TileIndex := Row*(xCol)+Col;
+      // create a patch entry
+      with Patch[TileIndex] do begin
+        setlength(Detail, NumDetail+1);
+        Detail[NumDetail].pIndex := i;
+        // find elevation from TR3 file
+        Detail[NumDetail].pElevation := FindElevation(coEasting, coNorthing);
+        INC(NumDetail);
+      end;
+    end;
+  end;
+
+  // make sure folder is created
+  ForceDirectories(Working_Folder +'\Autogen');
+
+  // check each patch for objects and if any convert to Autogen
+  try
+    ProgressBar_Status.Max := xCol * yRow;
+    Screen.Cursor := crHourGlass;  // Let user know we're busy...
+    // now for each patch
+    for i := 0 to yRow-1 do begin
+      for j := 0 to xCol-1 do begin
+//    for i := 11 to 11 do begin // for testing 1311
+//      for j := 13 to 13 do begin
+        TileIndex := i*(xCol)+j;
+        if (Patch[TileIndex].NumDetail > 0) then begin
+          // create the Autogen file (similar to Save_C_C3D)
+          Append := false; // for first file
+          AutogenFileName := Working_Folder +'\Autogen\o' +
+            MakeTileName(j, i, TileNameMode) + '.c3d';
+          Reset_FTM_Unity;   // only once as the same values are changed
+          InjectFTM := True; // for all files
+          with Patch[TileIndex] do begin
+            for k := 0 to NumDetail-1 do begin
+              with Object_list[Detail[k].pIndex] do begin
+                oFileName := coName;
+                oFileExt := uppercase(ExtractFileExt(oFileName));
+                if (oFileExt = '.C3D') then begin
+                  // subtract tile relative distance from Bottom-Right
+                  // also offset to centre of Autogen qTile (5760x5760)
+                  X := (coEasting)- j*Resolution*pColumns -2880;
+                  Y := (coNorthing)-i*Resolution*pRows -2880;
+                  // get object rotation
+                  A := (coRotation); // radians
+                  // get object scale
+                  // S := (coScale); // not used
+                  // add terrain elevation
+                  E := (coElevation)+Detail[k].pElevation;
+                  // apply object rotation
+                  FTM[0] := cos(A);
+                  FTM[1] := -sin(A);
+                  FTM[4] := -FTM[1];
+                  FTM[5] := FTM[0];
+                  // apply object translation
+                  FTM[3] := X;
+                  FTM[7] := Y;
+                  FTM[11] := E;
+           // need to fix path - TBD
+           // need to copy texture files - TBD
+                  // relative to World\Objects Folder
+                  if (FileExists(Working_Folder +'\..\World\Objects\'+ oFilename)) then begin
+                    ReadCondorC3Dfile(Working_Folder +'\..\World\Objects\'+ oFileName, (Append));
+                    Append := true; // for next files
+                  end else begin
+                    MessageShow(oFileName + ' Not found.');
+                  end;
+                end else begin
+                  MessageShow(oFileName + ' .C3D file expected');
+                end;
+              end;
+            end;
+          end;
+        end;
+        if (Append = true) then begin // make sure at east one file was found
+          WriteCondorObjectFile(AutogenFileName,None,false);
+        end;
+        ProgressBar_Status.StepIt; Application.ProcessMessages;
+      end;
+    end;
+  finally
+    Screen.Cursor := crDefault;  // no longer busy
+    ProgressBar_Status.Position := 0;
+  end;
+  // de-allocate memory
+  // de-allocate details too?
+  setlength(Patch, 0);
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_Obj_AutogenClick(Sender: TObject);
+begin
+  ConvertWorldObjectsToAutogen;
+end;
+
+//-------------------------------------------------------------------------------------
 end.
 

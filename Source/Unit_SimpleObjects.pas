@@ -105,9 +105,10 @@ type
     procedure Button_C_NewClick(Sender: TObject);
   private
     { Private declarations }
-    procedure InitDetailGrid;
+//    procedure InitDetailGrid;
   public
     { Public declarations }
+    procedure InitDetailGrid;
   end;
 
 var
@@ -120,6 +121,7 @@ var
   WorkingFolder : string;
   ObjectFolder : string;
   objFolder : string;
+  objFolderOpen : boolean;
 
 //----------------------------------------------------------------------------
 implementation
@@ -265,7 +267,8 @@ begin
   With Form_SimpleObjects do begin
 //    OpenDialog_FileName.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
     OpenDialog_FileName.Filter := imFileFilterString;
-    OpenDialog_FileName.FileName := imFileName;
+//    OpenDialog_FileName.FileName := imFileName;
+    OpenDialog_FileName.FileName := ''; // must be blank for InitialDir to work - stupid windows
     OpenDialog_FileName.InitialDir := imInitialDir;
     if (OpenDialog_FileName.Execute) then begin
       imFileName := OpenDialog_FileName.FileName;
@@ -285,6 +288,7 @@ begin
 //    SaveDialog_FileName.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
     SaveDialog_FileName.Filter := exFileFilterString;
     SaveDialog_FileName.FileName := exFileName;
+    SaveDialog_FileName.FileName := ''; // must be blank for InitialDir to work - stupid windows
     SaveDialog_FileName.InitialDir := exInitialDir;
     if (SaveDialog_FileName.Execute) then begin
       exFileName := SaveDialog_FileName.FileName;
@@ -618,7 +622,12 @@ var
       end;
     end;
     // now save the object
-    WriteCondorObjectFile(FileName,None,false);
+    try
+      Screen.Cursor := crHourGlass;  // Let user know we're busy...
+      WriteCondorObjectFile(FileName,None,false);
+    finally
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
   end;
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -968,7 +977,7 @@ begin
     FirstRow := FixedRows;
 //    MaxRows := 25;
     RowCount := 1+FirstRow; // need to enable one blank row
-    ColCount := 5;
+    ColCount := 6;
 //    {Canvas.}Font.Name := 'Terminal';  // Design time selection doesn't work
 //    {Canvas.}Font.Size := 6;           // 5,6,9,12,14
 //    {Canvas.}Font.Style := [];
@@ -977,16 +986,19 @@ begin
     cells[ 2,0] := 'Easting';
     cells[ 3,0] := 'Northing';
     cells[ 4,0] := 'Angle';
-    colWidths[ 0] := 10;
-    colWidths[ 1] := 320;
+    cells[ 5,0] := 'Elevation';
+    colWidths[ 0] := 6;
+    colWidths[ 1] := 315;
     colWidths[ 2] := 46;
     colWidths[ 3] := 46;
-    colWidths[ 4] := 46;
+    colWidths[ 4] := 32;
+    colWidths[ 5] := 49;
     // in case of prev values
     cells[ 1,RowCount-1] := '';
     cells[ 2,RowCount-1] := '';
     cells[ 3,RowCount-1] := '';
     cells[ 4,RowCount-1] := '';
+    cells[ 5,RowCount-1] := '';
 //    // turn off highlight when not focused
 //    Options := Options - [goDrawFocusSelected];
   end;
@@ -1083,6 +1095,7 @@ begin
           cells[ 2,FileCount+FirstRow] := ReadCSV(TempSTR);
           cells[ 3,FileCount+FirstRow] := ReadCSV(TempSTR);
           cells[ 4,FileCount+FirstRow] := ReadCSV(TempSTR);
+          cells[ 5,FileCount+FirstRow] := ReadCSV(TempSTR);
           INC(FileCount);
           RowCount := FileCount+FirstRow;
         end;
@@ -1104,7 +1117,7 @@ var
   oFileName : string;
   oFileExt : string;
   i : Integer;
-  X, Y, A : single;
+  X, Y, A, E : single;
   FileSuffix : string;
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1114,6 +1127,7 @@ var
 
   begin
       try
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
         Reset_FTM_Unity;   // only once as the same values are changed
         InjectFTM := True; // for all files
         for i := 0 to FileCount-1 do begin
@@ -1127,12 +1141,14 @@ var
                 X := strtofloat(cells[ 2,i+FirstRow]);
                 Y := strtofloat(cells[ 3,i+FirstRow]);
                 A := strtofloat(cells[ 4,i+FirstRow]);
+                E := strtofloat(cells[ 5,i+FirstRow]);
                 FTM[0] := cos(A/180*PI);
                 FTM[1] := -sin(A/180*PI);
                 FTM[4] := -FTM[1];
                 FTM[5] := FTM[0];
                 FTM[3] := X;
                 FTM[7] := Y;
+                FTM[11] := E;
                 // relative to WorkingFolder
                 if (FileExists(WorkingFolder +'\'+ oFilename)) then begin
 //                  ReadCondorC3Dfile(WorkingFolder +'\'+ oFileName, (i <> 0));
@@ -1155,6 +1171,7 @@ var
         WriteCondorObjectFile(FileName,None,false);
       finally
         InjectFTM := False;
+        Screen.Cursor := crDefault;  // no longer busy
       end;
   end;
 
@@ -1198,11 +1215,12 @@ begin
         Rewrite(CO_file);
         with Form_SimpleObjects.StringGrid_Composite do begin
           for i := 0 to FileCount-1 do begin
-            writeln(CO_File,format('%s,%s,%s,%s',[
+            writeln(CO_File,format('%s,%s,%s,%s,%s',[
             cells[ 1,i+FirstRow],
             cells[ 2,i+FirstRow],
             cells[ 3,i+FirstRow],
-            cells[ 4,i+FirstRow]
+            cells[ 4,i+FirstRow],
+            cells[ 5,i+FirstRow]
             ]));
           end;
         end;
@@ -1233,6 +1251,7 @@ begin
     Cells[Col+1, Row] := '0';
     Cells[Col+2, Row] := '0';
     Cells[Col+3, Row] := '0';
+    Cells[Col+4, Row] := '0';
     // allow editing
 //    EditorMode := true;
     Options := Options + [goEditing];
@@ -1253,12 +1272,14 @@ begin
             cells[ 2,i] := cells[ 2,i+1];
             cells[ 3,i] := cells[ 3,i+1];
             cells[ 4,i] := cells[ 4,i+1];
+            cells[ 5,i] := cells[ 5,i+1];
           end;
         end;
         cells[ 1,RowCount-1] := '';
         cells[ 2,RowCount-1] := '';
         cells[ 3,RowCount-1] := '';
         cells[ 4,RowCount-1] := '';
+        cells[ 5,RowCount-1] := '';
         DEC(FileCount);
         if (FileCount = 0) then begin
 //          EditorMode := false;
