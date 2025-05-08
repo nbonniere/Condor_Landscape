@@ -247,7 +247,17 @@ begin
                raise EDDSException.CreateFmt('Unsupported compression type: %8x',[ddpfPixelFormat.dwFourCC]);
             end;
             for j:=0 to Height-1 do
+{$IFOPT R+}
+  {$DEFINE RANGEON}
+  {$R-}
+{$ELSE}
+  {$UNDEF RANGEON}
+{$ENDIF}
                System.Move(decoded[4*j*Width], PCardinal(ScanLine[j])^, Width*4);
+{$IFDEF RANGEON}
+  {$R+}
+  {$UNDEF RANGEON}
+{$ENDIF}
          finally
             FreeMem(decoded);
             FreeMem(buf);

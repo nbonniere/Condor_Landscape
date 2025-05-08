@@ -25,6 +25,10 @@ uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
   StdCtrls, ExtCtrls, ComCtrls;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   TForm_Objects = class(TForm)
     Button_Open: TButton;
@@ -77,6 +81,7 @@ type
     procedure Button_CentreClick(Sender: TObject);
     procedure Button_RotateClick(Sender: TObject);
     procedure Button_TranslateClick(Sender: TObject);
+    procedure Edit_DegreesKeyPress(Sender: TObject; var Key: Char);
   private
     { Private declarations }
   public
@@ -99,9 +104,7 @@ var
 implementation
 
 uses FileCtrl,
-  u_X_CX,
-  u_CalibImport, u_CalibExport, // for dialogs
-  u_Exec,
+  u_X_CX, u_Exec, u_Util,
   pngimage,
   u_BMP, JPEG, TGA, DDS;
 
@@ -232,8 +235,6 @@ begin
 //  imFileFilterString := 'Object files (*.X *.CX *.PX *.C3D)|*.X;*.CX;*.PX;*.C3D|Wings3D (*.OBJ)|*.OBJ|Blender (*.OBJ)|*.OBJ|Xplane (*.OBJ)|*.OBJ|All files (*.*)|*.*';
   imFileName := '';
   imInitialDir := oFolder;
-//  form_CalibImport.ShowModal;
-//  if (u_CalibImport.imActionRequest) then begin
   if OpenDialog then begin
     Label_FileName.Caption := ExtractFileName(imFileName);
 //    ObjectFolder := ExtractFilePath(imFileName);
@@ -588,8 +589,6 @@ begin
   exFileFilterString := 'Object files (*.X *.CX *.PX *.C3D)|*.X;*.CX;*.PX;*.C3D|All files (*.*)|*.*';
   exFileName := imFileName;
   imInitialDir := oFolder;
-//  form_CalibExport.ShowModal;
-//  if (u_CalibExport.exActionRequest) then begin
   if (SaveDialog) then begin
     Label_FileName.Caption := ExtractFileName(exFileName);
 //    ObjectFolder := ExtractFilePath(exFileName);
@@ -603,6 +602,17 @@ begin
 //    WriteCondorXfile(exFileName,false,false);
     WriteCondorObjectFile(exFileName,None,false);
 
+  end;
+end;
+
+// used for all edit boxes
+//---------------------------------------------------------------------------
+procedure TForm_Objects.Edit_DegreesKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if (Key = Chr(VK_RETURN)) then begin // exit ?
+    {Form_Objects.}SelectNext(Sender as TWinControl, True, True); // tab to next component
+    Key := #0; // don't respond to key
   end;
 end;
 

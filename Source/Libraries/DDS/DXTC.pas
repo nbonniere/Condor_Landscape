@@ -123,7 +123,17 @@ begin
             for i:=0 to 3 do begin
                select:=(bitmask and (3 shl (k*2))) shr (k*2);
                if ((4*x+i)<w) and ((4*y+j)<h) then
+{$IFOPT R+}
+  {$DEFINE RANGEON}
+  {$R-}
+{$ELSE}
+  {$UNDEF RANGEON}
+{$ENDIF}
                   PCardinal(@decData[((4*y+j)*w+(4*x+i))*4])^:=Cardinal(colors[select]);
+{$IFDEF RANGEON}
+  {$R+}
+  {$UNDEF RANGEON}
+{$ENDIF}
                Inc(k);
             end;
          end;
@@ -182,7 +192,17 @@ begin
             for i:=0 to 3 do begin
                select:=(bitmask and (3 shl (k*2))) shr (k*2);
                if ((4*x+i)<w) and ((4*y+j)<h) then
+{$IFOPT R+}
+  {$DEFINE RANGEON}
+  {$R-}
+{$ELSE}
+  {$UNDEF RANGEON}
+{$ENDIF}
                   PCardinal(@decData[((4*y+j)*w+(4*x+i))*4])^:=Cardinal(colors[select]);
+{$IFDEF RANGEON}
+  {$R+}
+  {$UNDEF RANGEON}
+{$ENDIF}
                Inc(k);
             end;
          end;
@@ -279,7 +299,17 @@ begin
             for i:=0 to 3 do begin
                select:=(bitmask and (3 shl (k*2))) shr (k*2);
                if ((4*x+i)<w) and ((4*y+j)<h) then
+{$IFOPT R+}
+  {$DEFINE RANGEON}
+  {$R-}
+{$ELSE}
+  {$UNDEF RANGEON}
+{$ENDIF}
                   PCardinal(@decData[((4*y+j)*w+(4*x+i))*4])^:=Cardinal(colors[select]);
+{$IFDEF RANGEON}
+  {$R+}
+  {$UNDEF RANGEON}
+{$ENDIF}
                Inc(k);
             end;
          end;

@@ -33,7 +33,7 @@ UNIT u_Util;
 {============================================================================}
 INTERFACE
 
-uses stdctrls;
+uses stdctrls, Dialogs;
 
 //---------------------------------------------------------------------------
 // for compile options
@@ -42,7 +42,7 @@ uses stdctrls;
 type
   LatLongType = (Lat_,Long_);
 
-  File_Link = Text;
+  File_Link = TextFile;
   F_Link = ^File_Link;
 
 //  uFile_Link = File;
@@ -55,6 +55,13 @@ type
 var
   FileError     : boolean;
   DecimalChar   : char;
+
+  imFileName : string;
+  imInitialDir : string;
+  imFileFilterString : string;
+  exFileName : string;
+  exInitialDir : string;
+  exFileFilterString : string;
 
 function ShortenFolderString(S: String; Size : integer): String;
 function ExtractRoot(S: String): String;
@@ -75,6 +82,7 @@ Procedure ParseFloat(var Tempstr : string; var Result : double);
 Procedure ParseInteger(var Tempstr : string; var Result : longint);
 Procedure ParseText(var TempStr, Result : string);
 Procedure ReadLine(X_File:F_Link;var InputString:string);
+function ReadCSV(var s: string) : string;
 
 //Procedure xReadLine(u_File:uF_Link;var InputString:string);
 //Procedure xReadLineReset;
@@ -85,6 +93,11 @@ procedure Force_DecimalSeparator;
 
 function CopyFolder(const SrcFolder, DestFolder: String;
   OverWrite: Boolean; ShowDialog: Boolean): Boolean;
+
+function OpenDialog(oDiag : TOpenDialog; VAR fName : string;
+  fDir, fFilter : string) : boolean;
+function SaveDialog(sDiag : TSaveDialog; var fName : string;
+  fDir, fFilter : string) : boolean;
 
 {============================================================================}
 IMPLEMENTATION
@@ -544,6 +557,21 @@ begin
   end;
 end;
 
+//---------------------------------------------------------------------------
+function ReadCSV(var s: string) : string;
+var
+  CommaPos : Integer;
+begin
+  CommaPos := pos(',',S);
+  if (CommaPos <> 0) then begin
+    result := copy(s,1,CommaPos-1);
+    s := copy(s, CommaPos+1, length(s));
+  end else begin
+    result := s;
+    s:= '';
+  end;
+end;
+
 // 40 times slower than regular readln -> not useable !
 // replacement readln for text file
 // EOL could be CRLF, just LF, or just CR
@@ -721,6 +749,44 @@ begin
   end;
 
   Result := (SHFileOperation(MyFOStruct) = 0);
+end;
+
+// NOTE: currentdir is changed because 'ofNoChangeDir' is not selected
+// this means current path is now where object was just opened, and
+// file is now relative to this path, and extra filepath not needed
+// if filename contains a path, that path overrides initialDir !
+//---------------------------------------------------------------------------
+function OpenDialog(oDiag : TOpenDialog; var fName : string;
+  fDir, fFilter : string) : boolean;
+begin
+  result := false;
+//  oDiag.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
+  oDiag.Filter := fFilter;
+  oDiag.FileName := ExtractFileName(fName);
+  oDiag.InitialDir := fDir;
+  if (oDiag.Execute) then begin
+    fName := oDiag.FileName;
+    result := true;
+  end;
+end;
+
+// NOTE: currentdir is changed because 'ofNoChangeDir' is not selected
+// this means current path is now where object was just saved, and
+// file is now relative to this path, and extra filepath not needed
+// if filename contains a path, that path overrides initialDir !
+//---------------------------------------------------------------------------
+function SaveDialog(sDiag : TSaveDialog; var fName : string;
+  fDir, fFilter : string) : boolean;
+begin
+  result := false;
+//  sDiag.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
+  sDiag.Filter := fFilter;
+  sDiag.FileName := ExtractFilename(fName);
+  sDiag.InitialDir := fDir;
+  if (sDiag.Execute) then begin
+    fName := sDiag.FileName;
+    result := true;
+  end;
 end;
 
 //---------------------------------------------------------------------------

@@ -63,10 +63,9 @@ var
   scCentre : TileRecord;
 
   Memo_Message : TMemo;  // external TMemo for messages
-  ProgressBar_Status : TProgressBar;
+  ProgressBar_Status : TProgressBar; // external progress bar
   CondorFolder : string; // external path for Condor program folder
 
-//procedure MakeTileList;
 procedure MakeTileList(Easting, Northing : double);
 Procedure ReadTileList(TileFileName : string);
 Procedure WriteTileList(TileFileName : string);
@@ -132,28 +131,11 @@ end;
 Procedure ReadTileRecords;
 
 Var
-  InputString  : String[255];
-  PartialString  : String[255];
+  InputString  : String;
+  PartialString  : String;
   ErrorCode : Integer;
   CommaPosition : byte;
-  i : byte;
   CurrentRow, CurrentColumn : integer;
-
-{----------------------------------------------------------------------------}
-Procedure ReadLine;
-var
-  Ch: Char;
-
-begin
-  InputString := '';
-  Read(Tile_File, Ch);
-  while ((Ch <> char($0A)) AND (NOT Eof(Tile_File))) do begin // look for linefeed
-    if (Ch <> char($0D)) then begin // ignore CR
-      InputString := InputString + Ch;
-    end;
-    Read(Tile_File, Ch);
-  end;
-end;
 
 {----------------------------------------------------------------------------}
 begin
@@ -162,7 +144,7 @@ begin
   CurrentColumn := 0;
 
   while (NOT Eof(Tile_File)) AND (NOT FileError) do begin
-    ReadLine;
+    Readline(@Tile_File,InputString);
     // ignore comments lines starting with a * and ignore blank lines
     if (Length(InputString) > 0) And (Copy(InputString,1,1) <> '*') then begin
       CommaPosition := pos(',',InputString);
@@ -171,12 +153,7 @@ begin
       end else begin
         SetLength(TileList,TileCount+1);
         TileList[TileCount].TileName := MakeTileName(CurrentColumn, CurrentRow, TileNameMode);
-{        if (TileNameMode = xxyy) then begin
-          TileList[TileCount].TileName := format('%2.2d%2.2d',[CurrentColumn,CurrentRow]);
-        end else begin // xxxyyy
-          TileList[TileCount].TileName := format('%3.3d%3.3d',[CurrentColumn,CurrentRow]);
-        end;
-}        PartialString := copy(InputString,1,CommaPosition-1);
+        PartialString := copy(InputString,1,CommaPosition-1);
         InputString := copy(InputString,CommaPosition+1,80);
 
         VAL(PartialString,TileList[TileCount].TileUTMRight,ErrorCode);
@@ -266,7 +243,6 @@ begin
   with TileList[Column + Row*(TileColumnCount+1)] do begin
     UTMtoLatLong(UTM_Bottom+(TileUTMBottom+RowOffset),
                  UTM_Right-(TileUTMRight+ColOffset),
-//                 UTM_Zone,uNorth);
                  UTM_Zone,uGrid);
 
     writeln(Tile_File,format('%1.0f,%1.0f,%1.8f,%1.8f',[
@@ -319,9 +295,6 @@ end;
 
 {-----------------------------------------------------------------------------}
 Procedure WriteTileCorners(TileFileName : string);
-var
-  CurrentColumn, CurrentRow : integer;
-
 begin
   MessageShow('Writing top Left and bottom right corners');
   AssignFile(Tile_File,TileFileName);
@@ -358,47 +331,31 @@ end;
 procedure MakeTileList(Easting, Northing : double);
 var
   CurrentColumn, CurrentRow : integer;
-//  Easting, Northing : double;
 
 begin
   if (HeaderOpen) then begin
 //    Easting := UTM_Right+Resolution/2;    // extra 1/2 of 90 metres all sides
 //    Northing := UTM_Bottom-Resolution/2;  // i.e. from tile centre
     TileCount := 0;
-//    uNorthSouth := ReadUTMzoneNS(UTM_ZoneNS);
-//    uGrid := ReadUTMzoneNS(UTM_ZoneNS);
     ProgressBar_Status.Max := (TileRowCount)*(TileColumnCount);
     for CurrentRow := 0 to (TileRowCount) do begin
       for CurrentColumn := 0 to (TileColumnCount) do begin
         UTMtoLatLong(Northing+CurrentRow*Resolution*tRows,
-//          Easting-CurrentColumn*Resolution*tRows,UTM_Zone,uNorthSouth);
           Easting-CurrentColumn*Resolution*tRows,UTM_Zone,UTM_ZoneNS);
         SetLength(TileList,TileCount+1);
         with TileList[TileCount] do begin
           TileName := MakeTileName(CurrentColumn, CurrentRow, TileNameMode);
-{          if (TileNameMode = xxyy) then begin
-            TileName := format('%2.2d%2.2d',[CurrentColumn,CurrentRow]);
-          end else begin // xxxyyy
-            TileName := format('%3.3d%3.3d',[CurrentColumn,CurrentRow]);
-          end;
-}          TileUTMRight := CurrentColumn*Resolution*tRows;
+          TileUTMRight := CurrentColumn*Resolution*tRows;
           TileUTMBottom := CurrentRow*Resolution*tRows;
           TileLatBottom := uLatitude;
           TileLongRight := uLongitude;
-          //ComboBox_Single.Items.append(TileName); //in row:col order
         end;
         INC(TileCount);
         ProgressBar_Status.StepIt;
       end;
     end;
     TileOpen := true;
-{
-    //Make a corner list for quick access
-    CornerList[0] := TileList[0];  // bottom right
-    CornerList[1] := TileList[TileColumnCount];  // bottom left
-    CornerList[2] := TileList[(TileColumnCount+1)*TileRowCount];  // top right
-    CornerList[3] := TileList[(TileColumnCount+1)*(TileRowCount+1)-1]; // top left
-}
+
     // account for partial tiles
     //Make a corner list for quick access
     // bottom right
@@ -451,7 +408,6 @@ begin
     RangeList[3].TileUTMRight := CornerList[3].TileUTMRight-Resolution*tColumns div 4;
     RangeList[3].TileUTMBottom := CornerList[3].TileUTMBottom-Resolution*tRows div 4;
     UTMtoLatLong(Northing+RangeList[3].TileUTMBottom,
-//                 Easting-RangeList[3].TileUTMRight,UTM_Zone,uNorthSouth);
                  Easting-RangeList[3].TileUTMRight,UTM_Zone,UTM_ZoneNS);
     RangeList[3].TileLongRight := uLongitude;
     RangeList[3].TileLatBottom := uLatitude;

@@ -26,6 +26,10 @@ uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
   ExtCtrls, ComCtrls, StdCtrls;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   // Nick - add two events to track Scrollbar movements
   TScrollBox=Class({VCL.}Forms.TScrollBox)
@@ -42,12 +46,19 @@ type
   TForm_AirportPlacer = class(TForm)
     GroupBox_AirportPlace: TGroupBox;
     GroupBox_Airport: TGroupBox;
-    Label1: TLabel;
-    Label2: TLabel;
-    Label3: TLabel;
+    Label_Name: TLabel;
+    Label_Longitude: TLabel;
+    Label_Latitude: TLabel;
     Label_Direction: TLabel;
     Label_Length: TLabel;
-    Label6: TLabel;
+    Label_Altitude: TLabel;
+    Label_Width: TLabel;
+    Label_Frequency: TLabel;
+    Label_Coords: TLabel;
+    Label_Tile: TLabel;
+    Label_UTM: TLabel;
+    Label_AirportCount: TLabel;
+    Label_H_pos: TLabel;
     Edit_AirportName: TEdit;
     Edit_Latitude: TEdit;
     Edit_Altitude: TEdit;
@@ -61,57 +72,60 @@ type
     Button_Save: TButton;
     Button_Add: TButton;
     Button_Delete: TButton;
-    Label_Width: TLabel;
-    RadioGroup_Surface: TRadioGroup;
-    RadioButton_Grass: TRadioButton;
-    Label8: TLabel;
-    CheckBox_Primary_Reverse: TCheckBox;
-    CheckBox_Tow_Primary_Left: TCheckBox;
-    CheckBox_Tow_Secondary_Left: TCheckBox;
-    GroupBox1: TGroupBox;
-    TreeView_G: TTreeView;
-    GroupBox2: TGroupBox;
-    ScrollBox_Image: TScrollBox;
-    Image_Tile: TImage;
-    Label_Coords: TLabel;
-    Label_Tile: TLabel;
-    UpDown_Longitude: TUpDown;
-    UpDown_Latitude: TUpDown;
     Button_ZoomIn: TButton;
     Button_ZoomOut: TButton;
     Button_ZoomReset: TButton;
-    GroupBox_Options: TGroupBox;
-    Panel_View: TPanel;
-    RadioButton_Terragen: TRadioButton;
-    RadioButton_DDS: TRadioButton;
-    Panel_Details: TPanel;
-    RadioButton_APT: TRadioButton;
-    Label_UTM: TLabel;
-    Label_AirportCount: TLabel;
-    Label_H_pos: TLabel;
-    RadioButton_Elev: TRadioButton;
-    RadioButton_Paved: TRadioButton;
-    Panel1: TPanel;
-    CheckBox_G_File: TCheckBox;
-    CheckBox_O_File: TCheckBox;
-    TreeView_O: TTreeView;
     Button_HiResRunway: TButton;
     Button_Help: TButton;
-    procedure ListBox_ObjectListMouseUp(Sender: TObject;
-      Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    RadioGroup_Surface: TRadioGroup;
+    RadioButton_Grass: TRadioButton;
+    RadioButton_Terragen: TRadioButton;
+    RadioButton_DDS: TRadioButton;
+    RadioButton_APT: TRadioButton;
+    RadioButton_Elev: TRadioButton;
+    RadioButton_Paved: TRadioButton;
+    CheckBox_Primary_Reverse: TCheckBox;
+    CheckBox_Tow_Primary_Left: TCheckBox;
+    CheckBox_Tow_Secondary_Left: TCheckBox;
+    CheckBox_G_File: TCheckBox;
+    CheckBox_O_File: TCheckBox;
+    GroupBox_Objects: TGroupBox;
+    GroupBox_Tools: TGroupBox;
+    GroupBox_Options: TGroupBox;
+    TreeView_G: TTreeView;
+    ScrollBox_Image: TScrollBox;
+    Image_Tile: TImage;
+    UpDown_Longitude: TUpDown;
+    UpDown_Latitude: TUpDown;
+    Panel_View: TPanel;
+    Panel_Details: TPanel;
+    Panel1: TPanel;
+    TreeView_O: TTreeView;
+    PaintBox1: TPaintBox;
+    procedure Label_DirectionDblClick(Sender: TObject);
+    procedure Label_LengthDblClick(Sender: TObject);
+    procedure Label_WidthDblClick(Sender: TObject);
+    procedure Label_LatitudeDblClick(Sender: TObject);
+    procedure Label_LongitudeDblClick(Sender: TObject);
+    procedure Button_HelpClick(Sender: TObject);
     procedure Button_ExitClick(Sender: TObject);
     procedure Button_SaveClick(Sender: TObject);
+    procedure Button_AddClick(Sender: TObject);
+    procedure Button_HiResRunwayClick(Sender: TObject);
+    procedure Button_ZoomInClick(Sender: TObject);
+    procedure Button_ZoomOutClick(Sender: TObject);
+    procedure Button_ZoomResetClick(Sender: TObject);
+    procedure Button_DeleteClick(Sender: TObject);
     procedure Edit_DirectionExit(Sender: TObject);
     procedure Edit_LatitudeExit(Sender: TObject);
     procedure Edit_LongitudeExit(Sender: TObject);
     procedure Edit_AltitudeExit(Sender: TObject);
     procedure Edit_LengthExit(Sender: TObject);
-    procedure Button_AddClick(Sender: TObject);
-    procedure ShowItem(Sender: TObject);
     procedure Edit_WidthExit(Sender: TObject);
     procedure Edit_FrequencyExit(Sender: TObject);
     procedure Edit_AirportNameExit(Sender: TObject);
-    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    procedure Edit_AirportNameKeyPress(Sender: TObject; var Key: Char);
+    procedure ShowItem(Sender: TObject);
     procedure CheckBox_Primary_ReverseMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure CheckBox_Tow_Primary_LeftMouseUp(Sender: TObject;
@@ -122,47 +136,41 @@ type
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure RadioButton_PavedMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-    procedure ShowCoord(Sender: TObject; Shift: TShiftState; X, Y: Integer);
-    procedure FormCreate(Sender: TObject);
-    procedure UpDown_LatitudeMouseUp(Sender: TObject; Button: TMouseButton;
-      Shift: TShiftState; X, Y: Integer);
-    procedure UpDown_LongitudeMouseUp(Sender: TObject;
-      Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-    procedure Button_ZoomInClick(Sender: TObject);
-    procedure Button_ZoomOutClick(Sender: TObject);
-    procedure Button_ZoomResetClick(Sender: TObject);
-    procedure ZoomRestore(Sender: TObject);
-    procedure FormDestroy(Sender: TObject);
     procedure RadioButton_TerragenMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure RadioButton_DDSMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
-    procedure Image_TileClick(Sender: TObject);
-    procedure ScrollBox_ImageResize(Sender: TObject);
     procedure RadioButton_APTMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure RadioButton_ElevMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure ScrollBox_ImageResize(Sender: TObject);
+    procedure Image_TileClick(Sender: TObject);
     procedure Image_TileMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure Image_TileMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
-    procedure Button_DeleteClick(Sender: TObject);
+    procedure ListBox_ObjectListMouseUp(Sender: TObject;
+      Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure ListBox_ObjectListKeyUp(Sender: TObject; var Key: Word;
-      Shift: TShiftState);
-    procedure FormKeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure CheckBox_G_FileMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure CheckBox_O_FileMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
-    procedure Button_HiResRunwayClick(Sender: TObject);
-    procedure Label_DirectionDblClick(Sender: TObject);
-    procedure Label_LengthDblClick(Sender: TObject);
-    procedure Label_WidthDblClick(Sender: TObject);
-    procedure Label3DblClick(Sender: TObject);
-    procedure Label2DblClick(Sender: TObject);
-    procedure Button_HelpClick(Sender: TObject);
+    procedure UpDown_LatitudeMouseUp(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure UpDown_LongitudeMouseUp(Sender: TObject;
+      Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure ShowCoord(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+    procedure ZoomRestore(Sender: TObject);
+    procedure FormKeyUp(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure FormCreate(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    procedure FormActivate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure PaintBox1Paint(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -192,24 +200,31 @@ uses
   u_Terrain, u_Airport, u_TileList, u_UTM, u_MakeGMID,
   u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT, Unit_Help;
 
+const
+  T_Range  = Resolution * tColumns;        // 23040 km
+  QT_Range = Resolution * tColumns div 4;  // 23040 / 4 km
+
 var
   GUI_State : (IdleScreen, DirectionSelectScreen, CentreSelectScreen,
     LengthSelectScreen, WidthSelectScreen, ScrollScreen, CancelScreen);
   ItemIndex : integer;
   AirportsChanged : boolean;
   BitmapAvail : boolean;
-  AirportTileIndex : integer;
+  prevAirportTileIndex : integer;
+  prevDDS_Col, prevDDS_Row : integer;
   AirportEasting, AirportNorthing, AirportDirection : double;
   AirportLength, AirportWidth : double;
   Airport_Primary_Reversed : Boolean;
   Airport_Tow_Primary_Left : Boolean;
   Airport_Tow_Secondary_Left : Boolean;
+  apAirportDecimal : single;
   LatDegPerM, LongDegPerM : double;
   apX, apY : double;  // airport centre relative
   apBR_X, apBR_Y : double;
   apZoomScale, apRange : double;
   cX, cY : double;  // current centre relative
 //  DDS_Bitmap : TBitMap;
+  MeshName : string;
 
 // TScollBox addition
 //---------------------------------------------------------------------------
@@ -259,6 +274,24 @@ begin
   end;
 end;
 
+Procedure RefreshEditBoxes; forward;
+//---------------------------------------------------------------------------
+Procedure Airport_Change_Show(Moved, Changed, Show : Boolean);
+begin
+  if (Changed OR moved) then begin // do first
+    RefreshEditBoxes;
+  end;
+  if (Moved) then begin // lat/long changed
+    Form_AirportPlacer.ShowItem(nil);
+  end;
+  AirportsChanged := Changed;
+  Form_AirportPlacer.Button_Save.enabled := Changed;
+  Form_AirportPlacer.Button_Delete.Enabled := (Airport_Count > 1);
+  if (Show) then begin
+    Form_AirportPlacer.PaintBox1.RePaint;
+  end;
+end;
+
 //---------------------------------------------------------------------------
 Procedure TForm_AirportPlacer.Initialize(Sender: TObject);
 var
@@ -272,8 +305,12 @@ begin
   end;
   Label_AirportCount.Caption := IntToStr(Airport_Count);
   ItemIndex := -1;
+  prevAirportTileIndex := -1;
+  prevDDS_Col := -1; prevDDS_Row := -1;
+  aprange := T_Range; // 23040 km to start with
   apZoomScale := 1.0;
-  AirportsChanged := false;
+//  AirportsChanged := false;
+  Airport_Change_Show(False, False, False);
 
   // clear treeview
   ClearTreeView(TreeView_O);
@@ -294,16 +331,6 @@ begin
   CheckBox_Primary_Reverse.checked := False;
   CheckBox_Tow_Primary_Left.checked := False;
   CheckBox_Tow_Secondary_Left.checked := False;
-end;
-
-//---------------------------------------------------------------------------
-Procedure Airport_Change_Show(Changed, Show : Boolean);
-begin
-  AirportsChanged := Changed;
-  Form_AirportPlacer.Button_Save.enabled := Changed;
-  if (Show) then begin
-    Form_AirportPlacer.ShowItem(nil);
-  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -381,7 +408,8 @@ var
 
 begin
   Tow_End := -1; // condor Y reversed for Airports
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
     if (Tow_Primary) then begin
 //      Tow_End := -1;
       End_Rotation := 0;
@@ -408,7 +436,8 @@ begin
 
   Offset_Array(GliderTrack, Airport_CoordXY);
 
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -433,7 +462,8 @@ begin
 
   Offset_Array(TowPlaneTrack,Airport_CoordXY);
 
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -459,7 +489,8 @@ begin
 
     Offset_Array(WindSock,Airport_CoordXY);
 
-    with Form_AirportPlacer.Image_Tile do begin
+//    with Form_AirportPlacer.Image_Tile do begin
+    with Form_AirportPlacer.PaintBox1 do begin
 //      Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //      Canvas.Pen.Style := psSolid;
 //      Canvas.Pen.Width := 1;
@@ -483,8 +514,12 @@ begin
   Airport_CoordXY.Y := apRange - yCoord;
 
   with Form_AirportPlacer do begin
-    ScaleX := Image_Tile.Width/apRange * apZoomScale;
-    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+//    // for Image
+//    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+//    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+    // for PaintBox
+    ScaleX := Image_Tile.Width/apRange;
+    ScaleY := Image_Tile.Height/apRange;
   end;
 
   setlength(AirportCorners,4);
@@ -502,14 +537,16 @@ begin
   Offset_Array(AirportCorners,Airport_CoordXY);
 
   // prepare pen
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
     Canvas.Pen.Style := psSolid;
     Canvas.Pen.Width := 1;
     Canvas.Pen.Color := clRed;
   end;
 
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -534,7 +571,8 @@ begin
 
   Offset_Array(CentreMark,Airport_CoordXY);
 
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -586,7 +624,8 @@ begin
 //    xBottom :=
 
     // for now, draw all
-    with Form_AirportPlacer.Image_Tile do begin
+//    with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
       Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
       Canvas.Pen.Style := psSolid;
       Canvas.Pen.Width := 1;
@@ -625,7 +664,8 @@ Procedure DrawObject(useColor : TColor);
 var
   i, j : integer;
 begin
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -652,8 +692,12 @@ begin
   Airport_CoordXY.Y := apRange - yCoord;
 
   with Form_AirportPlacer do begin
-    ScaleX := Image_Tile.Width/apRange * apZoomScale;
-    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+//    // for Image
+//    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+//    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+    // for PaintBox
+    ScaleX := Image_Tile.Width/apRange;
+    ScaleY := Image_Tile.Height/apRange;
   end;
 
   // prepare pen
@@ -673,10 +717,16 @@ begin
         sExtract(Form_AirportPlacer.TreeView_G, Index, G_Object);
         DrawObject(clBlack);
       end else begin
-        if (uppercase(nName) = 'GRASS') then begin
+        if (upperCase(nName) = 'GRAVEL') then begin
           sExtract(Form_AirportPlacer.TreeView_G, Index, G_Object);
-          DrawObject(clGreen);
-       	end;
+          DrawObject(clDkGray);
+        end else begin
+          if ((uppercase(nName) = 'GRASS') or
+              (uppercase(nName) = 'GRASS3D')) then begin
+            sExtract(Form_AirportPlacer.TreeView_G, Index, G_Object);
+            DrawObject(clGreen);
+       	  end;
+        end;
       end;
       INC(Index);
     end;
@@ -698,7 +748,8 @@ Procedure DrawObject(useColor : TColor);
 var
   i{, j} : integer;
 begin
-  with Form_AirportPlacer.Image_Tile do begin
+//  with Form_AirportPlacer.Image_Tile do begin
+  with Form_AirportPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -723,8 +774,12 @@ begin
   Airport_CoordXY.Y := apRange - yCoord;
 
   with Form_AirportPlacer do begin
-    ScaleX := Image_Tile.Width/apRange * apZoomScale;
-    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+//    // for Image
+//    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+//    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+    // for PaintBox
+    ScaleX := Image_Tile.Width/apRange;
+    ScaleY := Image_Tile.Height/apRange;
   end;
 
   // prepare pen
@@ -754,6 +809,7 @@ end;
 //---------------------------------------------------------------------------
 procedure DrawObjects(TileIndex : integer);
 begin
+if (ItemIndex <> -1) then begin
   Screen.Cursor := crHourGlass;  // Let user know we're busy...
   try
     with Form_AirportPlacer do begin
@@ -774,7 +830,8 @@ begin
     end;
   finally
     Screen.Cursor := crDefault;  // no longer busy
- end;
+  end;
+end;
 end;
 
 //---------------------------------------------------------------------------
@@ -827,11 +884,37 @@ begin
   ReCentre;
 end;
 
+// find Terragen tile that contains the airport coordinates
+//---------------------------------------------------------------------------
+Function Find_Terragen_Tile(Easting, Northing : double;
+  var TileIndex : integer) : boolean;
+var
+  TileColumn, TileRow : integer;
+begin
+  result := true; // assume for now
+  TileColumn := trunc(Easting/T_Range);
+  TileRow := trunc(Northing/T_Range);
+  TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
+  if ((TileColumn < 0) or (TileColumn > TileColumnCount) or
+      (TileRow < 0) or (TileRow > TileRowCount)) then begin
+    result := false;
+    Exit; // fault, coordinates beyond scenery boundaries
+  end;
+  //keep track of BottomRight reference
+  apBR_X := TileList[TileIndex].TileUTMRight;
+  apBR_Y := TileList[TileIndex].TileUTMBottom;
+  // airport tile relative coords (relative to bottom right)
+  {Unit_Graphics.}xCoord := AirportEasting -  apBR_X;
+  {Unit_Graphics.}yCoord := AirportNorthing - apBR_Y;
+  // Relative fractional position (relative to top left)
+  apX := 1 - ({Unit_Graphics.}xCoord/T_Range);
+  apY := 1 - ({Unit_Graphics.}yCoord/T_Range);
+  apRange := T_Range; // metres
+end;
+
 // find group of 4 DDS tiles that surround the airport coordinates
 //---------------------------------------------------------------------------
 Procedure Find_DDS_Tiles(Easting, Northing : double; var Col, Row : integer);
-const
-  QT_Range = Resolution * tColumns div 4;  // 23040 / 4 km
 //var
 //  Row, Col : integer;
 begin
@@ -878,14 +961,53 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+Procedure RefreshEditBoxes;
+begin
+  with Form_AirportPlacer do begin
+    if (ItemIndex <> -1) then begin
+      with Airport_List[ItemIndex] do begin
+        Edit_AirportName.Text := apName;
+        Edit_Latitude.Text := format('%1.7f',[apLatitude]);
+        Edit_Longitude.Text := format('%1.7f',[apLongitude]);
+        Edit_Altitude.Text := format('%1.3f',[apAltitude]);
+        Edit_Direction.Text := Decode_apDirection(apDirection);
+        apAirportDecimal := strtofloat(Edit_Direction.Text);
+        Edit_Length.Text := format('%d',[apLength]);
+        Edit_Width.Text := format('%d',[apWidth]);
+        Edit_Frequency.Text := format('%1.3f',[apFrequency]);
+        CheckBox_Primary_Reverse.checked := (apOptions AND $00000001 = $00000001);
+        CheckBox_Tow_Primary_Left.checked := (apOptions AND $00000100 = $00000100);
+        CheckBox_Tow_Secondary_Left.checked := (apOptions AND $00010000 = $00010000);
+        if ((apAsphaltFlag AND 1) = 1) then begin
+          RadioButton_Paved.Checked := true;
+//          Button_HiResRunway.Enabled := true;
+          MeshName := 'Asphalt';
+        end else begin
+          RadioButton_Grass.Checked := true;
+//          Button_HiResRunway.Enabled := false;
+          MeshName := 'Grass';
+        end;
+        AirportDirection := apAirportDecimal;
+        AirportLength := apLength;
+        AirportWidth := apWidth;
+        Airport_Primary_Reversed := CheckBox_Primary_Reverse.checked;
+        Airport_Tow_Primary_Left := CheckBox_Tow_Primary_Left.checked;
+        Airport_Tow_Secondary_Left := CheckBox_Tow_Secondary_Left.checked;
+      end;
+    end;
+  end;
+end;
+
+// convert lat/long to UTM and
+//   use LatDegPerM and LongDegPerM when stepping, 1, 10, 100m
+// alternative, use metres and
+//   convert to Lat/long after
+//---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.ShowItem(Sender: TObject);
-const
-  T_Range = Resolution * tColumns; // 23040 km
 var
   i, j : integer;
-  {TileIndex,} TileIndex2 : integer;
+  AirportTileIndex : integer;
   TileRow, TileColumn : integer;
-  apAirportDecimal : single;
 
   DDS_Col, DDS_Row : integer;
   FilePicture: TPicture; // to load DDS tiles
@@ -896,44 +1018,13 @@ var
 
 begin
   if (ItemIndex <> -1) then begin
-    if (Airport_Count > 1) then begin
-      Button_Delete.Enabled := true;
-    end else begin
-      Button_Delete.Enabled := false;
-      Button_HiResRunway.Enabled := false;
-    end;
     OutOfResources := false;
-    BitmapAvail := false; // assume for now
+//    Button_HiResRunway.Enabled := true;
     with Airport_List[ItemIndex] do begin
-      Edit_AirportName.Text := apName;
-      Edit_Latitude.Text := format('%1.7f',[apLatitude]);
-      Edit_Longitude.Text := format('%1.7f',[apLongitude]);
-      Edit_Altitude.Text := format('%1.3f',[apAltitude]);
-      Edit_Direction.Text := Decode_apDirection(apDirection);
-      apAirportDecimal := strtofloat(Edit_Direction.Text);
-      Edit_Length.Text := format('%d',[apLength]);
-      Edit_Width.Text := format('%d',[apWidth]);
-      Edit_Frequency.Text := format('%1.3f',[apFrequency]);
-      CheckBox_Primary_Reverse.checked := (apOptions AND $00000001 = $00000001);
-      CheckBox_Tow_Primary_Left.checked := (apOptions AND $00000100 = $00000100);
-      CheckBox_Tow_Secondary_Left.checked := (apOptions AND $00010000 = $00010000);
-      if ((apAsphaltFlag AND 1) = 1) then begin
-        RadioButton_Paved.Checked := true;
-        Button_HiResRunway.Enabled := true;
-      end else begin
-        RadioButton_Grass.Checked := true;
-        Button_HiResRunway.Enabled := false;
-      end;
       //default to 0 if no bitmap
       LatDegPerM := 0.0; LongDegPerM := 0.0;
       //use lat,long to find corresponding tile
       if (TileOpen) then begin
-        AirportDirection := apAirportDecimal;
-        AirportLength := apLength;
-        AirportWidth := apWidth;
-        Airport_Primary_Reversed := CheckBox_Primary_Reverse.checked;
-        Airport_Tow_Primary_Left := CheckBox_Tow_Primary_Left.checked;
-        Airport_Tow_Secondary_Left := CheckBox_Tow_Secondary_Left.checked;
         // convert airport lat long to UTM absolute
         LatLongToUTM(apLatitude,apLongitude,UTM_Zone,UTM_ZoneNS);
         // make relative to scenery bottom right
@@ -945,18 +1036,6 @@ begin
         AirportEasting :=  AirportEasting  * cResolution/-cDeltaX;
         AirportNorthing := AirportNorthing * cResolution/cDeltaY;
         Label_UTM.Caption := format('%1.2f, %1.2f',[AirportEasting,AirportNorthing]);
-        TileColumn := trunc(AirportEasting/T_Range);
-        TileRow := trunc(AirportNorthing/T_Range);
-//        if ((TileColumn < 0) or (TileColumn >= TileColumnCount) or (TileRow < 0) or (TileRow >= TileRowCount)) then begin
-        if ((TileColumn < 0) or (TileColumn > TileColumnCount) or (TileRow < 0) or (TileRow > TileRowCount)) then begin
-          Exit; // fault, airport coordinates beyound scenery boundaries
-        end;
-        AirportTileIndex := TileRow*(TileColumnCount+1)+TileColumn;
-        TileIndex2 := (TileRow+1)*(TileColumnCount+1)+TileColumn+1; // other corner
-        // relative ratios degrees per metre
-        LatDegPerM :=  (TileList[TileIndex2].TileLatBottom - TileList[AirportTileIndex].TileLatBottom) / T_Range;
-        LongDegPerM := (TileList[TileIndex2].TileLongRight - TileList[AirportTileIndex].TileLongRight) / -T_Range;
-        // bug- above only works if there is a full tile, not for partial tile and not using Ceil!
         LatDegPerM := (0.001/(earthRadius*2*Pi))*360;
         LongDegPerM := LatDegPerM/cos(apLatitude*Pi/180);
 
@@ -964,14 +1043,17 @@ begin
         // if DDS textures available, use 4 closest, otherwise use terragen tile
         if (RadioButton_DDS.Checked = true) then begin
           Find_DDS_Tiles(AirportEasting, AirportNorthing, DDS_Col, DDS_Row);
-          // determine highest tile resolution
-          DDS_Size := 0;
-          for i := 0 to 2-1 do begin
-            for j := 0 to 2-1 do begin
-//              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
-              FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-              Temp := DXT_ImageWidth(FileName);
-              if (Temp > DDS_Size) then begin
+          if ((DDS_Col <> prevDDS_Col) OR (DDS_Row <> prevDDS_Row)) then begin
+            prevDDS_Col := DDS_Col; prevDDS_Row := DDS_Row;
+            BitmapAvail := false; // assume for now
+            // determine highest tile resolution
+            DDS_Size := 0;
+            for i := 0 to 2-1 do begin
+              for j := 0 to 2-1 do begin
+//                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
+                Temp := DXT_ImageWidth(FileName);
+                if (Temp > DDS_Size) then begin
 { While (DDS_Size > 8192) do begin
   ReducedFileName := ???
   // if reduced exists
@@ -983,138 +1065,119 @@ begin
   TextureReduce(ReducedFileName);
   Temp := DXT_ImageWidth(ReducedFileName);
 end; }
-                DDS_Size := temp;
+                  DDS_Size := temp;
+                end;
               end;
             end;
-          end;
-
-          // show a blank background of default size if no files
-          if (DDS_Size = 0) then begin
-            DDS_Size := 1024; // choose a default size
-          end;
-
+            // show a blank background of default size if no files
+            if (DDS_Size = 0) then begin
+              DDS_Size := 1024; // choose a default size
+            end;
 { tried but still no go for large DDS
-          // show a blank background if files are too large for 32 bit system
-          // i.e. avoid crashing Condor_Tiles
-          if (DDS_Size > 8192) then begin
-            // at size 8192, DDS load with load next lower level mip
-            // so new threshold is 16384
-            if (DDS_Size > 16384) then begin
+            // show a blank background if files are too large for 32 bit system
+            // i.e. avoid crashing Condor_Tiles
+            if (DDS_Size > 8192) then begin
+              // at size 8192, DDS load with load next lower level mip
+              // so new threshold is 16384
+              if (DDS_Size > 16384) then begin
+                MessageShow('DDS file too large');
+                OutOfResources := true;
+                DDS_Size := 1024; // choose a default size
+              end else begin
+                DDS_Size := 8192;
+              end;
+            end;
+}
+            // show a blank background if files are too large for 32 bit system
+            // i.e. avoid crashing Condor_Tiles
+            if (DDS_Size > 8192) then begin
               MessageShow('DDS file too large');
               OutOfResources := true;
               DDS_Size := 1024; // choose a default size
-            end else begin
-              DDS_Size := 8192;
             end;
-          end;
-}
-          // show a blank background if files are too large for 32 bit system
-          // i.e. avoid crashing Condor_Tiles
-          if (DDS_Size > 8192) then begin
-            MessageShow('DDS file too large');
-            OutOfResources := true;
-            DDS_Size := 1024; // choose a default size
-          end;
 
-          with Image_Tile.Picture.Bitmap do begin
-//            Remove for new Delphi          
-//            Image_Tile.Align := alClient;
-            Image_Tile.AutoSize := true;
-            Width := DDS_Size * 2;
-            Height := DDS_Size * 2;
-            Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
-            Image_Tile_Clear;
-          end;
+            with Image_Tile.Picture.Bitmap do begin
+//              Image_Tile.Align := alClient; // Remove for new Delphi
+              Image_Tile.AutoSize := true;
+              Width := DDS_Size * 2;
+              Height := DDS_Size * 2;
+              Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+              Image_Tile_Clear;
+            end;
+            // also adjust the PaintBox to match the size
+            PaintBox1.Width := Image_Tile.Picture.Bitmap.Width;
+            PaintBox1.Height := Image_Tile.Picture.Bitmap.Height;
+            // make sure all relative sizes are correct by resetting the zoom level to 1.0
+            // or could use call to ZoomRestore
+            apZoomScale := 1.0;
 
-          if (OutOfResources) then begin
-            Screen.Cursor := crDefault;  // no longer busy
-            beep; exit;
-          end else begin
-            // load 4 dds tiles and draw onto Image_Tile
-            for i := 0 to 2-1 do begin
-              for j := 0 to 2-1 do begin
-//                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
-                FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-     // try ReducedFileName first
-                if (NOT FileExists(FileName)) then begin
-//                BitmapAvail := false; // no, change - allow even if no files
-                  // blank image
-                  Screen.Cursor := crDefault;  // no longer busy
-            //      Image_Tile_Clear;
-            //      exit;
-                  continue;
-                end;
-                FilePicture := TPicture.Create;
-                try
-                  FilePicture.LoadFromFile(FileName);
-                  if (apVersion = 'V1') then begin
-                    //rotate 180 deg
-                    Rotate_180(FilePicture.Bitmap);
+            if (OutOfResources) then begin
+              Screen.Cursor := crDefault;  // no longer busy
+              beep; exit;
+            end else begin
+              // load 4 dds tiles and draw onto Image_Tile
+              for i := 0 to 2-1 do begin
+                for j := 0 to 2-1 do begin
+//                  FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                  FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
+       // try ReducedFileName first
+                  if (NOT FileExists(FileName)) then begin
+//                  BitmapAvail := false; // no, change - allow even if no files
+                    // blank image
+                    Screen.Cursor := crDefault;  // no longer busy
+              //      Image_Tile_Clear;
+              //      exit;
+                    continue;
                   end;
+                  FilePicture := TPicture.Create;
                   try
-                    with Image_Tile.Picture.Bitmap do begin
-              {
-                      if ((i = 0) AND (j=0)) then begin
-                        Image_Tile.Align := alClient;
-                        Image_Tile.AutoSize := true;
-//                        Width := FilePicture.Width * 2;
-                        Width := DDS_Size * 2;
-//                        Height := FilePicture.Width * 2;
-                        Height := DDS_Size * 2;
-                        Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+                    FilePicture.LoadFromFile(FileName);
+                    if (apVersion = 'V1') then begin
+                      //rotate 180 deg
+                      Rotate_180(FilePicture.Bitmap);
+                    end;
+                    try
+                      with Image_Tile.Picture.Bitmap do begin
+                        Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
+                          (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
                       end;
-               }
-//                      Image_Tile.Canvas.CopyMode := cmSrcCopy;
-//                      Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
-//                        (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
-                      Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
-                        (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
+                    finally
                     end;
                   finally
+                    FilePicture.Free;
                   end;
-                finally
-                  FilePicture.Free;
                 end;
               end;
             end;
-          end;
 
-          BitmapAvail := true; // although it could be blank
-          ZoomRestore(Sender); // after load/reload of tile
-          CentreAirport;
-//          DrawRunway(AirportTileIndex);
-//          DrawRunway(0);
-          DrawObjects(0);
-        end else begin // try terragen tile
-          //keep track of BR reference
-          apBR_X := TileList[AirportTileIndex].TileUTMRight;
-          apBR_Y := TileList[AirportTileIndex].TileUTMBottom;
-          // airport tile relative coords (relative to bottom right)
-          {Unit_Graphics.}xCoord := AirportEasting -  apBR_X;
-          {Unit_Graphics.}yCoord := AirportNorthing - apBR_Y;
-          // Relative fractional position (relative to top left)
-          apX := 1 - ({Unit_Graphics.}xCoord/T_Range);
-          apY := 1 - ({Unit_Graphics.}yCoord/T_Range);
-          apRange := T_Range; // metres
-          Label_Tile.Caption := TileList[AirportTileIndex].TileName;
-          // check if file are too large for 32 bit system
-          // i.e. avoid crashing Condor_Tiles
-          // could shrink the picture as it loads instead - TBD
-          if (LoadTileBitmap(TileList[AirportTileIndex].TileName) ) then begin
-            // bitmap loaded
-          end else begin
-            // blank image
-            Image_Tile_Clear;
-            // default size
-            Image_Tile.Picture.Bitmap.Width :=  512;
-            Image_Tile.Picture.Bitmap.Height := 512;
+            BitmapAvail := true; // although it could be blank
+            ZoomRestore(Sender); // after load/reload of tile
           end;
-          // change - allow even if no file
-          BitmapAvail := true; // although it could be blank
-          ZoomRestore(Sender); // after load/reload of tile
           CentreAirport;
-//          DrawRunway(0);
-          DrawObjects(0);
+        end else begin // try terragen tile
+          Find_Terragen_Tile(AirportEasting, AirportNorthing, AirportTileIndex);
+          // check to see if need to reload
+          if (AirportTileIndex <> prevAirportTileIndex) then begin
+            prevAirportTileIndex := AirportTileIndex;
+            BitmapAvail := false; // assume for now
+            Label_Tile.Caption := TileList[AirportTileIndex].TileName;
+            // check if file are too large for 32 bit system
+            // i.e. avoid crashing Condor_Tiles
+            // could shrink the picture as it loads instead - TBD
+            if (LoadTileBitmap(TileList[AirportTileIndex].TileName) ) then begin
+              // bitmap loaded
+            end else begin
+              // blank image
+              Image_Tile_Clear;
+              // default size
+              Image_Tile.Picture.Bitmap.Width :=  512;
+              Image_Tile.Picture.Bitmap.Height := 512;
+            end;
+            // change - allow even if no file
+            BitmapAvail := true; // although it could be blank
+            ZoomRestore(Sender); // after load/reload of tile
+          end;
+          CentreAirport;
         end;
         Screen.Cursor := crDefault;  // no longer busy
       end else begin
@@ -1206,7 +1269,6 @@ begin
   case GUI_State of
     IdleScreen: begin
       if (ssCtrl in Shift) then begin //scroll bitmap
-//        FPanning := True;
         GUI_State := ScrollScreen;
       end;
     end;
@@ -1296,8 +1358,7 @@ begin
       beep; Exit;
     end;
     // set image to auto take its size from picture 1:1 and fit in window
-// remove causes issue with new Delphi
-//    Image_Tile.Align := alClient;
+//    Image_Tile.Align := alClient; // remove causes issue with new Delphi
     Image_Tile.AutoSize := true;
     Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
 //    tFileName := Path+'\'+TileName+'.bmp';
@@ -1306,9 +1367,15 @@ begin
 // if 256 color bitmap, drawing on top of bitmap will use the 256 color palette !
 // any color will use the closest color in palette -> approx color
 // convert to pf24 bit for absolute color - works!
-    if (Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
-      Image_Tile.Picture.Bitmap.PixelFormat := pf24bit;
-    end;
+//    if (Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
+//      Image_Tile.Picture.Bitmap.PixelFormat := pf24bit;
+//    end;
+    // also adjust the PaintBox to match the size
+    PaintBox1.Width := Image_Tile.Picture.Bitmap.Width;
+    PaintBox1.Height := Image_Tile.Picture.Bitmap.Height;
+    // make sure all relative sizes are correct by resetting the zoom level to 1.0
+    // or could use call to ZoomRestore
+    apZoomScale := 1.0;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
     result := true;
@@ -1371,7 +1438,27 @@ begin
   if (ItemIndex <> -1) then begin
     apZoomScale := 1.0;
     Search_Airport_Details; // get details from G and O files
-    ShowItem(Sender);
+//    ShowItem(Sender);
+    Airport_Change_Show(True, AirportsChanged, True);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.ListBox_ObjectListKeyUp(Sender: TObject;
+  var Key: Word; Shift: TShiftState);
+begin
+  case Key of
+    VK_RETURN: begin
+      ItemIndex := ListBox_ObjectList.ItemIndex;
+      if (ItemIndex <> -1) then begin
+        apZoomScale := 1.0;
+        Search_Airport_Details;
+//        ShowItem(Sender);
+        Airport_Change_Show(True, AirportsChanged, True);
+      end;
+    end;
+    else begin
+    end;
   end;
 end;
 
@@ -1382,14 +1469,14 @@ begin
   Airport_list[Airport_Count] := Airport_list[Airport_Count-1]; //default values
   Airport_List[Airport_Count].apName := 'New Airport';
   ListBox_ObjectList.Items.Append(Airport_List[Airport_Count].apName);
-  INC(Airport_Count);
+  INC(Airport_Count); Label_AirportCount.Caption := IntToStr(Airport_Count);
 //  AirportsChanged := true;
   ListBox_ObjectList.ItemIndex := ListBox_ObjectList.Items.Count-1;
   ItemIndex := ListBox_ObjectList.ItemIndex;
   apZoomScale := 1.0;
   Search_Airport_Details;
 //  ShowItem(Sender);
-  Airport_Change_Show(True, True);
+  Airport_Change_Show(True, True, True);
 end;
 
 //---------------------------------------------------------------------------
@@ -1410,12 +1497,11 @@ begin
         DEC(ItemIndex);
         ListBox_ObjectList.ItemIndex := ItemIndex;
       end;
-      DEC(Airport_Count);
-//      AirportsChanged := true;
+      DEC(Airport_Count); Label_AirportCount.Caption := IntToStr(Airport_Count);
       SetLength(Airport_List,Airport_Count);
       Search_Airport_Details;
 //      ShowItem(Sender);
-      Airport_Change_Show(True, True);
+      Airport_Change_Show(True, True, True);
     end;
   end;
 end;
@@ -1445,7 +1531,7 @@ begin
   if (AirportsChanged) then begin
     WriteAirportFile;
 //    AirportsChanged := false;
-    Airport_Change_Show(False, False);
+    Airport_Change_Show(False, False, False);
   end;
 end;
 
@@ -1461,7 +1547,7 @@ begin
       // search for airport details
 
 //      AirportsChanged := true;
-      Airport_Change_Show(True, False);
+      Airport_Change_Show(False, True, False);
     end;
   end;
 end;
@@ -1477,7 +1563,7 @@ begin
       end;
 //      AirportsChanged := true;
 //      ShowItem(Sender);
-      Airport_Change_Show(True, True);
+      Airport_Change_Show(True, True, True);
     end;
   end;
 end;
@@ -1493,7 +1579,7 @@ begin
       end;
 //      AirportsChanged := true;
 //      ShowItem(Sender);
-      Airport_Change_Show(True, True);
+      Airport_Change_Show(True, True, True);
     end;
   end;
 end;
@@ -1508,7 +1594,7 @@ begin
         Edit_Altitude.Text := format('%1.3f',[apAltitude]);
       end;
 //      AirportsChanged := true;
-      Airport_Change_Show(True, False);
+      Airport_Change_Show(False, True, False);
     end;
   end;
 end;
@@ -1524,7 +1610,7 @@ begin
       end;
 //      AirportsChanged := true;
 //      ShowItem(Sender);
-      Airport_Change_Show(True, True);
+      Airport_Change_Show(False, True, True);
     end;
   end;
 end;
@@ -1540,7 +1626,7 @@ begin
       end;
 //      AirportsChanged := true;
 //      ShowItem(Sender);
-      Airport_Change_Show(True, True);
+      Airport_Change_Show(False, True, True);
     end;
   end;
 end;
@@ -1556,7 +1642,7 @@ begin
       end;
 //      AirportsChanged := true;
 //      ShowItem(Sender);
-      Airport_Change_Show(True, True);
+      Airport_Change_Show(False, True, True);
     end;
   end;
 end;
@@ -1571,7 +1657,7 @@ begin
         Edit_Frequency.Text := format('%1.5f',[apFrequency]);
       end;
 //      AirportsChanged := true;
-      Airport_Change_Show(True, False);
+      Airport_Change_Show(False, True, False);
     end;
   end;
 end;
@@ -1591,7 +1677,7 @@ begin
     end;
 //    AirportsChanged := true;
 //    ShowItem(Sender);
-    Airport_Change_Show(True, True);
+    Airport_Change_Show(False, True, True);
   end;
 end;
 
@@ -1610,7 +1696,7 @@ begin
     end;
 //    AirportsChanged := true;
 //    ShowItem(Sender);
-    Airport_Change_Show(True, True);
+    Airport_Change_Show(False, True, True);
   end;
 end;
 
@@ -1629,7 +1715,7 @@ begin
     end;
 //    AirportsChanged := true;
 //    ShowItem(Sender);
-    Airport_Change_Show(True, True);
+    Airport_Change_Show(False, True, True);
   end;
 end;
 
@@ -1637,16 +1723,20 @@ end;
 procedure TForm_AirportPlacer.RadioButton_GrassMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  if (ItemIndex <> -1) then begin
-    with Airport_List[ItemIndex] do begin
-      if (RadioButton_Grass.checked) then begin
-        apAsphaltFlag := 0;
-      end else begin
-        apAsphaltFlag := 1;
+  if (RadioButton_Grass.Tag <> 1) then begin
+    RadioButton_Grass.Tag := 1;
+    RadioButton_Paved.Tag := 0;
+    if (ItemIndex <> -1) then begin
+      with Airport_List[ItemIndex] do begin
+        if (RadioButton_Grass.checked) then begin
+          apAsphaltFlag := 0;
+        end else begin
+          apAsphaltFlag := 1;
+        end;
       end;
+//      AirportsChanged := true;
+      Airport_Change_Show(False, True, False);
     end;
-//    AirportsChanged := true;
-    Airport_Change_Show(True, False);
   end;
 end;
 
@@ -1654,16 +1744,20 @@ end;
 procedure TForm_AirportPlacer.RadioButton_PavedMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  if (ItemIndex <> -1) then begin
-    with Airport_List[ItemIndex] do begin
-      if (RadioButton_Paved.checked) then begin
-        apAsphaltFlag := 1;
-      end else begin
-        apAsphaltFlag := 0;
+  if (RadioButton_Paved.Tag <> 1) then begin
+    RadioButton_Paved.Tag := 1;
+    RadioButton_Grass.Tag := 0;
+    if (ItemIndex <> -1) then begin
+      with Airport_List[ItemIndex] do begin
+        if (RadioButton_Paved.checked) then begin
+          apAsphaltFlag := 1;
+        end else begin
+          apAsphaltFlag := 0;
+        end;
       end;
+//      AirportsChanged := true;
+      Airport_Change_Show(False, True, False);
     end;
-//    AirportsChanged := true;
-    Airport_Change_Show(True, False);
   end;
 end;
 
@@ -1683,6 +1777,33 @@ begin
   //    TransParentColor := $00010101; // so that black can be used to erase
   //    TransparentMode := tmFixed;
 //  end;
+
+  // to not process a radio button that's already checked
+  if (RadioButton_Terragen.Checked) then begin
+    RadioButton_Terragen.Tag := 1;
+  end;
+  if (RadioButton_DDS.Checked) then begin
+    RadioButton_DDS.Tag := 1;
+  end;
+  if (RadioButton_Paved.Checked) then begin
+    RadioButton_Paved.Tag := 1;
+  end;
+  if (RadioButton_Grass.Checked) then begin
+    RadioButton_Grass.Tag := 1;
+  end;
+  if (RadioButton_APT.Checked) then begin
+    RadioButton_APT.Tag := 1;
+  end;
+  if (RadioButton_Elev.Checked) then begin
+    RadioButton_Elev.Tag := 1;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.FormActivate(Sender: TObject);
+begin
+//  Button_HiResRunway.Enabled := false;
+  Button_HiResRunway.Enabled := true;
 end;
 
 //---------------------------------------------------------------------------
@@ -1715,7 +1836,7 @@ begin
     end;
 //    AirportsChanged := true;
 //    ShowItem(Sender);
-    Airport_Change_Show(True, True);
+    Airport_Change_Show(True, True, True);
   end;
 end;
 
@@ -1743,7 +1864,21 @@ begin
     end;
 //    AirportsChanged := true;
 //    ShowItem(Sender);
-    Airport_Change_Show(True, True);
+    Airport_Change_Show(True, True, True);
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.RadioButton_DDSMouseUp(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  if (RadioButton_DDS.Tag <> 1) then begin
+    RadioButton_DDS.Tag := 1;
+    RadioButton_Terragen.Tag := 0;
+    apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+    prevDDS_Col := -1; prevDDS_Row := -1;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, AirportsChanged, True);
   end;
 end;
 
@@ -1751,46 +1886,56 @@ end;
 procedure TForm_AirportPlacer.RadioButton_TerragenMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
-  ShowItem(Sender);
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.RadioButton_DDSMouseUp(Sender: TObject;
-  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-begin
-  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
-  ShowItem(Sender);
+  if (RadioButton_Terragen.Tag <> 1) then begin
+    RadioButton_Terragen.Tag := 1;
+    RadioButton_DDS.Tag := 0;
+    apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+    prevAirportTileIndex := -1;
+//    ShowItem(Sender);
+    Airport_Change_Show(True, AirportsChanged, True);
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.RadioButton_APTMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
-  ShowItem(Sender);
+  if (RadioButton_APT.Tag <> 1) then begin
+    RadioButton_APT.Tag := 1;
+    RadioButton_Elev.Tag := 0;
+    apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+//    ShowItem(Sender);
+    Airport_Change_Show(True, AirportsChanged, True);
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.RadioButton_ElevMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
-  ShowItem(Sender);
+  if (RadioButton_Elev.Tag <> 1) then begin
+    RadioButton_Elev.Tag := 1;
+    RadioButton_APT.Tag := 0;
+    apZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+//    ShowItem(Sender);
+    Airport_Change_Show(True, AirportsChanged, True);
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.CheckBox_G_FileMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  ShowItem(Sender);
+//  ShowItem(Sender);
+  Airport_Change_Show(True, AirportsChanged, True);
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_AirportPlacer.CheckBox_O_FileMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  ShowItem(Sender);
+//  ShowItem(Sender);
+  Airport_Change_Show(True, AirportsChanged, True);
 end;
 
 //---------------------------------------------------------------------------
@@ -1811,6 +1956,9 @@ begin
     apZoomScale := apZoomScale / Image_Tile.Width;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
     // now refresh
 //    CentreAirport;
     ReCentre;
@@ -1835,6 +1983,9 @@ begin
     apZoomScale :=  apZoomScale / Image_Tile.Width;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
     // now refresh
 //    CentreAirport;
     ReCentre;
@@ -1847,9 +1998,12 @@ begin
   if (BitmapAvail) then begin
     apZoomScale := 1.0;
     Image_Tile.Width := Image_Tile.Picture.Width;
-    Image_Tile.Height := Image_Tile.Picture.Width;
+    Image_Tile.Height := Image_Tile.Picture.Height;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
     // now refresh
     CentreAirport;
   end;
@@ -1868,6 +2022,9 @@ begin
     Image_Tile.Height := round(Image_Tile.Picture.Height / apZoomScale);
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
   end;
 end;
 
@@ -1881,24 +2038,6 @@ end;
 procedure TForm_AirportPlacer.ScrollBox_ImageResize(Sender: TObject);
 begin
   Recentre;  // on current centre cX, cY
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.ListBox_ObjectListKeyUp(Sender: TObject;
-  var Key: Word; Shift: TShiftState);
-begin
-  case Key of
-    VK_RETURN: begin
-      ItemIndex := ListBox_ObjectList.ItemIndex;
-      if (ItemIndex <> -1) then begin
-        apZoomScale := 1.0;
-        Search_Airport_Details;
-        ShowItem(Sender);
-      end;
-    end;
-    else begin
-    end;
-  end;
 end;
 
 // form Keypreview must be true
@@ -1924,7 +2063,7 @@ type
   tCoord = array[0..2-1] of single;
 
 //---------------------------------------------------------------------------
-Procedure Make_Px_Airport(FilePath, FileName, TextureFileName : string;
+Procedure Make_Px_Airport(FilePath, FileName, MeshName, TextureFileName : string;
   gV, gT : array of tCoord);
 var
   PXfile : text;
@@ -1935,7 +2074,8 @@ begin
   // write PX fields
   writeln(PXfile,'xof 0303txt 0032');
   writeln(PXfile,'Frame {');
-  writeln(PXfile,'Mesh Asphalt {');
+//  writeln(PXfile,'Mesh Asphalt {');
+  writeln(PXfile,'Mesh '+ MeshName + ' {');
   writeln(PXfile,'4;');
   writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[0][0],gV[0][1]]));
   writeln(PXfile,format('%3.3f; %3.3f; 0.0;,',[gV[1][0],gV[1][1]]));
@@ -2043,7 +2183,6 @@ var
   X_Extent , Y_Extent : single;
   Longitude_m_to_degrees, Latitude_m_to_degrees : single;
   FileName, FilePath : string;
-
   qTileColumn, qTileRow : integer;
   qTname :string;
   qDeltaColumn, qDeltaRow : single;
@@ -2169,7 +2308,7 @@ begin
   end;
   // make runway .px file
   FileName := 'Airport.px';
-  Make_Px_Airport(FilePath, FileName, 'Textures/AirportName.dds',
+  Make_Px_Airport(FilePath, FileName, MeshName, 'Textures/AirportName.dds',
     Airport_G_Corners,Airport_R_Corners);
 
   // try to use DDS tile in Textures folder
@@ -2194,7 +2333,7 @@ begin
     end;
     // make runway .px file
     FileName := 'Airport_Tile.px';
-    Make_Px_Airport(FilePath, FileName, qTname,
+    Make_Px_Airport(FilePath, FileName, MeshName, qTname,
       Airport_G_Corners,Airport_R_Corners);
   end;
 
@@ -2283,7 +2422,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.Label3DblClick(Sender: TObject);
+procedure TForm_AirportPlacer.Label_LatitudeDblClick(Sender: TObject);
 begin
   GUI_State := CentreSelectScreen;
   Screen.Cursor := crCross;
@@ -2291,7 +2430,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.Label2DblClick(Sender: TObject);
+procedure TForm_AirportPlacer.Label_LongitudeDblClick(Sender: TObject);
 begin
   GUI_State := CentreSelectScreen;
   Screen.Cursor := crCross;
@@ -2306,8 +2445,23 @@ begin
     Self.Top + ScrollBox_Image.Top + 30);
 end;
 
+// used for all edit boxes
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Edit_AirportNameKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if (Key = Chr(VK_RETURN)) then begin // exit ?
+    {Form_AirportPlacer.}SelectNext(Sender as TWinControl, True, True); // tab to next component
+    Key := #0; // don't respond to key
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.PaintBox1Paint(Sender: TObject);
+begin
+  DrawObjects(0);
+end;
+
 //---------------------------------------------------------------------------
 end.
-
-{--- End of File ------------------------------------------------------------}
 

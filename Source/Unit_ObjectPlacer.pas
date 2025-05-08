@@ -26,6 +26,10 @@ uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
   ExtCtrls, ComCtrls, StdCtrls;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   // Nick - add two events to track Scrollbar movements
   TScrollBox=Class({VCL.}Forms.TScrollBox)
@@ -73,6 +77,7 @@ type
     RadioButton_Terragen: TRadioButton;
     Label_ObjectCount: TLabel;
     OpenDialog_FileName: TOpenDialog;
+    PaintBox1: TPaintBox;
     procedure ListBox_ObjectListMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure Button_ExitClick(Sender: TObject);
@@ -114,6 +119,8 @@ type
     procedure FormKeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
     procedure Edit_FileNameDblClick(Sender: TObject);
+    procedure Edit_FileNameKeyPress(Sender: TObject; var Key: Char);
+    procedure PaintBox1Paint(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -129,9 +136,7 @@ var
 
   Memo_Message : TMemo;  // external TMemo for messages
   CurrentLandscape : string;
-  LandscapePathName : string;
   opVersion : string;
-  WorkingFolder : string;
 
 //---------------------------------------------------------------------------
 implementation
@@ -143,13 +148,19 @@ uses
   Unit_Main, Unit_Graphics, Unit_Coords,
   u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
 
+const
+  T_Range  = Resolution * tColumns;        // 23040 km
+  QT_Range = Resolution * tColumns div 4;  // 23040 / 4 km
+
 var
   GUI_State : (IdleScreen, SelectScreen, ScrollScreen, CancelScreen);
   ItemIndex : integer;
   ObjectsChanged : boolean;
   BitmapAvail : boolean;
+  prevTileIndex : integer;
+  prevDDS_Col, prevDDS_Row : integer;
   ObjectEasting, ObjectNorthing, ObjectRotation : double;
-  BitMap_Save : TBitMap;
+//  BitMap_Save : TBitMap;
   opX, opY :double;
   opZoomScale, opRange : double;
   cX, cY : double;
@@ -202,14 +213,21 @@ begin
   end;
 end;
 
+Procedure RefreshEditBoxes; forward;
 //---------------------------------------------------------------------------
-Procedure Object_Change_Show(Changed, Show : Boolean);
+Procedure Object_Change_Show(Moved, Changed, Show : Boolean);
 begin
+  if (Changed or Moved) then begin // do first
+    RefreshEditBoxes;
+  end;
+  if (Moved) then begin // easting/northing changed
+    Form_ObjectPlacer.ShowItem(nil);
+  end;
   ObjectsChanged := Changed;
   Form_ObjectPlacer.Button_Delete.Enabled := (Object_Count > 0);
   Form_ObjectPlacer.Button_Save.enabled := Changed;
   if (Show) then begin
-    Form_ObjectPlacer.ShowItem(nil);
+    Form_ObjectPlacer.PaintBox1.RePaint;
   end;
 end;
 
@@ -225,11 +243,13 @@ begin
     ListBox_ObjectList.Items.Append(Object_List[i].coName);
   end;
   Label_ObjectCount.Caption := IntToStr(Object_Count);
-//  ItemIndex := ListBox_ObjectList.ItemIndex; // default empty is 0 ?
   ItemIndex := -1;
+  prevTileIndex := -1;
+  prevDDS_Col := -1; prevDDS_Row := -1;
+  oprange := Resolution * tColumns; // 23040 km to start with
   opZoomScale := 1.0;
 //  ObjectsChanged := false;
-  Object_Change_Show(False, False);
+  Object_Change_Show(False, False, False);
 
   // blank to start
   Image_Tile_Clear;
@@ -266,8 +286,10 @@ begin
 //  ScaleX := Form_ObjectPlacer.Image_Tile.Width/23040 * opZoomScale;
 //  ScaleY := Form_ObjectPlacer.Image_Tile.Height/23040 * opZoomScale;
   with Form_ObjectPlacer do begin
-    ScaleX := Image_Tile.Width/opRange * opZoomScale;
-    ScaleY := Image_Tile.Height/opRange * opZoomScale;
+//    ScaleX := Image_Tile.Width/opRange * opZoomScale; // for image
+//    ScaleY := Image_Tile.Height/opRange * opZoomScale;
+    ScaleX := Image_Tile.Width/opRange; // for paintbox - also zooms the object drawing too
+    ScaleY := Image_Tile.Height/opRange;
   end;
 
   setlength(ObjectCorners,4);
@@ -287,7 +309,8 @@ begin
 //  end;
   Offset_Array(ObjectCorners,Object_CoordXY);
 
-  with Form_ObjectPlacer.Image_Tile do begin
+//  with Form_ObjectPlacer.Image_Tile do begin
+  with Form_ObjectPlacer.PaintBox1 do begin
     Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
     Canvas.Pen.Style := psSolid;
     Canvas.Pen.Width := 1;
@@ -314,7 +337,8 @@ begin
 
   Offset_Array(CentreMark,Object_CoordXY);
 
-  with Form_ObjectPlacer.Image_Tile do begin
+//  with Form_ObjectPlacer.Image_Tile do begin
+  with Form_ObjectPlacer.PaintBox1 do begin
 //    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
@@ -328,13 +352,21 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure DrawObjects(TileIndex : integer);
+begin
+  if (ItemIndex <> -1) then begin
+    DrawObject(0);
+  end;
+end;
+
+//---------------------------------------------------------------------------
 Procedure ReCentre;
 begin
   with Form_ObjectPlacer do begin
-          ScrollBox_Image.HorzScrollBar.Position := trunc(cX *
-            (ScrollBox_Image.HorzScrollBar.Range)-ScrollBox_Image.ClientWidth div 2);
-          ScrollBox_Image.VertScrollBar.Position := trunc(cY *
-            (ScrollBox_Image.VertScrollBar.Range)-ScrollBox_Image.ClientHeight div 2);
+    ScrollBox_Image.HorzScrollBar.Position := trunc(cX *
+      (ScrollBox_Image.HorzScrollBar.Range)-ScrollBox_Image.ClientWidth div 2);
+    ScrollBox_Image.VertScrollBar.Position := trunc(cY *
+      (ScrollBox_Image.VertScrollBar.Range)-ScrollBox_Image.ClientHeight div 2);
   end;
 end;
 
@@ -346,11 +378,37 @@ begin
   ReCentre;
 end;
 
+// find Terragen tile that contains the object coordinates
+//---------------------------------------------------------------------------
+Function Find_Terragen_Tile(ObjectEasting, ObjectNorthing : double;
+  var TileIndex : integer) : boolean;
+var
+  TileColumn, TileRow : integer;
+begin
+  result := true; // assume for now
+  TileColumn := trunc(ObjectEasting/T_Range);
+  TileRow := trunc(ObjectNorthing/T_Range);
+  TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
+  if ((TileColumn < 0) or (TileColumn > TileColumnCount) or
+      (TileRow < 0) or (TileRow > TileRowCount)) then begin
+    result := false;
+    Exit; // Message('Object beyond scenery extents');
+  end;
+  //keep track of BottomRight reference
+  xReference := TileList[TileIndex].TileUTMRight;
+  yReference := TileList[TileIndex].TileUTMBottom;
+  // object tile relative coords (relative to bottom right)
+  xCoord := ObjectEasting - xReference;
+  yCoord := ObjectNorthing - yReference;
+  // Relative fractional position (relative to top left)
+  opX := 1 - ({Unit_Graphics.}xCoord/T_Range);
+  opY := 1 - ({Unit_Graphics.}yCoord/T_Range);
+  opRange := T_Range; // metres
+end;
+
 // find group of 4 DDS tiles that surround the object coordinates
 //---------------------------------------------------------------------------
 Procedure Find_DDS_Tiles(Easting, Northing : double; var Col, Row : integer);
-const
-  QT_Range = Resolution * tColumns div 4;  // 23040 / 4 km
 //var
 //  Row, Col : integer;
 begin
@@ -396,9 +454,27 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+Procedure RefreshEditBoxes;
+begin
+  with Form_ObjectPlacer do begin
+    if (ItemIndex <> -1) then begin
+      with Object_List[ItemIndex] do begin
+        Edit_FileName.Text := coName;
+        Edit_Easting.Text := format('%1.5f',[coEasting]);
+        Edit_Northing.Text := format('%1.5f',[coNorthing]);
+        Edit_Elevation.Text := format('%1.1f',[coElevation]);
+        Edit_Scale.Text := format('%1.3f',[coScale]);
+        Edit_Rotation.Text := format('%1.3f',[coRotation*180/PI]);
+        ObjectRotation := coRotation*180/PI;
+        ObjectEasting := coEasting;                // make relative to scenery
+        ObjectNorthing := coNorthing;
+      end;
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.ShowItem(Sender: TObject);
-const
-  T_Range = Resolution * tColumns; // 23040 km
 var
   i, j : integer;
   TileIndex : integer;
@@ -411,175 +487,130 @@ var
   DDS_Size : longint;
   OutOfResources : boolean;
 
-
 begin
   if (ItemIndex <> -1) then begin
-//    if (Object_Count > 1) then begin
-    if (Object_Count > 0) then begin
-      Button_Delete.Enabled := true;
-    end else begin
-      Button_Delete.Enabled := false;
-    end;
     OutOfResources := false;
-    BitmapAvail := false; // assume for now
     with Object_List[ItemIndex] do begin
-      Edit_FileName.Text := coName;
-      Edit_Easting.Text := format('%1.5f',[coEasting]);
-      Edit_Northing.Text := format('%1.5f',[coNorthing]);
-      Edit_Elevation.Text := format('%1.1f',[coElevation]);
-      Edit_Scale.Text := format('%1.3f',[coScale]);
-      Edit_Rotation.Text := format('%1.3f',[coRotation*180/PI]);
-
       //use lat,long to find corresponding tile
       if (TileOpen) then begin
-        ObjectRotation := coRotation*180/PI;
-        ObjectEasting := coEasting;                // make relative to scenery
-        ObjectNorthing := coNorthing;
-        TileColumn := trunc(coEasting/T_Range);
-        TileRow := trunc(coNorthing/T_Range);
-        TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
-        if (TileIndex >= TileCount) then begin
-          BitmapAvail := false;
-      //    Message('Object beyond scenery extents');
-          exit;
-        end;
-
         Screen.Cursor := crHourGlass;  // Let user know we're busy...
         // if DDS textures available, use 4 closest, otherwise use terragen tile
         if (RadioButton_DDS.Checked = true) then begin
           Find_DDS_Tiles(ObjectEasting, ObjectNorthing, DDS_Col, DDS_Row);
-          // determine highest tile resolution
-          DDS_Size := 0;
-          for i := 0 to 2-1 do begin
-            for j := 0 to 2-1 do begin
-//              FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
-              FileName := format('%s\Textures\t%s.dds',[Object_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-              Temp := DXT_ImageWidth(FileName);
-              if (Temp > DDS_Size) then begin
-                DDS_Size := temp;
-              end;
-            end;
-          end;
-          // show a blank background if no files
-          if (DDS_Size = 0) then begin
-            DDS_Size := 512; // choose a default size
-          end;
-
-          // show a blank background if files are too large for 32 bit system
-          // i.e. avoid crashing Condor_Tiles
-          // could load next level Mip instead - TBD
-          if (DDS_Size > 8192) then begin
-            MessageShow('DDS file too large');
-            OutOfResources := true;
-            DDS_Size := 512; // choose a default size
-          end;
-
-          with Image_Tile.Picture.Bitmap do begin
-            Image_Tile.Align := alClient;
-            Image_Tile.AutoSize := true;
-            Width := DDS_Size * 2;
-            Height := DDS_Size * 2;
-            Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
-            Image_Tile_Clear;
-          end;
-
-          // show a blank background if files are too large for 32 bit system
-          // i.e. avoid crashing Condor_Tiles
-          // could shrink the picture as it loads instead - TBD
-          if (OutOfResources) then begin
-            Screen.Cursor := crDefault;  // no longer busy
-            beep; exit;
-          end else begin
-            // load 4 dds tiles and draw onto Image_Tile
+          if ((DDS_Col <> prevDDS_Col) OR (DDS_Row <> prevDDS_Row)) then begin
+            prevDDS_Col := DDS_Col; prevDDS_Row := DDS_Row;
+            BitmapAvail := false; // assume for now
+            // determine highest tile resolution
+            DDS_Size := 0;
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
 //                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
                 FileName := format('%s\Textures\t%s.dds',[Object_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-                if (NOT FileExists(FileName)) then begin
-//                BitmapAvail := false; // change - allow even if no files
-                  // blank image
-                  Screen.Cursor := crDefault;  // no longer busy
-            //      Image_Tile_Clear;
-            //      exit;
-                  continue;
-                end;
-                FilePicture := TPicture.Create;
-                try
-                  FilePicture.LoadFromFile(FileName);
-                  if (opVersion = 'V1') then begin
-                    //rotate 180 deg
-                    Rotate_180(FilePicture.Bitmap);
-                  end;
-                  try
-                    with Image_Tile.Picture.Bitmap do begin
-              {
-                      if ((i = 0) AND (j=0)) then begin
-                        Image_Tile.Align := alClient;
-                        Image_Tile.AutoSize := true;
-//                        Width := FilePicture.Width * 2;
-                        Width := DDS_Size * 2;
-//                        Height := FilePicture.Width * 2;
-                        Height := DDS_Size * 2;
-                        Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
-                      end;
-               }
-//                      Image_Tile.Canvas.CopyMode := cmSrcCopy;
-//                      Canvas.StretchDraw(Rect(i*FilePicture.Width, j*FilePicture.Height,
-//                        (i+1)*FilePicture.Width-1, (j+1)*FilePicture.Height-1), FilePicture.Graphic);
-                      Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
-                        (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
-                    end;
-                  finally
-                  end;
-                finally
-                  FilePicture.Free;
+                Temp := DXT_ImageWidth(FileName);
+                if (Temp > DDS_Size) then begin
+                  DDS_Size := temp;
                 end;
               end;
             end;
-          end;
+            // show a blank background if no files
+            if (DDS_Size = 0) then begin
+              DDS_Size := 512; // choose a default size
+            end;
 
-          BitmapAvail := true;
-          ZoomRestore(Sender); // after load/reload of tile
-          CentreObject;
-          //DrawObject(TileIndex);
-          DrawObject(0);
-        end else begin // try terragen tile        // Relative fractional position
-//          opX := (1-(ObjectEasting - TileList[TileIndex].TileUTMRight)/T_Range);
-//          opY := (1-(ObjectNorthing - TileList[TileIndex].TileUTMBottom)/T_Range);
-          // object relative coords
-//          xCoord := TileList[TileIndex].TileUTMRight - coEasting;
-//          yCoord := TileList[TileIndex].TileUTMBottom - coNorthing;
-          // scenery relative coords
-//          {Unit_Graphics.}xCoord := TileList[TileIndex].TileUTMRight;
-//          {Unit_Graphics.}yCoord := TileList[TileIndex].TileUTMBottom;
-          xReference := TileList[TileIndex].TileUTMRight;
-          yReference := TileList[TileIndex].TileUTMBottom;
-          xCoord := ObjectEasting - xReference;
-          yCoord := ObjectNorthing - yReference;
-          // Relative fractional position (relative to top left)
-          opX := 1 - ({Unit_Graphics.}xCoord/T_Range);
-          opY := 1 - ({Unit_Graphics.}yCoord/T_Range);
-          opRange := T_Range; // metres
-//          TileName := format('%2.2d%2.2d',[trunc(coEasting/T_Range),trunc(coNorthing/T_Range)]);
-          Label_Tile.Caption := TileList[TileIndex].TileName;
-          // check if file are too large for 32 bit system
-          // i.e. avoid crashing Condor_Tiles
-          // could shrink the picture as it loads instead - TBD
-          if (LoadTileBitmap(TileList[TileIndex].TileName) ) then begin
-            // bitmap loaded
-          end else begin
-            // blank image
-            Image_Tile_Clear;
-            // default size
-            Image_Tile.Picture.Bitmap.Width :=  512;
-            Image_Tile.Picture.Bitmap.Height := 512;
+            // show a blank background if files are too large for 32 bit system
+            // i.e. avoid crashing Condor_Tiles
+            // could load next level Mip instead - TBD
+            if (DDS_Size > 8192) then begin
+              MessageShow('DDS file too large');
+              OutOfResources := true;
+              DDS_Size := 512; // choose a default size
+            end;
+
+            with Image_Tile.Picture.Bitmap do begin
+//              Image_Tile.Align := alClient; // Remove for new Delphi
+              Image_Tile.AutoSize := true;
+              Width := DDS_Size * 2;
+              Height := DDS_Size * 2;
+              Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
+              Image_Tile_Clear;
+            end;
+            // also adjust the PaintBox to match the size
+            PaintBox1.Width := Image_Tile.Picture.Bitmap.Width;
+            PaintBox1.Height := Image_Tile.Picture.Bitmap.Height;
+            // make sure all relative sizes are correct by resetting the zoom level to 1.0
+            // or could use call to ZoomRestore
+            opZoomScale := 1.0;
+
+            // show a blank background if files are too large for 32 bit system
+            // i.e. avoid crashing Condor_Tiles
+            // could shrink the picture as it loads instead - TBD
+            if (OutOfResources) then begin
+              Screen.Cursor := crDefault;  // no longer busy
+              beep; exit;
+            end else begin
+              // load 4 dds tiles and draw onto Image_Tile
+              for i := 0 to 2-1 do begin
+                for j := 0 to 2-1 do begin
+//                  FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Object_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
+                  FileName := format('%s\Textures\t%s.dds',[Object_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
+       // try ReducedFileName first
+                  if (NOT FileExists(FileName)) then begin
+//                  BitmapAvail := false; // no, change - allow even if no files
+                    // blank image
+                    Screen.Cursor := crDefault;  // no longer busy
+              //      Image_Tile_Clear;
+              //      exit;
+                    continue;
+                  end;
+                  FilePicture := TPicture.Create;
+                  try
+                    FilePicture.LoadFromFile(FileName);
+                    if (opVersion = 'V1') then begin
+                      //rotate 180 deg
+                      Rotate_180(FilePicture.Bitmap);
+                    end;
+                    try
+                      with Image_Tile.Picture.Bitmap do begin
+                        Canvas.StretchDraw(Rect(i*Width div 2, j*Height div 2,
+                          (i+1)*Width div 2-1, (j+1)*Height div 2-1), FilePicture.Graphic);
+                      end;
+                    finally
+                    end;
+                  finally
+                    FilePicture.Free;
+                  end;
+                end;
+              end;
+            end;
+
+            BitmapAvail := true; // although it could be blank
+            ZoomRestore(Sender); // after load/reload of tile
           end;
-          // change - allow even if no file
-          BitmapAvail := true; // although it could be blank
-          ZoomRestore(Sender); // after load/reload of tile
           CentreObject;
-//          DrawObject(TileIndex);
-          DrawObject(0);
+        end else begin // try terragen tile        // Relative fractional position
+          Find_Terragen_Tile(ObjectEasting, ObjectNorthing, TileIndex);
+          // check to see if need to reload
+          if (TileIndex <> prevTileIndex) then begin
+            prevTileIndex := TileIndex;
+            BitmapAvail := false; // assume for now
+            Label_Tile.Caption := TileList[TileIndex].TileName;
+            // check if file are too large for 32 bit system
+            // i.e. avoid crashing Condor_Tiles
+            // could shrink the picture as it loads instead - TBD
+            if (LoadTileBitmap(TileList[TileIndex].TileName) ) then begin
+              // bitmap loaded
+            end else begin
+              // blank image
+              Image_Tile_Clear;
+              // default size
+              Image_Tile.Picture.Bitmap.Width :=  512;
+              Image_Tile.Picture.Bitmap.Height := 512;
+            end;
+            // change - allow even if no file
+            BitmapAvail := true; // although it could be blank
+            ZoomRestore(Sender); // after load/reload of tile
+          end;
+          CentreObject;
         end;
         Screen.Cursor := crDefault;  // no longer busy
       end else begin
@@ -603,7 +634,7 @@ var
   Horiz, Vert : double;
 begin
 //  if (FPanning) then begin
-  if (Gui_State = ScrollScreen) then begin
+  if (GUI_State = ScrollScreen) then begin
     with ScrollBox_Image do
     begin
       HorzScrollBar.Position := HorzScrollBar.Position + (FMousePos.X - X);
@@ -615,10 +646,8 @@ begin
 
   if (BitmapAvail) then begin
     Horiz := xReference{xCoord} + opRange{Resolution*tColumns}*
-//      (Image_Tile.Picture.Width-1-X)/Image_Tile.Picture.Width;
       (Image_Tile.Width-1-X)/Image_Tile.Width;
     Vert := yReference{yCoord} + opRange{Resolution*tRows}*
-//      (Image_Tile.Picture.Height-1-Y)/Image_Tile.Picture.Height;
       (Image_Tile.Height-1-Y)/Image_Tile.Height;
     Label_Coords.Caption := format('%1.2f,%1.2f',[
       (Horiz),
@@ -636,7 +665,7 @@ begin
     FMousePos.X := X;
     FMousePos.Y := Y;
   end else begin
-    if ( (ssShift in Shift) AND (Button = mbLeft) ) then begin //scroll bitmap
+    if ( (ssShift in Shift) AND (Button = mbLeft) ) then begin //select
       GUI_State := SelectScreen;
     end else begin
       GUI_State := IdleScreen;
@@ -663,15 +692,15 @@ begin
       if (CommaPos <> 0) then begin
         Str := copy(Label_Coords.Caption,1,CommaPos-1);
         coEasting := StrtoFloat(Str);
-        Edit_Easting.Text := format('%1.2f',[coEasting]);;
+//        Edit_Easting.Text := format('%1.2f',[coEasting]);;
         Str := copy(Label_Coords.Caption, CommaPos+1, length(Label_Coords.Caption));
         coNorthing := StrtoFloat(Str);
-        Edit_Northing.Text := format('%1.2f',[coNorthing]);
+//        Edit_Northing.Text := format('%1.2f',[coNorthing]);
 //        default coScale ?
 //        default coRotation ?
 //        default coElevation ?
         // now update the screen
-        Object_Change_Show(True, True);
+        Object_Change_Show(True, True, True);
       end;
     end;
   end;
@@ -691,7 +720,7 @@ begin
       beep; Exit;
     end;
     // set image to auto take its size from picture 1:1 and fit in window
-    Image_Tile.Align := alClient;
+//    Image_Tile.Align := alClient; // remove causes issue with new Delphi
     Image_Tile.AutoSize := true;
     Image_Tile.Stretch := false; // no stretch - 1:1 resolution to start
 //    tFileName := Path+'\'+TileName+'.bmp';
@@ -700,9 +729,15 @@ begin
 // if 256 color bitmap, drawing on top of bitmap will use the 256 color palette !
 // any color will use the closest color in palette -> approx color
 // convert to pf24 bit for absolute color - works!
-    if (Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
-      Image_Tile.Picture.Bitmap.PixelFormat := pf24bit;
-    end;
+//    if (Image_Tile.Picture.Bitmap.PixelFormat <> pf24bit) then begin
+//      Image_Tile.Picture.Bitmap.PixelFormat := pf24bit;
+//    end;
+    // also adjust the PaintBox to match the size
+    PaintBox1.Width := Image_Tile.Picture.Bitmap.Width;
+    PaintBox1.Height := Image_Tile.Picture.Bitmap.Height;
+    // make sure all relative sizes are correct by resetting the zoom level to 1.0
+    // or could use call to ZoomRestore
+    opZoomScale := 1.0;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
     result := true;
@@ -716,7 +751,8 @@ begin
   ItemIndex := ListBox_ObjectList.ItemAtPos(point(X,Y), true);
   if (ItemIndex <> -1) then begin
     opZoomScale := 1.0;
-    ShowItem(Sender);
+//    ShowItem(Sender);
+    Object_Change_Show(True, ObjectsChanged, True);
   end;
 end;
 
@@ -729,7 +765,8 @@ begin
       ItemIndex := ListBox_ObjectList.ItemIndex;
       if (ItemIndex <> -1) then begin
         opZoomScale := 1.0;
-        ShowItem(Sender);
+//        ShowItem(Sender);
+        Object_Change_Show(True, ObjectsChanged, True);
       end;
     end;
     else begin
@@ -754,7 +791,7 @@ begin
   ItemIndex := ListBox_ObjectList.ItemIndex;
   opZoomScale := 1.0;
 //  ShowItem(Sender);
-  Object_Change_Show(True, True);
+  Object_Change_Show(True, True, True);
 end;
 
 //---------------------------------------------------------------------------
@@ -774,10 +811,10 @@ begin
       ItemIndex := -1; // force not 0
     end else begin
       ItemIndex := ListBox_ObjectList.ItemIndex;
-    end;  
+    end;
     opZoomScale := 1.0;
 //    ShowItem(Sender);
-    Object_Change_Show(True, True);
+    Object_Change_Show(True, True, True);
   end;
 end;
 
@@ -806,7 +843,7 @@ begin
   if (ObjectsChanged) then begin
     WriteObjectFile;
 //    ObjectsChanged := false;
-    Object_Change_Show(False, False);
+    Object_Change_Show(False, False, False);
   end;
 end;
 
@@ -820,7 +857,7 @@ begin
         coName := Edit_FileName.Text;
       end;
 //      ObjectsChanged := true;
-      Object_Change_Show(True, False);
+      Object_Change_Show(False, True, False);
     end;
   end;
 end;
@@ -832,11 +869,11 @@ begin
     if (ItemIndex <> -1) then begin
       with Object_List[ItemIndex] do begin
         coEasting := StrtoFloat(Edit_Easting.Text);
-        Edit_Easting.Text := format('%1.5f',[coEasting]);
+//        Edit_Easting.Text := format('%1.5f',[coEasting]);
       end;
 //      ObjectsChanged := true;
 //      ShowItem(Sender);
-      Object_Change_Show(True, True);
+      Object_Change_Show(True, True, True);
     end;
   end;
 end;
@@ -848,11 +885,11 @@ begin
     if (ItemIndex <> -1) then begin
       with Object_List[ItemIndex] do begin
         coNorthing := StrtoFloat(Edit_Northing.Text);
-        Edit_Northing.Text := format('%1.5f',[coNorthing]);
+//        Edit_Northing.Text := format('%1.5f',[coNorthing]);
       end;
 //      ObjectsChanged := true;
 //      ShowItem(Sender);
-      Object_Change_Show(True, True);
+      Object_Change_Show(True, True, True);
     end;
   end;
 end;
@@ -864,10 +901,10 @@ begin
     if (ItemIndex <> -1) then begin
       with Object_List[ItemIndex] do begin
         coScale := StrtoFloat(Edit_Scale.Text);
-        Edit_Scale.Text := format('%1.3f',[coScale]);
+//        Edit_Scale.Text := format('%1.3f',[coScale]);
       end;
 //      ObjectsChanged := true;
-      Object_Change_Show(True, False);
+      Object_Change_Show(False, True, False);
     end;
   end;
 end;
@@ -879,10 +916,10 @@ begin
     if (ItemIndex <> -1) then begin
       with Object_List[ItemIndex] do begin
         coElevation := StrtoFloat(Edit_Elevation.Text);
-        Edit_Elevation.Text := format('%1.1f',[coElevation]);
+//        Edit_Elevation.Text := format('%1.1f',[coElevation]);
       end;
 //      ObjectsChanged := true;
-      Object_Change_Show(True, False);
+      Object_Change_Show(False, True, False);
     end;
   end;
 end;
@@ -894,10 +931,10 @@ begin
     if (ItemIndex <> -1) then begin
       with Object_List[ItemIndex] do begin
         coRotation := StrtoFloat(Edit_Rotation.Text)*PI/180;
-        Edit_Rotation.Text := format('%1.3f',[coRotation*180/PI]);
+//        Edit_Rotation.Text := format('%1.3f',[coRotation*180/PI]);
       end;
 //      ObjectsChanged := true;
-      Object_Change_Show(True, False);
+      Object_Change_Show(False, True, True);
     end;
   end;
 end;
@@ -910,14 +947,22 @@ begin
   ScrollBox_Image.OnScrollHorz := MyScrollHorz;
 
   CurrentLandscape := '';
-  BitMap_Save := TBitMap.Create;
+//  BitMap_Save := TBitMap.Create;
   Image_tile.Hint := 'Ctrl-Left-Mouse to Pan'#13#10'Shift-Left Mouse to select';
+
+  // to not process a radio button that's already checked
+  if (RadioButton_Terragen.Checked) then begin
+    RadioButton_Terragen.Tag := 1;
+  end;
+  if (RadioButton_DDS.Checked) then begin
+    RadioButton_DDS.Tag := 1;
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.FormDestroy(Sender: TObject);
 begin
-  Bitmap_Save.Free;
+//  Bitmap_Save.Free;
 end;
 
 //---------------------------------------------------------------------------
@@ -944,7 +989,7 @@ begin
     end;
 //    ObjectsChanged := true;
 //    ShowItem(Sender);
-    Object_Change_Show(True, True);
+    Object_Change_Show(True, True, True);
   end;
 end;
 
@@ -972,7 +1017,7 @@ begin
     end;
 //    ObjectsChanged := true;
 //    ShowItem(Sender);
-    Object_Change_Show(True, True);
+    Object_Change_Show(True, True, True);
   end;
 end;
 
@@ -980,16 +1025,28 @@ end;
 procedure TForm_ObjectPlacer.RadioButton_DDSMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  opZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
-  ShowItem(Sender);
+  if (RadioButton_DDS.Tag <> 1) then begin
+    RadioButton_DDS.Tag := 1; // keep track of previous value
+    RadioButton_Terragen.Tag := 0; // keep track of previous value
+    opZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+    prevDDS_Col := -1; prevDDS_Row := -1;
+//    ShowItem(Sender);
+    Object_Change_Show(True, ObjectsChanged, True);
+  end;
 end;
 
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.RadioButton_TerragenMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
-  opZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
-  ShowItem(Sender);
+  if (RadioButton_Terragen.Tag <> 1) then begin
+    RadioButton_Terragen.Tag := 1; // keep track of previous value
+    RadioButton_DDS.Tag := 0; // keep track of previous value
+    opZoomScale := 1.0; // or properly adjust the zoom due to bitmap size change
+    prevTileIndex := -1;
+//    ShowItem(Sender);
+    Object_Change_Show(True, ObjectsChanged, True);
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -1010,6 +1067,9 @@ begin
     opZoomScale := opZoomScale / Image_Tile.Width;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
     // now refresh
 //    CentreObject;
     ReCentre;
@@ -1034,6 +1094,9 @@ begin
     opZoomScale :=  opZoomScale / Image_Tile.Width;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
     // now refresh
 //    CentreObject;
     ReCentre;
@@ -1046,9 +1109,12 @@ begin
   if (BitmapAvail) then begin
     opZoomScale := 1.0;
     Image_Tile.Width := Image_Tile.Picture.Width;
-    Image_Tile.Height := Image_Tile.Picture.Width;
+    Image_Tile.Height := Image_Tile.Picture.Height;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Picture.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Picture.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
     // now refresh
     CentreObject;
   end;
@@ -1067,6 +1133,9 @@ begin
     Image_Tile.Height := round(Image_Tile.Picture.Height / opZoomScale);
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
+    // and also adjust the PaintBox
+    PaintBox1.Width  := Image_Tile.Width;
+    PaintBox1.Height := Image_Tile.Height;
   end;
 end;
 
@@ -1082,13 +1151,15 @@ begin
   Recentre;  // on current centre cX, cY
 end;
 
+// form Keypreview must be true
 //---------------------------------------------------------------------------
 procedure TForm_ObjectPlacer.FormKeyUp(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
   case Key of
     ord('S'), ord('s'): begin
-      if (ssCtrl in Shift) then begin
+//      if (ssCtrl in Shift) then begin
+      if (ssShift in Shift) then begin
         Button_SaveClick(Sender);
         key := 0; // so that other components won't see this keypress
       end;
@@ -1114,7 +1185,23 @@ begin
   end;
 end;
 
+// used for all edit boxes
 //---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.Edit_FileNameKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if (Key = Chr(VK_RETURN)) then begin // exit ?
+    {Form_ObjectPlacer.}SelectNext(Sender as TWinControl, True, True); // tab to next component
+    Key := #0; // don't respond to key
+  end;
+end;
 
+//---------------------------------------------------------------------------
+procedure TForm_ObjectPlacer.PaintBox1Paint(Sender: TObject);
+begin
+  DrawObjects(0);
+end;
+
+//---------------------------------------------------------------------------
 end.
 

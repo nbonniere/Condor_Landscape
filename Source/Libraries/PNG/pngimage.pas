@@ -1,3 +1,5 @@
+{ $ INCLUDE define.pas}
+
 {$IFNDEF D4}
 
 unit pngimage;

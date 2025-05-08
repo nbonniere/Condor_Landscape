@@ -24,7 +24,7 @@ INTERFACE
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
-  StdCtrls, Registry, Menus, ExtCtrls, ComCtrls, CheckLst;
+  StdCtrls, Registry, Menus, ExtCtrls, ComCtrls, CheckLst, Dialogs;
 
 //---------------------------------------------------------------------------
 // for compile options
@@ -103,6 +103,8 @@ type
     Button_7zipPath: TButton;
     GroupBox_FileNameFormat: TGroupBox;
     ComboBox_FileNameFormat: TComboBox;
+    SaveDialog_File: TSaveDialog;
+    OpenDialog_File: TOpenDialog;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -166,6 +168,7 @@ type
     procedure Edit_CompressorPathExit(Sender: TObject);
     procedure ComboBox_ZoomLevelExit(Sender: TObject);
     procedure ComboBox_TileSizeExit(Sender: TObject);
+    procedure Button_WarpCropClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -182,16 +185,16 @@ IMPLEMENTATION
 {$R *.DFM}
 
 uses
-  FileCtrl, Dialogs, Math,
+  FileCtrl, Math,
   Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
   Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects, Unit_SimpleObjects,
-  Unit_Help, u_MakeGradient,
+  Unit_Help, u_MakeGradient, Unit_WarpCrop,
   u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
   u_MakeForest, u_MakeThermal,
   u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
   u_Terrain, u_Forest, u_Thermal, u_UTM,
-  u_X_CX, u_CalibImport, u_LandsatMet,
-  u_CalibExport, u_Object, u_CUP, u_Airspace, u_INI, u_DXT,
+  u_X_CX, {u_CalibImport,} u_LandsatMet,
+  {u_CalibExport,} u_Object, u_CUP, u_Airspace, u_INI, u_DXT,
   u_Airport, u_ReduceColors, u_Tile_XYZ, u_TIFF,
   u_BrowseFolder{, u_FTR};
 
@@ -1609,9 +1612,11 @@ procedure TForm_Main.Button_ExportCalibClick(Sender: TObject);
 begin
   if (HeaderOpen) then begin
     exFileFilterString := 'Tile List (*.CSV)|*.CSV|All files (*.*)|*.*';
-    exFileName := WorkingPathName+'\CalibrationPoints.csv';
-    form_CalibExport.ShowModal;
-    if (u_CalibExport.exActionRequest) then begin
+    exFileName := 'CalibrationPoints.csv';
+    exInitialDir := WorkingPathName;
+//    form_CalibExport.ShowModal;
+//    if (u_CalibExport.exActionRequest) then begin
+    if SaveDialog(SaveDialog_File, exFileName, exInitialDir, exFileFilterString) then begin
       u_TileList.CondorFolder := CondorPathName;
       u_TileList.Memo_Message := Memo_Info;
       //write 2 opposite corners, TopLeft and BottomRight
@@ -1633,9 +1638,11 @@ procedure TForm_Main.Button_ImportCalibClick(Sender: TObject);
 begin
   if (HeaderOpen) then begin
     imFileFilterString := 'Tile List (*.CSV)|*.CSV|All files (*.*)|*.*';
-    imFileName := WorkingPathName+'\cal.csv';
-    form_CalibImport.ShowModal;
-    if (u_CalibImport.imActionRequest) then begin
+    imFileName := 'cal.csv';
+    imInitialDir := WorkingPathName;
+//    form_CalibImport.ShowModal;
+//    if (u_CalibImport.imActionRequest) then begin
+    if OpenDialog(SaveDialog_File, imFileName, imInitialDir, imFileFilterString) then begin
       u_TileList.CondorFolder := CondorPathName;
       u_TileList.Memo_Message := Memo_Info;
 //      u_TileList.TileRowCount := RowCount div 256;
@@ -2575,6 +2582,11 @@ begin
     ComboBox_Zoomlevel.Text := Nearest;
 //  end;
   ComboBox_ZoomLevel.hint := format('%1.3f m/pixel',[CalcZoomResolution(ComboBox_ZoomLevel.Text,0.0)]);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_WarpCropClick(Sender: TObject);
+begin
 end;
 
 //---------------------------------------------------------------------------

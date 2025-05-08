@@ -393,6 +393,11 @@ v0.10.2 - Mar 2025
   - add elevation to Composite Object
   - add conversion of World Objects to Autogen Objects  
 
+v0.10.3 - Apr 2025
+  - add bitmap 'warp crop' function
+  - use paintbox for faster graphics refresh
+    - Object and Airport Placer, and Warp/Crop, not forest/thermal maps.
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

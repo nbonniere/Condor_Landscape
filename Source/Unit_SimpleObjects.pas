@@ -26,6 +26,10 @@ uses
   ExtCtrls, StdCtrls, ComCtrls, Grids,
   Unit_Objects;
 
+//---------------------------------------------------------------------------
+// for compile options
+{$I Define.pas}
+
 type
   TForm_SimpleObjects = class(TForm)
     OpenDialog_FileName: TOpenDialog;
@@ -103,6 +107,7 @@ type
     procedure Button_S_NewClick(Sender: TObject);
     procedure Button_T_NewClick(Sender: TObject);
     procedure Button_C_NewClick(Sender: TObject);
+    procedure Edit_WidthKeyPress(Sender: TObject; var Key: Char);
   private
     { Private declarations }
 //    procedure InitDetailGrid;
@@ -128,8 +133,8 @@ implementation
 
 uses
   FileCtrl,
-  u_CalibImport, u_CalibExport, // for dialogs only
-  u_X_CX{, u_Resize};
+  {u_CalibImport, u_CalibExport,} // for dialogs only
+  u_X_CX, u_Util{, u_Resize};
 
 {$R *.DFM}
 
@@ -167,7 +172,7 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-function ReadCSV(var s: string) : string;
+function xReadCSV(var s: string) : string;
 var
   CommaPos : Integer;
 begin
@@ -257,46 +262,6 @@ begin
   Bitmap_Texture.Free;
 end;
 
-// NOTE: currentdir is changed because 'ofNoChangeDir' is not selected
-// this means current path is now where object was just opened, and
-// file is now relative to this path, and extra filepath not needed
-//---------------------------------------------------------------------------
-function OpenDialog() : boolean;
-begin
-  result := false;
-  With Form_SimpleObjects do begin
-//    OpenDialog_FileName.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
-    OpenDialog_FileName.Filter := imFileFilterString;
-//    OpenDialog_FileName.FileName := imFileName;
-    OpenDialog_FileName.FileName := ''; // must be blank for InitialDir to work - stupid windows
-    OpenDialog_FileName.InitialDir := imInitialDir;
-    if (OpenDialog_FileName.Execute) then begin
-      imFileName := OpenDialog_FileName.FileName;
-      result := true;
-    end;
-  end;
-end;
-
-// NOTE: currentdir is changed because 'ofNoChangeDir' is not selected
-// this means current path is now where object was just saved, and
-// file is now relative to this path, and extra filepath not needed
-//---------------------------------------------------------------------------
-function SaveDialog() : boolean;
-begin
-  result := false;
-  With Form_SimpleObjects do begin
-//    SaveDialog_FileName.Options := [ofFileMustExist, ofHideReadOnly, ofNoChangeDir ];
-    SaveDialog_FileName.Filter := exFileFilterString;
-    SaveDialog_FileName.FileName := exFileName;
-    SaveDialog_FileName.FileName := ''; // must be blank for InitialDir to work - stupid windows
-    SaveDialog_FileName.InitialDir := exInitialDir;
-    if (SaveDialog_FileName.Execute) then begin
-      exFileName := SaveDialog_FileName.FileName;
-      result := true;
-    end;
-  end;
-end;
-
 //- TAB - Simple Object -----------------------------------------------------
 
 //---------------------------------------------------------------------------
@@ -381,13 +346,15 @@ end;
 procedure TForm_SimpleObjects.Edit_TextureFileNameDblClick(
   Sender: TObject);
 begin
-  // dialog to select input file - must be .BMP or .DDS extension
-  // could also be .TGA .PNG
   imFileFilterString := 'Texture files (*.BMP *.DDS *.TGA *.PNG)| *.BMP;*.DDS;*.TGA;*.PNG | All files (*.*)|*.*';
+  // dialog to select input file - must be .BMP or .DDS extension
+  // could also be .TGA .PNG - what about JPEG/JPG
+//  imFileFilterString := 'Texture files (*.BMP *.DDS *.TGA *.PNG)| *.BMP;*.DDS;*.TGA;*.PNG | All files (*.*)|*.*';
   imFileName := '';
 //  imInitialDir := objFolder+'\Textures';
   imInitialDir := ObjectFolder+'\Textures';
-  if (OpenDialog) then begin
+//  if (OpenDialog) then begin
+  if (OpenDialog(OpenDialog_FileName,imFileName, imInitialDir, imFileFilterString)) then begin
 //    // assume a Textures folder - let user fix it if not correct
 //    Edit_TextureFileName.Text := 'Textures\'+ExtractFileName(imFileName);
 //    Edit_TextureFileName.Text := ExtractRelativePath(objFolder+'\', imFileName)
@@ -402,13 +369,15 @@ var
   SO_File : TextFile;
   TempSTR : string;
 begin
-  // dialog to select input file - must be .SO extension
   imFileFilterString := 'Simple Object files (*.SO)|*.SO|All files (*.*)|*.*';
+  // dialog to select input file - must be .SO extension
+//  imFileFilterString := 'Simple Object files (*.SO)|*.SO|All files (*.*)|*.*';
   imFileName := soFileName;
   imInitialDir := objFolder;
-  if (OpenDialog) then begin
+//  if (OpenDialog) then begin
+  if (OpenDialog(OpenDialog_FileName,imFileName, imInitialDir, imFileFilterString)) then begin
     if (uppercase(ExtractFileExt(imFileName)) <> '.SO') then begin
-      exit; // must be .co
+      exit; // must be .so
     end;
     soFileName := imFileName;
     Label_FileName.Caption := ExtractFileName(imFileName);
@@ -632,18 +601,24 @@ var
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
-  // dialog to select output file - must be .SO or C3D extension
   exFileFilterString := 'Object files (*.SO *.C3D)|*.SO;*.C3D|All files (*.*)|*.*';
+  // dialog to select output file - must be .SO or C3D extension
+//  exFileFilterString := 'Object files (*.SO *.C3D)|*.SO;*.C3D|All files (*.*)|*.*';
   if (soFileName = '') then begin
     soFileName := ComboBox_Type.text+'-1.so';
   end;
-  exFileName := soFileName;
+  exFileName := soFileName; //dialog bug - not used as initial file name
   exInitialDir := objFolder;
-  if (SaveDialog) then begin
+//  if (SaveDialog) then begin
+  if (SaveDialog(SaveDialog_FileName,exFileName, exInitialDir, exFileFilterString)) then begin
     //remember folder for this session
     objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
 
     oFileExt := ExtractFileExt(exFileName);
+    if (oFileExt = '') then begin // if no extension, add the default extension
+      oFileExt := '.so';
+      exFileName := exFileName + oFileExt;
+    end;
     if (uppercase(oFileExt) = '.SO') then begin
       soFileName := exFileName;
       Label_FileName.Caption := ExtractFileName(soFileName);
@@ -672,6 +647,17 @@ begin
         Save_S_C3D(exFileName);
       end;
     end;
+  end;
+end;
+
+// used for all edit boxes
+//---------------------------------------------------------------------------
+procedure TForm_SimpleObjects.Edit_WidthKeyPress(Sender: TObject;
+  var Key: Char);
+begin
+  if (Key = Chr(VK_RETURN)) then begin // exit ?
+    {Form_WarpCrop.}SelectNext(Sender as TWinControl, True, True); // tab to next component
+    Key := #0; // don't respond to key
   end;
 end;
 
@@ -831,12 +817,14 @@ end;
 //---------------------------------------------------------------------------
 procedure TForm_SimpleObjects.Button_T_OpenClick(Sender: TObject);
 begin
-  // dialog to select input file - must be .BMP extension
   imFileFilterString := 'Bitmap files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  // dialog to select input file - must be .BMP extension
+//  imFileFilterString := 'Bitmap files (*.BMP)|*.BMP|All files (*.*)|*.*';
   imFileName := stFileName;
   imInitialDir := objFolder;
   try
-    if (OpenDialog) then begin
+//    if (OpenDialog) then begin
+  if (OpenDialog(OpenDialog_FileName,imFileName, imInitialDir, imFileFilterString)) then begin
       stFileName := imFileName;
       Label_TextureFileName.Caption := ExtractFileName(imFileName);
       //remember folder for this session
@@ -877,23 +865,27 @@ var
   W, L, H, P : single;
 
 begin
-  // dialog to select output file - must be .BMP extension
   exFileFilterString := 'Object files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  // dialog to select output file - must be .BMP extension
+//  exFileFilterString := 'Object files (*.BMP)|*.BMP|All files (*.*)|*.*';
   if (stFileName = '') then begin
     stFileName := 'Texture-1.bmp';
   end;
-  exFileName := stFileName;
+  exFileName := stFileName; //dialog bug - not used as initial file name
   exInitialDir := objFolder;
-  if (SaveDialog) then begin
+//  if (SaveDialog) then begin
+  if (SaveDialog(SaveDialog_FileName,exFileName, exInitialDir, exFileFilterString)) then begin
+    oFileExt := ExtractFileExt(exFileName);
+    if (oFileExt = '') then begin // if no extension, add the default extension
+      oFileExt := '.bmp';
+      exFileName := exFileName + oFileExt;
+    end;
     stFileName := exFileName;
     Label_FileName.Caption := ExtractFileName(exFileName);
     //remember folder for this session
     objFolder := ExtractFileDir(exFileName);  // not including trailing '\'
 
-    oFileExt := ExtractFileExt(exFileName);
-    if (uppercase(oFileExt) = '.BMP') then begin
-      Bitmap_Texture.SaveToFile(exFileName);
-    end;
+    Bitmap_Texture.SaveToFile(exFileName);
   end;
 end;
 
@@ -904,14 +896,16 @@ var
   sX, sY : integer;
   dX, dY : integer;
 begin
+  imFileFilterString := 'Bitmap files (*.BMP)|*.BMP|All files (*.*)|*.*';
   // delphi issue - mouseUp event triggered when dialog open on top double-clicked
   if (MouseDown_Flag) then begin
     MouseDown_Flag := false;
-    // dialog to select input file - must be .BMP extension
-    imFileFilterString := 'Bitmap files (*.BMP)|*.BMP|All files (*.*)|*.*';
+    // dialog to select input file - must be .BMP extension - could it be JPEG/JPG, DDS, TGA, PNG ?
+//    imFileFilterString := 'Bitmap files (*.BMP)|*.BMP|All files (*.*)|*.*';
     imFileName := '';
     imInitialDir := objFolder;
-    if (OpenDialog) then begin
+//    if (OpenDialog) then begin
+    if (OpenDialog(OpenDialog_FileName,imFileName, imInitialDir, imFileFilterString)) then begin
       Label_TextureFileName.Caption := ExtractFileName(imFileName);
       //remember folder for this session
       objFolder := ExtractFileDir(imFileName);     // no trailing '\'
@@ -1030,14 +1024,14 @@ var
   sg_Row, sg_Col : Longint;
   str_pos : integer;
   CurrentFolder : string;
-
 begin
  if (filecount > 0) then begin
   // find where clicked and action if needed
   StringGrid_Composite.MouseToCell(sg_X, sg_Y, sg_Col, sg_Row);
   if ((sg_Row > 0) AND (sg_Col = 1)) then begin
-    // dialog to select input file - must be .C3D extension
     imFileFilterString := 'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
+    // dialog to select input file - must be .C3D extension
+//    imFileFilterString := 'Object files (*.C3D)|*.C3D|All files (*.*)|*.*';
     imFileName := '';
     if (ssCtrl in sg_Shift) then begin
     // point to ObjectRepository
@@ -1053,7 +1047,8 @@ begin
         imInitialDir := objFolder;
       end;
     end;
-    if (OpenDialog) then begin
+//    if (OpenDialog) then begin
+    if (OpenDialog(OpenDialog_FileName,imFileName, imInitialDir, imFileFilterString)) then begin
 //      StringGrid_Composite.Cells[sg_Col, sg_Row] := ExtractRelativePath(objFolder+'\', imFileName);
       // relative path is a problem - relative to what ? objfolder which could change ?
       // make raltive to WOrkingFolder which should not change
@@ -1069,11 +1064,13 @@ var
   CO_File : TextFile;
   TempSTR : string;
 begin
-  // dialog to select input file - must be .CO extension
   imFileFilterString := 'Composite Object files (*.CO)|*.CO|All files (*.*)|*.*';
+  // dialog to select input file - must be .CO extension
+//  imFileFilterString := 'Composite Object files (*.CO)|*.CO|All files (*.*)|*.*';
   imFileName := coFileName;
   imInitialDir := objFolder;
-  if (OpenDialog) then begin
+//  if (OpenDialog) then begin
+  if (OpenDialog(OpenDialog_FileName,imFileName, imInitialDir, imFileFilterString)) then begin
     if (uppercase(ExtractFileExt(imFileName)) <> '.CO') then begin
       exit; // must be .co
     end;
@@ -1183,15 +1180,21 @@ var
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
-  // dialog to select output file - must be .CO or C3D extension
   exFileFilterString := 'Object files (*.CO *.C3D)|*.CO;*.C3D|All files (*.*)|*.*';
+  // dialog to select output file - must be .CO or C3D extension
+//  exFileFilterString := 'Object files (*.CO *.C3D)|*.CO;*.C3D|All files (*.*)|*.*';
   if (coFileName = '') then begin
     coFileName := 'C_Object-1.co';
   end;
-  exFileName := coFileName;
+  exFileName := coFileName; //dialog bug - not used as initial file name
   exInitialDir := objFolder;
-  if (SaveDialog) then begin
+//  if (SaveDialog) then begin
+  if (SaveDialog(SaveDialog_FileName,exFileName, exInitialDir, exFileFilterString)) then begin
     oFileExt := ExtractFileExt(exFileName);
+    if (oFileExt = '') then begin // if no extension, add the default extension
+      oFileExt := '.co';
+      exFileName := exFileName + oFileExt;
+    end;
     if (uppercase(oFileExt) = '.CO') then begin
       Label_CompositeFileName.Caption := ExtractFileName(exFileName);
       // only save the .c3d, not the .co, if the folder is 'Airports'
@@ -1498,5 +1501,6 @@ end;
 begin
 //  MakeGrid(113,789,30);
 //  WritePXfile('Asphalt','TESTFILE.PX');
+
 end.
 

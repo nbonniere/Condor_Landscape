@@ -110,6 +110,7 @@ type
     Button_BMP_TM3: TButton;
     Label33: TLabel;
     Button_Obj_Autogen: TButton;
+    Button_WarpCrop: TButton;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -147,6 +148,7 @@ type
     procedure Button_To_XXYYClick(Sender: TObject);
     procedure Button_BMP_TM3Click(Sender: TObject);
     procedure Button_Obj_AutogenClick(Sender: TObject);
+    procedure Button_WarpCropClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -195,7 +197,7 @@ uses
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
   u_GMIDlog, u_DXT, DXTC, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
   u_QuarterTile, u_Condor_NaviconDLL, u_Airspace, u_AutoGen,
-  Unit_SimpleObjects;
+  Unit_SimpleObjects, Unit_WarpCrop;
 
 const
   faNormalFile = 0; // for use with FindFirst FindNext
@@ -3979,6 +3981,34 @@ end;
 procedure TForm_Utilities.Button_Obj_AutogenClick(Sender: TObject);
 begin
   ConvertWorldObjectsToAutogen;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_WarpCropClick(Sender: TObject);
+begin
+  if (HeaderOpen) AND (TileOpen) then begin
+    if (Unit_WarpCrop.objFolderOpen <> true) then begin
+      Unit_WarpCrop.objFolderOpen := true;
+      Unit_WarpCrop.objFolder := Working_Folder+'\Objects'; // Working\Objects
+      ForceDirectories(Unit_WarpCrop.objFolder);
+    end;
+  end else begin
+    Unit_WarpCrop.objFolder := Condor_Folder+'\Landscapes'; // default
+  end;
+  Unit_WarpCrop.Memo_Message := Memo_Message;
+
+//  Form_WarpCrop.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+  Form_WarpCrop.Left := Self.Left + 0;
+  Form_WarpCrop.Top  := Self.Top + 0;
+
+//// Form_WarpCrop.Image_Mask.Stretch := true; // stretch it to same size as tile
+//  Form_WarpCrop.Image_Mask.{Picture.Bitmap.}Width := Form_WarpCrop.Image_Tile.{Picture.Bitmap.}Width;
+//  Form_WarpCrop.Image_Mask.{Picture.Bitmap.}Height := Form_WarpCrop.Image_Tile.{Picture.Bitmap.}Height;
+////  Form_WarpCrop.Image_Mask.Picture.Bitmap.PixelFormat := pf24bit; // force 24 bit color
+//  Form_WarpCrop.Image_Mask.Picture.Bitmap.TransparentMode := tmFixed;
+//  Form_WarpCrop.Image_Mask.Picture.Bitmap.TransparentColor := tNone.ColorValue{clBlack};
+
+  Form_WarpCrop.ShowModal;
 end;
 
 //-------------------------------------------------------------------------------------
