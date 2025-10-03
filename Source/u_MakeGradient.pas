@@ -38,6 +38,7 @@ type
     Label3: TLabel;
     DrawGrid1: TDrawGrid;
     ColorDialog1: TColorDialog;
+    SaveDialog_File: TSaveDialog;
     procedure FormActivate(Sender: TObject);
     procedure Button_CancelClick(Sender: TObject);
     procedure Button_CreateClick(Sender: TObject);
@@ -64,7 +65,7 @@ implementation
 
 {$R *.DFM}
 
-uses u_BMP, u_CalibExport, Unit_EditPrompt;
+uses u_BMP, {u_CalibExport,} Unit_EditPrompt, u_Util;
 
 //---------------------------------------------------------------------------
 procedure TForm_Gradient.DrawGradient(Sender: TObject);
@@ -125,13 +126,22 @@ end;
 
 //---------------------------------------------------------------------------
 procedure TForm_Gradient.Button_CreateClick(Sender: TObject);
+var
+  exFileName : string;
+  exInitialDir : string;
+  exFileFilterString : string;
 begin
+  gActionRequest := false;
+  exFileFilterString := ' (*.BMP)|*.BMP|All files (*.*)|*.*';
+  exInitialDir := GradientFolder;
   exFileName := gFileName;
-  form_CalibExport.ShowModal;
-  gFileName := exFileName;
-  gActionRequest := exActionRequest;
-  WriteGradientFile('HeightGradientColor.cl');
-  Close;
+//  form_CalibExport.ShowModal;
+  if SaveDialog(SaveDialog_File, exFileName, exInitialDir, exFileFilterString) then begin
+    gFileName := exFileName;
+    gActionRequest := true;
+    WriteGradientFile('HeightGradientColor.cl');
+    Close;
+  end;
 end;
 
 //---------------------------------------------------------------------------

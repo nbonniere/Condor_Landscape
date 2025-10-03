@@ -105,6 +105,7 @@ type
     ComboBox_FileNameFormat: TComboBox;
     SaveDialog_File: TSaveDialog;
     OpenDialog_File: TOpenDialog;
+    Button_Shift: TButton;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -169,6 +170,7 @@ type
     procedure ComboBox_ZoomLevelExit(Sender: TObject);
     procedure ComboBox_TileSizeExit(Sender: TObject);
     procedure Button_WarpCropClick(Sender: TObject);
+    procedure Button_ShiftClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -188,7 +190,7 @@ uses
   FileCtrl, Math,
   Unit_About, Unit_ObjectPlacer, Unit_AirportPlacer, Unit_Utilities,
   Unit_DEM, Unit_Merge, Unit_Graphics, Unit_Objects, Unit_SimpleObjects,
-  Unit_Help, u_MakeGradient, Unit_WarpCrop,
+  Unit_Help, u_MakeGradient, Unit_WarpCrop, Unit_Shift,
   u_MakeDDS, u_MakeKML, u_MakeGMID, u_makeGDAL, u_makeGEO,
   u_MakeForest, u_MakeThermal,
   u_TileList, u_Util, u_SceneryHdr, u_GMIDlog, u_BMP,
@@ -884,6 +886,7 @@ begin
           // bmp for V3 needs to be 32 bit color RGBA
           if (ComboBox_Version.text = 'V3') then begin //TBD
             RenameFile(FileName, FileName+'.bmp');
+            u_BMP.ProgressBar_Status := ProgressBar_Status;
             Bitmap_24_To_Bitmap_32(FileName+'.bmp', FileName, true, 1.0);
             DeleteFile(FileName+'.bmp');
           end;
@@ -1331,7 +1334,9 @@ begin
             if (FileExists(u_GMIDlog.GMIDfolder+'\Overall.umd')) then begin
               xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\Overall.umd');
             end else begin
-              xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\Overall.gmid');
+              if (FileExists(u_GMIDlog.GMIDfolder+'\Overall.gmid')) then begin
+                xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\Overall.gmid');
+              end;
             end;
             if (SourceTileOpen) then begin
               MakeGDALoverallBatchFile('Overall');
@@ -1342,10 +1347,15 @@ begin
             MakeAutoGDALoverallBatchFile('Overall'); // converts 4326 to 3857
           end;
         end else begin // not overall, individual tile
-          if (length(TileName) <> 4) then begin
+          if (NOT GetTileIndex(TileName,TileColumn, TileRow)) then begin
+            Memo_Info.Lines.Add('Select a tile name first');
+            Beep; Exit
+{          end;
+//          if (length(TileName) <> 4) then begin
+          if ((length(TileName) <> 4) AND (length(TileName) <> 6)) then begin
             Memo_Info.Lines.Add('Select a tile name first');
             Beep;
-          end else begin // tiles
+}          end else begin // tiles
             // first confirm the zoom level (needed for geid)  -  how to avoid ???
             u_MakeGDAL.ZoomLevel := ComboBox_ZoomLevel.text;
             if MessageDlg('Proceed with zoom level "' + u_MakeGDAL.ZoomLevel + '" ?', mtConfirmation,
@@ -1359,11 +1369,11 @@ begin
               Exit;
             end;
 
-            GetTileIndex(TileName,TileColumn, TileRow);
+{            GetTileIndex(TileName,TileColumn, TileRow);
 //            Val(copy(TileName,1,2),TileColumn,ErrorCode);
 //            Val(copy(TileName,3,2),TileRow,ErrorCode);
   //   if errorcode or not in range -> error
-            TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
+}            TileIndex := TileRow*(TileColumnCount+1)+TileColumn;
 // new batch file with built-in calcs replaces check for coords and BMP size,
 // but leave for now
             u_BMP.Memo_Message := Memo_Info;
@@ -1380,7 +1390,13 @@ begin
               if (FileExists(u_GMIDlog.GMIDfolder+'\'+TileName+'.geid')) then begin
                 xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\'+TileName+'.geid'); // geid is 4326 !
               end else begin
-                xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\'+TileName+'.gmid'); // gmid is 3857
+                if (FileExists(u_GMIDlog.GMIDfolder+'\'+TileName+'.gmid')) then begin
+                  xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\'+TileName+'.gmid'); // gmid is 3857
+                end else begin
+                  if (FileExists(u_GMIDlog.GMIDfolder+'\'+TileName+'.umdd')) then begin
+                    xReadSourceBitmapExtents(u_GMIDlog.GMIDfolder+'\'+TileName+'.umd');
+                  end;
+                end;
               end;
               if (SourceTileOpen) then begin
                 //xMakeGDALbatchFile(TileIndex); // 4326
@@ -1609,6 +1625,10 @@ end;
 
 //---------------------------------------------------------------------------
 procedure TForm_Main.Button_ExportCalibClick(Sender: TObject);
+var
+  exFileName : string;
+  exInitialDir : string;
+  exFileFilterString : string;
 begin
   if (HeaderOpen) then begin
     exFileFilterString := 'Tile List (*.CSV)|*.CSV|All files (*.*)|*.*';
@@ -2027,7 +2047,9 @@ begin
   if (HeaderOpen) then begin
     gFileName := CondorPathName+'\Landscapes\'+
       CondorLandscapeName+'\HeightGradient.bmp';
-    GradientFolder := WorkingPathName;
+//    GradientFolder := WorkingPathName;
+    GradientFolder := CondorPathName+'\Landscapes\'+
+      CondorLandscapeName;
 
 //    Form_Gradient.Position := poDefault;
     // offset to be able to see status and progressbar
@@ -2297,6 +2319,8 @@ begin
   ComboBoxMatchString(ComboBox_Version,'');
   ComboBox_FileNameFormat.text:= FIniFile.ReadString('Condor','FileNameFormat',ComboBox_FileNameFormat.Items[0]);
   ComboBoxMatchString(ComboBox_FileNameFormat,'');
+  // bug forgot to set TileNameMode too
+  ComboBox_FileNameFormatChange(Sender);  
 
   // centre vertically and offset horizontally for other windows to show memo  and progress bar
   if SystemParametersInfo(SPI_GETWORKAREA,0,@Desktop,0) then begin
@@ -2365,7 +2389,8 @@ begin
   // offset to be able to see status and progressbar
   Form_Utilities.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_Utilities.Top  := Self.Top + 0;
-  Form_Utilities.Height  := 630;
+//  Form_Utilities.Height  := 652;
+  Form_Utilities.Height  := Form_Utilities.GroupBox_Generic.Top + Form_Utilities.GroupBox_Generic.Height + 32;
 
   Form_Utilities.ShowModal;
 end;
@@ -2445,6 +2470,31 @@ begin
   Form_Merge.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
   Form_Merge.Top  := Self.Top + 0;
   Form_Merge.ShowModal;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_Main.Button_ShiftClick(Sender: TObject);
+begin
+  Unit_Shift.Memo_Message := Memo_Info;
+  Unit_Shift.ProgressBar_Status := ProgressBar_Status;
+//  Unit_Merge.ApplicationPath := ApplicationPathName;
+  Unit_Shift.Condor_Folder := CondorPathName;
+    Unit_Shift.mgVersion:= ComboBox_Version.text;
+//  if (HeaderOpen) AND (TileOpen) then begin
+  if (((HeaderOpen) AND (TileOpen)) OR
+      (fileExists(CondorPathName+'\Landscapes\'+CondorLandscapeName+'\SHIFT.txt'))) then begin
+    Unit_Shift.LandscapeName := CondorLandscapeName;
+  end else begin
+    Unit_Shift.LandscapeName := '';
+  end;
+  u_X_CX.oTreeView := Unit_Objects.Form_Objects.TreeView_Object;
+  Unit_Shift.LandscapeList := ComboBox_Landscape.Items;
+
+//  Form_Merge.Position := poDefault;
+  // offset to be able to see status and progressbar
+  Form_Shift.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
+  Form_Shift.Top  := Self.Top + 0;
+  Form_Shift.ShowModal;
 end;
 
 //---------------------------------------------------------------------------

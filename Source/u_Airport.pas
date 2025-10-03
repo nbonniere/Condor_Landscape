@@ -90,6 +90,7 @@ procedure WriteAirportFile;
 procedure ExportCSV_AirportFile;
 procedure ImportCSV_AirportFile;
 procedure Append_APT_File(UTM_Limits : Extents;
+                          DoOffset : boolean; Offset_X, Offset_Y : single;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
 procedure List_APT_File_Object_Details(FilePath,Filename : string);
@@ -98,7 +99,7 @@ procedure List_APT_File_Object_Details(FilePath,Filename : string);
 IMPLEMENTATION
 
 uses Windows, FileCtrl, SysUtils,
-  u_UTM, u_X_CX;
+  u_UTM, u_X_CX, u_DXT, u_TileList;
 
 {----------------------------------------------------------------------------}
 procedure ReadAirportFile;
@@ -241,6 +242,7 @@ end;
 
 {----------------------------------------------------------------------------}
 procedure Append_APT_File(UTM_Limits : Extents;
+                          DoOffset : boolean; Offset_X, Offset_Y : single;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
 var
@@ -248,6 +250,14 @@ var
   APT_File_a : File of CondorAirport;
   ObjectFileName : string;
   ObjectFileName_a : string;
+
+  res : single;
+  d_Error_X, d_Error_Y : single;
+  d_Error_long, d_Error_lat : single;
+  dds_Size : longint;
+  AirportEasting, AirportNorthing : single;
+  Row, Col : integer;
+  DDS_FileName : string;
 
 begin
   SetLength(Airport_List,1); // only need space for one at a time
@@ -275,7 +285,7 @@ begin
       Read(APT_File_a,Airport_list[0]);
 
       // only keep airports within crop area
-      with (Airport_list[0]) do begin
+      with Airport_list[0] do begin
         LatLongToUTM(apLatitude, apLongitude,
 //          IntToStr(u_Terrain.TerrainHeader.tUTMzone), uGrid); // bug
 //          IntToStr(u_Terrain.TerrainHeader.tUTMzone),
@@ -293,6 +303,32 @@ begin
       end;
       if (uNorthing < UTM_Limits.yMin) then begin
         continue;
+      end;
+
+      // make a tweak to the position on a shifted landscape
+      // to make it match the offset error of the shifted DDS
+      if (DoOffset) then begin
+        with Airport_list[0] do begin
+          // need the DDS_Size
+          // UTM relative to scenery bottom right
+          AirportEasting := (u_Terrain.TerrainHeader.tRightMapEasting) - uEasting;
+          AirportNorthing := uNorthing - (u_Terrain.TerrainHeader.tBottomMapNorthing);
+          // find quarter tile that contains airport
+          Col := trunc(AirportEasting /(64*90));
+          Row := trunc(AirportNorthing/(64*90));
+          DDS_FileName := format('%s\Textures\t%s.dds',[FilePath,MakeTileName(Col, Row, TileNameMode)]);
+          dds_Size := DXT_ImageWidth(DDS_FileName);
+          if (dds_Size > 0) then begin // make sure file was found and is DDS
+            // DDS - with 4x4 pixel groups
+            res := 64*90/(dds_Size/4);
+            d_Error_X := ((Offset_X / res) - round(Offset_X / res)) * res;
+            d_Error_Y := ((Offset_Y / res) - round(offset_Y / res)) * res;
+            d_Error_long := d_Error_X * 360/(2*Pi*EarthRadius*1000) /cos(apLatitude/180*Pi);
+            d_Error_lat  := d_Error_Y * 360/(2*Pi*EarthRadius*1000);
+            apLongitude := apLongitude + d_Error_long;
+            apLatitude  := apLatitude  + d_Error_lat;
+          end;
+        end;
       end;
 
       Write(APT_File,Airport_list[0]);

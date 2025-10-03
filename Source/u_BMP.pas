@@ -75,7 +75,7 @@ type
   ColorConvert = packed record
     case byte of
       0 : ( ColorValue : Longword ); // byte reverse order and shifted from TColor
-      1 : ( ByteValue : array[0..3] of byte );  // Alpha, B, G, R
+      1 : ( ByteValue : array[0..3] of byte );  // B, G, R, Alpha
       2 : ( cRGB : TRGBTriple; cAlpha : byte);
       3 : ( cRGBA : TRGBQuad);
     end;
@@ -110,9 +110,21 @@ type
     bImportantColors : longint;
   end;
 
+  BMP_DIB_ColorMask = packed record
+    bBlueMask      : longint;
+    bGreenMask     : longint;
+    bRedMask       : longint;
+  end;
+
   BMP_V1_Header = record
     bH   : BMP_Header;
     bDIB : BMP_DIB_Header;
+  end;
+
+  BMP_V1_Header_Mask = record
+    bH            : BMP_Header;
+    bDIB          : BMP_DIB_Header;
+    bDIBcolorMask : BMP_DIB_ColorMask;
   end;
 
 const
@@ -333,11 +345,12 @@ const
       bImportantColors: 0 );
   );
 
-  Color8Size = 8; // bits
+  Color8Size = 1; // byte
+  Color8SizeBits = 8; // bits
   BitmapHeader_8bitColor : BMP_V1_Header = (
     bH:(
       bSignature: $4D42{BitmapSignature};
-      bFileByteSize: 256*256*Color8Size div 8 + sizeof(BMP_8bit_ColorTable) +
+      bFileByteSize: 256*256*Color8Size + sizeof(BMP_8bit_ColorTable) +
         sizeof(BMP_Header) + sizeof(BMP_DIB_Header);
       bReserved: 0;
       bPixelArrayOffset: sizeof(BMP_8bit_ColorTable) +
@@ -347,13 +360,41 @@ const
       bWidth:  256;
       bHeight: 256;
       bPlanes: 1;
-      bColorBits: Color8Size;
+      bColorBits: Color8SizeBits;
       bComp_biField: 0;
-      bImageByteSize: 256*256*Color8Size div 8;
+      bImageByteSize: 256*256*Color8Size;
       bHoriz_Ppm: 0;
       bVert_Ppm:  0;
       bPaletteColors: 256; // can also be 0 -> default 2^8 entries
       bImportantColors: 0 );
+  );
+
+  Color16Size = 2; // byte
+  Color16SizeBits = 16; // bits
+  BitmapHeader_16bitColor : BMP_V1_Header_Mask = (
+    bH:(
+      bSignature: $4D42{BitmapSignature};
+      bFileByteSize: 256*256*Color16Size +
+        sizeof(BMP_Header) + sizeof(BMP_DIB_Header);
+      bReserved: 0;
+      bPixelArrayOffset: sizeof(BMP_Header) + sizeof(BMP_DIB_Header) );
+    bDIB:(
+      bHeaderSize: sizeof(BMP_DIB_Header);
+      bWidth:  256;
+      bHeight: 256;
+      bPlanes: 3;  // 3 color masks rgb565
+      bColorBits: Color16SizeBits;
+      bComp_biField: 0;
+      bImageByteSize: 256*256*Color16Size;
+      bHoriz_Ppm: 0;
+      bVert_Ppm:  0;
+      bPaletteColors: 0;
+      bImportantColors: 0; );
+    bDIBColorMask:(
+      bBlueMask:  $0000F800;
+      bGreenMask: $000007E0;
+      bRedMask: $0000001F
+    );
   );
 
 {  ColorBWsize = 1; //bits
@@ -1496,13 +1537,15 @@ begin
   // write dummy last value to force filesize
   with xBitmapHeader_24bitColor do begin
     seek(BitmapFile,sizeof(xBitmapHeader_24bitColor)+
-      (bDib.bWidth*bDib.bHeight*xColor24Size div 8)-1);
+//      (bDib.bWidth*bDib.bHeight*xColor24Size div 8)-1);
+      // multiplying by 24 can exceed integer size and cause overflow
+      (bDib.bWidth*bDib.bHeight*(Color24Size))-1);
   end;
   Write(BitmapFile,ZeroByte);
   Close(BitmapFile);
 end;
 
-// initialversion modified for vertical crop only as first step
+// initial version modified for vertical crop only as first step
 {----------------------------------------------------------------------------}
 procedure xxxMerge_BMP24_File(Offset_X, Offset_Y, Min_X, Max_X, Min_Y, Max_Y : LongInt;
                            FilePath,Filename,
@@ -1597,15 +1640,20 @@ var
   BMP_File : File of Byte;
   BMP_File_a : File of Byte;
   P : PByteArray;
+  Q : PByteArray;
   i, j, i_Min, i_Max : integer;
   FileIndex : LongInt;
   cWidth, cHeight : integer;
   gWidth, gHeight : integer;
   BMP_Header : BMP_V1_Header;
+  BMP_Header_a : BMP_V1_Header;
   j_DeltaL, j_DeltaR, j_Index, j_Width : integer;
-  Flag_32 : boolean;
+  Flag_Color : integer;
   Color_Size : integer;
   pColor : ColorConvert;
+  wColor : Word;
+  bColor : Byte;
+  Palette_8 : BMP_8bit_ColorTable;
 
 begin
   if (NOT FileExists(FilePath+'\'+Filename)) then begin
@@ -1626,23 +1674,42 @@ begin
 
   AssignFile(BMP_File_a,FilePath_a+'\'+Filename_a);
   Reset(BMP_File_a);
-  BlockRead(BMP_File_a,BMP_Header,sizeof(BMP_Header));
+  BlockRead(BMP_File_a,BMP_Header_a,sizeof(BMP_Header));
 
-  // only allow 32 and 24 bit format for now
-  with BMP_Header do begin
+  // only allow 32, 24, 16, 8 bit format for now
+  with BMP_Header_a do begin
     gWidth := bDib.bWidth;
     gHeight := bDib.bHeight;
-    case BMP_Header.bDib.bColorBits of
+    case {BMP_Header_a.}bDib.bColorBits of
       32: begin
-        Flag_32 := True;
+        Flag_Color := 32;
         Color_Size := Color32Size;
       end;
       24: begin
-        Flag_32 := False;
+        Flag_Color := 24;
         Color_Size := Color24Size;
       end;
+      16: begin
+        Flag_Color := 16;
+        Color_Size := Color16Size;
+        // read mask table
+        // for now just assume rgb565
+      end;
+      8: begin
+        Flag_Color := 8;
+        Color_Size := Color8Size;
+        // read the palette for the 8 bit file to access colors
+        BlockRead(BMP_File_a,Palette_8,sizeof(BMP_8bit_ColorTable));
+      end;
+      4: begin
+        Flag_Color := 4;
+        Color_Size := Color8Size;
+        // read the palette for the 4 bit file to access colors
+        // re-use Palette_8 for simplicity
+        BlockRead(BMP_File_a,Palette_8,sizeof(BMP_4bit_ColorTable));
+      end;
       else begin
-        MessageShow('BMP file not 32 or 24 bit format');
+        MessageShow('BMP file not 32, 24, 16, 8, 4 bit format');
         Beep; Exit;
       end;
     end;
@@ -1652,14 +1719,12 @@ begin
 //    MessageShow('Error: Compression not allowed');
 //    Beep; Exit;
 //  end;
-  seek(BMP_File_a,BMP_Header.bH.bPixelArrayOffset); // always do in case header is larger than standard
+//  seek(BMP_File_a,BMP_Header_a.bH.bPixelArrayOffset); // always do in case header is larger than standard
 
   try
     // need a buffer
-//    P := AllocMem(bDib.bWidth * Color24Size);
-//    P := AllocMem(gWidth * Color24Size);
-    // could be 24 or 32, assume 32 as max size.
-    P := AllocMem(gWidth * Color_Size);
+    P := AllocMem(gWidth * Color24Size); // output buffer
+    Q := AllocMem(gWidth * Color_Size);  // input buffer
 // make limit calc common for BMP, TDM and TRN ???
     // calculate vertical crop limits i_Min and i_Max
     if (Min_Y > Offset_Y) then begin
@@ -1692,14 +1757,70 @@ begin
 //    for i := 0 to gHeight-1 do begin
     for i := i_Min to i_Max-1 do begin
       // get input data    // do seek only once and then just sequential ?
-      FileIndex := sizeof(BMP_Header) +
-        ((i) * gWidth) * Color_Size;
-      seek(BMP_File_a,FileIndex);
-      BlockRead(BMP_File_a,P^,gWidth * Color_Size);
-      if (Flag_32) then begin // need to convert from 32 to 24 bit color
-        for j := 0 to gWidth-1 do begin
-          pColor.cRGBA := pRGBAlphaArray(P)^[j];
-          pRGBArray(P)^[j] := pColor.cRGB;
+//      FileIndex := sizeof(BMP_Header) +
+      if (Flag_Color = 4) then begin
+        FileIndex := BMP_Header_a.bH.bPixelArrayOffset +
+//          ((i) * gWidth) * Color_Size div 2;
+          ((i * gWidth) * Color_Size) div 2;
+        seek(BMP_File_a,FileIndex);
+//        BlockRead(BMP_File_a,Q^,gWidth * Color_Size div 2);
+        BlockRead(BMP_File_a,Q^,(gWidth * Color_Size) div 2);
+      end else begin
+        FileIndex := BMP_Header_a.bH.bPixelArrayOffset +
+          ((i) * gWidth) * Color_Size;
+        seek(BMP_File_a,FileIndex);
+        BlockRead(BMP_File_a,Q^,gWidth * Color_Size);
+      end;
+//      seek(BMP_File_a,FileIndex);
+//      BlockRead(BMP_File_a,Q^,gWidth * Color_Size);
+      case Flag_Color of
+        4: begin // need to convert from 4 bit palette to 24 bit color
+          for j := 0 to gWidth-1 do begin
+            bcolor := pByteArray(Q)^[j div 2];
+            if (j AND 1 = 0) then begin // split byte into nibbles
+              bcolor := bcolor shr 4;
+            end else begin
+              bcolor := bcolor AND $0F;
+            end;
+            // palette lookup
+            pColor.cRGBA := Palette_8[bcolor]; // read 8 bit palette entry
+            pRGBArray(P)^[j] := pColor.cRGB;
+          end;
+        end;
+        8: begin // need to convert from 8 bit palette to 24 bit color
+          for j := 0 to gWidth-1 do begin
+            bcolor := pByteArray(Q)^[j];
+            // palette lookup
+            pColor.cRGBA := Palette_8[bcolor]; // read 8 bit palette entry
+            pRGBArray(P)^[j] := pColor.cRGB;
+          end;
+        end;
+        16: begin // need to convert from 16 to 24 bit color
+          for j := 0 to gWidth-1 do begin
+            wColor := pWordArray(Q)^[j];
+
+            // Extract components
+            pColor.ByteValue[2] := (wColor shr 11) and $1F; // 5 bits for Blue
+            pColor.ByteValue[1] := (wColor shr 5) and $3F; // 6 bits for Green
+            pColor.ByteValue[0] := wColor and $1F; // 5 bits for Red
+
+            // Convert to 8-bit
+            pColor.ByteValue[2] := (pColor.ByteValue[2] shl 3) or (pColor.ByteValue[2] shr 2); // *255/31
+            pColor.ByteValue[1] := (pColor.ByteValue[1] shl 2) or (pColor.ByteValue[1] shr 4); // *255/63
+            pColor.ByteValue[0] := (pColor.ByteValue[0] shl 3) or (pColor.ByteValue[0] shr 2); // *255/31
+
+            pRGBArray(P)^[j] := pColor.cRGB;
+          end;
+        end;
+        24: begin // re-use buffer
+//          P := Q; // can't freemem P
+          CopyMemory(P, Q, gWidth * Color24Size);
+        end;
+        32: begin // need to convert from 32 to 24 bit color
+          for j := 0 to gWidth-1 do begin
+            pColor.cRGBA := pRGBAlphaArray(Q)^[j];
+            pRGBArray(P)^[j] := pColor.cRGB;
+          end;
         end;
       end;
       // write output data
@@ -1712,6 +1833,7 @@ begin
       Application.ProcessMessages;
     end;
   Finally
+    Freemem(Q);
     Freemem(P);
     CloseFile(BMP_File_a);
     CloseFile(BMP_File);

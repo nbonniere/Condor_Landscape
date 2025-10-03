@@ -325,6 +325,7 @@ Procedure ExtractTcoords(var NewTcoords : tMeshTcoord; oTreeView : TTreeView; In
 Procedure ExtractMaterialList(var NewMaterialList : tMaterialList; oTreeView : TTreeView; Index : integer);
 Procedure ExtractMaterial(var NewMaterial : tMaterial; oTreeView : TTreeView; Index : integer);
 Procedure ExtractTFileName(var NewFileName : tpFileName; oTreeView : TTreeView; Index : integer);
+Function NormalizeObjectTextures : boolean;
 
 //===========================================================================
 IMPLEMENTATION
@@ -4296,6 +4297,87 @@ begin
   until (NodeIndex > oTreeView.Items.Count-1)
 end;
 
+//-------------------------------------------------------------------------------------
+type
+  nNormalize_t = record
+    n_First : string;
+    n_Norm  : string;
+  end;
+
+  nName_t = record
+    nNormalize : array[0..6-1] of nNormalize_t;
+  end;
+const
+    nName : nName_t =
+      (nNormalize : (
+        ( n_First : 'a'; n_Norm : 'aaaaaa' ),
+        ( n_First : 'b'; n_Norm : 'bbbbbb' ),
+        ( n_First : 'c'; n_Norm : 'cccccc' ),
+        ( n_First : 'd'; n_Norm : 'dddddd' ),
+        ( n_First : 'e'; n_Norm : 'eeeeee' ),
+        ( n_First : 'f'; n_Norm : 'ffffff' )
+       )
+      );
+
+//-------------------------------------------------------------------------------------
+function NormalizeObjectTextures : boolean;
+var
+  NodeIndex : integer;
+  Tn : string;
+  i, j : integer;
+  cName, prefix, suffix : string;
+  Changed : boolean;
+
+//-------------------------------------------------------------------------------------
+begin
+  result := false; // assume no changes at first
+  // walk the object tree and normalize Texture Names
+  NodeIndex := 0;
+  repeat
+    Tn := FindNextTexture(NodeIndex);
+    if (Tn <> '') then begin
+      i := pos('BAKED_',uppercase(Tn));
+      if (i <> 0) then begin
+        Changed := false;
+        prefix := copy(Tn,1,(i+6)-1);
+        cName := copy(Tn,(i+6),length(Tn)-(i+6)+1);
+        i := pos('_',cName);
+        suffix := copy(cName,i,length(Tn)-i);
+        cName := copy(cName,1,i-1);
+        // match first character of cName in table
+        j := 0;
+        while (j <= 6-1) do begin
+          // if match then if cName not in table, replace it
+          if (LowerCase(cName[1]) = nName.nNormalize[j].n_First) then begin
+            if (LowerCase(cName) <> nName.nNormalize[j].n_Norm) then begin
+              cName := nName.nNormalize[j].n_Norm;
+              Changed := true;
+            end;
+            break;
+          end;
+          inc(j);
+        end;
+        // if no match then randomly pick one
+        if (j = 6) then begin
+          cName := nName.nNormalize[random(6-1)].n_Norm;
+          Changed := true;
+        end;
+
+//          result := true; // a change has been made
+        // if cName actually changed then update
+        if (Changed) then begin
+          Tn := prefix+cName+suffix;
+          // update the name in the file
+          UpdateTextureFileName(NodeIndex, Tn);
+          result := true;
+        end;
+      end;
+      // look for the next one
+      INC(NodeIndex);
+    end;
+  until (NodeIndex > oTreeView.Items.Count-1)
+end;
+
 {----------------------------------------------------------------------------
 Xplane .OBJ OBJ8 object coordinate encoding/decoding
 ----------------------------------------------------------------------------}
@@ -4800,6 +4882,7 @@ end;
 
 {----------------------------------------------------------------------------}
 begin { Initialization }
+  Randomize; // initialize the random number generator
 end.
 
 

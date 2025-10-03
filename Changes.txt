@@ -398,6 +398,31 @@ v0.10.3 - Apr 2025
   - use paintbox for faster graphics refresh
     - Object and Airport Placer, and Warp/Crop, not forest/thermal maps.
 
+v0.10.4 - Aug 2025
+  - replace 'xColor24Size div 8'  by 'Color24Size' to avoid overflow
+
+v0.10.5 - Aug 2025
+  - skip autogen files if not found
+  
+v0.10.6 - Aug 2025
+  - Merge did not read file format mode comboBox XXYY / XXXYYY
+
+v0.10.7 - Aug 2025
+  - add support for merging 16, 8, or 4 bit bitmaps (convert to 24 bit)
+  - add color depth change utility, 24 bit to 16, 8, or 4 bits.
+
+v0.10.8 - Aug 2025
+  - landscape grid shift
+    - limitations:
+      - due to resolution differences, each resolution results in a different offset
+        - option to tweak airport coords to match DDS texture offset
+      - if all DXT1, Expansion is OK when various resolutions are used
+        - otherwise if dxt or dxt3, all DDS must use same resolution
+      - When TR3F are present, each TR3F files becomes 4 TR3F files
+       - because airport textures based on TR3F files are tightly tied together with floating-point
+          elevation, airports should be tweaked to the TR3F resolution. Option Not done at this time.
+
+
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be
   incorrectly placed. 90 m dx and dy assumed !

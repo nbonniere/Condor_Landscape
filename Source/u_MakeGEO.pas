@@ -1805,7 +1805,8 @@ begin
       bDib.bPaletteColors := 256; // 8 bit greyscale
       bDib.bWidth := Size;
       bDib.bHeight := Size;
-      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+//      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
       BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
@@ -1863,7 +1864,8 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := Width;
       bDib.bHeight := Height;
-      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      //bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
     BlockWrite(Bitmap_File,xBitmapHeader_24bitColor,

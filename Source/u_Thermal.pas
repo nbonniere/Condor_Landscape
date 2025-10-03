@@ -754,7 +754,8 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := ColumnCount;
       bDib.bHeight := RowCount;
-      bDib.bImageByteSize := ColumnCount*RowCount*xColor24Size div 8;
+      //bDib.bImageByteSize := ColumnCount*RowCount*xColor24Size div 8;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
     BlockWrite(Thermal_File,xBitmapHeader_24bitColor,
@@ -859,7 +860,8 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := tColumns;
       bDib.bHeight := tRows;
-      bDib.bImageByteSize := tColumns*tRows*xColor24Size div 8;
+      //bDib.bImageByteSize := tColumns*tRows*xColor24Size div 8;
+      bDib.bImageByteSize := tColumns*tRows*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
     BlockWrite(BitmapFile,xBitmapHeader_24bitColor,
@@ -911,7 +913,8 @@ begin
       bDib.bPaletteColors := 256; // 8 bit greyscale
       bDib.bWidth := TDM_Header.Width;
       bDib.bHeight := TDM_Header.Height;
-      bDib.bImageByteSize := TDM_Header.Width*TDM_Header.Height*Color8Size div 8;
+//      bDib.bImageByteSize := TDM_Header.Width*TDM_Header.Height*Color8Size div 8;
+      bDib.bImageByteSize := TDM_Header.Width*TDM_Header.Height*Color8Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
       BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
@@ -1060,19 +1063,23 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := TRN_Header.tWidth;
       bDib.bHeight := TRN_Header.tHeight;
-      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      //bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
 
       BlockWrite(Color_File,xBitmapHeader_24bitColor,
         sizeof(xBitmapHeader_24bitColor));
 
       try
-        P := AllocMem(TRN_Header.tWidth*xColor24Size div 8); // one row at a time
+        //P := AllocMem(TRN_Header.tWidth*xColor24Size div 8); // one row at a time
+        P := AllocMem(TRN_Header.tWidth*Color24Size); // one row at a time
         ProgressBar_Status.Max := TRN_Header.tHeight;
         for i := 0 to TRN_Header.tHeight-1 do begin
-          BlockRead(TM3_File,P^,TRN_Header.tWidth*xColor24Size div 8);
+          //BlockRead(TM3_File,P^,TRN_Header.tWidth*xColor24Size div 8);
+          BlockRead(TM3_File,P^,TRN_Header.tWidth*Color24Size);
           SwapRGBBlockEndToEnd(PRGBArray(P),TRN_Header.tWidth);
-          BlockWrite(Color_File,P^,TRN_Header.tWidth*xColor24Size div 8);
+          //BlockWrite(Color_File,P^,TRN_Header.tWidth*xColor24Size div 8);
+          BlockWrite(Color_File,P^,TRN_Header.tWidth*Color24Size);
 
           ProgressBar_Status.StepIt;
           Application.ProcessMessages;
@@ -1129,12 +1136,15 @@ begin
       AssignFile(TM3_File,TM3_FileName);
       Rewrite(TM3_File);
       try
-        P := AllocMem(bDib.bWidth*xColor24Size div 8); // one row at a time
+        //P := AllocMem(bDib.bWidth*xColor24Size div 8); // one row at a time
+        P := AllocMem(bDib.bWidth*Color24Size); // one row at a time
         ProgressBar_Status.Max := bDib.bHeight;
         for i := 0 to bDib.bHeight-1 do begin
-          BlockRead(Color_File,P^,bDib.bWidth*xColor24Size div 8);
+          //BlockRead(Color_File,P^,bDib.bWidth*xColor24Size div 8);
+          BlockRead(Color_File,P^,bDib.bWidth*Color24Size);
           SwapRGBBlockEndToEnd(PRGBArray(P),bDib.bWidth);
-          BlockWrite(TM3_File,P^,bDib.bWidth*xColor24Size div 8);
+          //BlockWrite(TM3_File,P^,bDib.bWidth*xColor24Size div 8);
+          BlockWrite(TM3_File,P^,bDib.bWidth*Color24Size);
 
           ProgressBar_Status.StepIt;
           Application.ProcessMessages;

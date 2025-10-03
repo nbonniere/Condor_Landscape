@@ -32,7 +32,7 @@ INTERFACE
 {$I Define.pas}
 
 const
-  earthRadius = 6371.0;  // WGS84 mean radius
+  earthRadius = 6371.0;  // WGS84 mean radius in Km
 
 var
   uLatitude : double;

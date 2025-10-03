@@ -14,7 +14,6 @@ uses
   Unit_Utilities in 'Unit_Utilities.pas' {Form_Utilities},
   Unit_DEM in 'Unit_DEM.pas' {Form_DEM},
   Unit_Coords in 'Unit_Coords.pas' {Form_Coords},
-  Unit_Merge in 'Unit_Merge.pas' {Form_Merge},
   Unit_SimpleObjects in 'Unit_SimpleObjects.pas' {Form_SimpleObjects},
   Unit_HiResRunway in 'Unit_HiResRunway.pas' {Form_HiResRunway},
   Unit_Help in 'Unit_Help.pas' {Form_Help},
@@ -30,7 +29,9 @@ uses
   pngimage in 'Libraries\PNG\pngimage.pas',
   pnglang in 'Libraries\PNG\pnglang.pas',
   zlibpas in 'Libraries\PNG\zlibpas.pas',
-  Unit_WarpCrop in 'Unit_WarpCrop.pas' {Form_WarpCrop};
+  Unit_WarpCrop in 'Unit_WarpCrop.pas' {Form_WarpCrop},
+  Unit_Merge in 'Unit_Merge.pas' {Form_Merge},
+  Unit_Shift in 'Unit_Shift.pas' {Form_Shift};
 
 {$R *.RES}
 
@@ -51,11 +52,12 @@ begin
   Application.CreateForm(TForm_Utilities, Form_Utilities);
   Application.CreateForm(TForm_DEM, Form_DEM);
   Application.CreateForm(TForm_Coords, Form_Coords);
-  Application.CreateForm(TForm_Merge, Form_Merge);
   Application.CreateForm(TForm_SimpleObjects, Form_SimpleObjects);
   Application.CreateForm(TForm_HiResRunway, Form_HiResRunway);
   Application.CreateForm(TForm_Help, Form_Help);
   Application.CreateForm(TForm_WarpCrop, Form_WarpCrop);
+  Application.CreateForm(TForm_Merge, Form_Merge);
+  Application.CreateForm(TForm_Shift, Form_Shift);
   Application.Run;
 end.
 

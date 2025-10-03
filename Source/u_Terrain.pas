@@ -22,7 +22,7 @@ UNIT u_Terrain;
 
 {----------------------------------------------------------------------------
 The condor .TRN file is structured as follows:
-- 36 bit header
+- 36 byte header
   - 4 bytes for width (little-endian) = 64 * number of horizontal patches
   - 4 bytes for height (little-endian) = 64 * number of vertical patches
   - 28 bytes -> UTM information
@@ -106,6 +106,7 @@ Procedure OverrideTerrainCalibration(TerrainFileName : string);
 Procedure CreateColorGradientBitmap(TerrainFileName,ColorGradientFileName : string);
 Procedure CreateSlopeGradientBitmap(TerrainFileName,SlopeGradientFileName : string);
 Procedure TRN_To_Greyscale_Bitmap(TRN_FileName,Greyscale_FileName : string);
+Procedure RAW_To_Greyscale_Bitmap(RAW_FileName, Greyscale_FileName : string);
 Procedure TRN_To_Color_Bitmap(TRN_FileName, Color_FileName : string);
 Procedure RAW_To_TRN(RAW_FileName, TRN_FileName : string);
 Procedure RAW_To_TR3(RAW_FileName, TR3_FilePath : string);
@@ -119,7 +120,7 @@ IMPLEMENTATION
 
 uses
   forms, FileCtrl, SysUtils, Graphics, Windows, Math, Dialogs,
-  u_SceneryHDR, u_TileList, u_BMP;
+  u_SceneryHDR, u_TileList, u_BMP, u_X_CX;
 
 var
   Terrain_File : File of byte;
@@ -987,7 +988,8 @@ begin
     with BitmapHeader_8bitColor do begin
       bDib.bWidth := ColumnCount;
       bDib.bHeight := RowCount;
-      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+//      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
       BlockWrite(CG_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
@@ -1063,7 +1065,8 @@ begin
     with BitmapHeader_8bitColor do begin
       bDib.bWidth := ColumnCount;
       bDib.bHeight := RowCount;
-      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+//      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
       BlockWrite(CG_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
@@ -1168,7 +1171,8 @@ begin
       bDib.bPaletteColors := 256; // 8 bit greyscale
       bDib.bWidth := TRN_Header.tWidth;
       bDib.bHeight := TRN_Header.tHeight;
-      bDib.bImageByteSize := TRN_Header.tWidth*TRN_Header.tHeight*Color8Size div 8;
+//      bDib.bImageByteSize := TRN_Header.tWidth*TRN_Header.tHeight*Color8Size div 8;
+      bDib.bImageByteSize := TRN_Header.tWidth*TRN_Header.tHeight*Color8Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
       BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
@@ -1313,7 +1317,8 @@ begin
     end;
 
     // Bitmap byte width must be divisible by 4
-    ByteWidth := ((ColumnCount * (Color8Size div 8) +3) div 4) * 4;
+//    ByteWidth := ((ColumnCount * (Color8Size div 8) +3) div 4) * 4;
+    ByteWidth := ((ColumnCount * (Color8Size) +3) div 4) * 4;
     MessageShow('Converting terrain file to greyscale bitmap...');
     AssignFile(Greyscale_File,Greyscale_FileName);
     Rewrite(Greyscale_File);
@@ -1322,9 +1327,11 @@ begin
       bDib.bPaletteColors := 256; // 8 bit greyscale
       bDib.bWidth := ColumnCount;
       bDib.bHeight := RowCount;
-      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+//      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size;
 //      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
-      bH.bFileByteSize := ColumnCount*(Color8Size div 8) *ByteWidth + bH.bPixelArrayOffset;
+//      bH.bFileByteSize := ColumnCount*(Color8Size div 8) *ByteWidth + bH.bPixelArrayOffset;
+      bH.bFileByteSize := ColumnCount*(Color8Size) *ByteWidth + bH.bPixelArrayOffset;
       BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
 
@@ -1388,11 +1395,14 @@ var
   Greyscale_File : File of byte;
   TRN_Header : CondorTerrainHeader;
 //  ByteCount : longint;
-  Q : PWordArray;
+  F : PFloatArray;
+  Q : PWordArray;  // PWordArray in sysutils is pointer to array[0..16383] of word
+                   // not pointer to array of word. Leave as is for now
   P : PByteArray;
   Value : single;
   WithPadding : integer;
   ByteWidth : integer;
+  DataSize : integer;
 
 begin
   if (NOT FileExists(TRN_FileName)) then begin
@@ -1405,23 +1415,25 @@ begin
     if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TR3') then begin
       ColumnCount := 193;
       RowCount := 193;
+      DataSize := 2;
     end else begin
       if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TRN') then begin
         BlockRead(TRN_File,TRN_Header,sizeof(TRN_Header));
         ColumnCount := TRN_Header.tWidth;
         RowCount := TRN_Header.tHeight;
+        DataSize := 2;
       end else begin
-        if (UpperCase(ExtractFileExt(TRN_FileName)) = '.RAW') then begin
-//   MessageShow('Unable to convert'); Exit;
-RAW_To_Greyscale_Bitmap(TRN_FileName, Greyscale_FileName);
-exit;
+        if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TR3F') then begin
+          ColumnCount := 257;
+          RowCount := 257;
+          DataSize := 4;
         end else begin
           MessageShow('Unable to convert'); Exit;
         end;
       end;
     end;
     // Bitmap byte width must be divisible by 4
-    ByteWidth := ((ColumnCount * (Color8Size div 8) +3) div 4) * 4;
+    ByteWidth := ((ColumnCount * (Color8Size) +3) div 4) * 4;
     MessageShow('Converting terrain file to greyscale bitmap...');
     AssignFile(Greyscale_File,Greyscale_FileName);
     Rewrite(Greyscale_File);
@@ -1430,9 +1442,11 @@ exit;
       bDib.bPaletteColors := 256; // 8 bit greyscale
       bDib.bWidth := ColumnCount;
       bDib.bHeight := RowCount;
-      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+//      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size div 8;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color8Size;
 //      bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
-      bH.bFileByteSize := ColumnCount*(Color8Size div 8) *ByteWidth + bH.bPixelArrayOffset;
+//      bH.bFileByteSize := ColumnCount*(Color8Size div 8) *ByteWidth + bH.bPixelArrayOffset;
+      bH.bFileByteSize := ColumnCount*(Color8Size) *ByteWidth + bH.bPixelArrayOffset;
       BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
 
@@ -1451,19 +1465,26 @@ exit;
       seek(Greyscale_File,bH.bPixelArrayOffset+ByteWidth*RowCount-1);
       Write(Greyscale_File,pColor.ByteValue[3]);
       try
-        P := AllocMem(RowCount*2); // one column at a time
+        P := AllocMem(RowCount*DataSize); // one column at a time
         Q := PWordArray(P);
+        F := @P;
         ProgressBar_Status.Max := ColumnCount;
         for i := 0 to ColumnCount-1 do begin
-          BlockRead(TRN_File,P^,RowCount*2);
-          // convert integer to byte
+          BlockRead(TRN_File,P^,RowCount*Datasize);
+          // convert data to greyscale byte
           j := 0;
-          While (j < RowCount*2) do begin
-                Value := Q^[j div 2];
-                if value <= 1 then value := 1;
-                P^[j div 2] := trunc(60*log10(Value));
-//                P^[j div 2] := trunc(Value/8);      // 6000' max
-                INC(j,2);
+          While (j < RowCount*Datasize) do begin
+            if (DataSize = 2) then begin // two byte integer
+                Value := Q^[j div DataSize];
+            end else begin
+                Value := F^[j div DataSize];
+            end;
+            if value <= 1 then value := 1;
+//            P^[j div DataSize] := trunc(60*log10(Value));
+            P^[j div DataSize] := floor(255 * log10(Value) / log10(10000)); // MtEverest max 8900m
+//            P^[j div DataSize] := trunc((1-exp(-(Value/256)))*256);
+//            P^[j div DataSize] := trunc(Value/8);      // 6000' max
+            INC(j,DataSize);
           end;
 	  //Now write as a column instead of a row
           for j := 0 to RowCount-1 do begin

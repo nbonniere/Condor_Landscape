@@ -197,6 +197,7 @@ begin
         for i := 0 to Items.Count-1 do begin
           if (Items[i] = TempSTR) then begin
             Checked[i] := true;
+            ItemIndex := i; // scroll list to make it visible
             Break;
           end;
         end;
@@ -315,7 +316,8 @@ end;
 { - - - - - - - - - - - - - - - - - - - - - - }
 begin
   MessageClear;
-  AbleToMerge := false;
+  AbleToMerge := true;
+//  AbleToMerge := false;
   Merge_Count := 0;
   // create a merge array
   with Form_Merge.CheckListBox_LandscapeList do begin
@@ -352,12 +354,18 @@ begin
       with Merge_Array[i].Header do begin
         if (tUTMzone <> u_Terrain.TerrainHeader.tUTMzone)
          OR (tUTMgrid[0] <> u_Terrain.TerrainHeader.tUTMgrid[0]) then begin
-          MessageShow('Zone mismatch');
-          Beep; Exit;
+//          MessageShow('Zone mismatch');
+//          Beep; Exit;
+          AbleToMerge := false;
         end;
       end;
     end;
-    MessageShow('Zone match');
+    if (AbleToMerge) then begin
+      MessageShow('Zone match');
+    end else begin
+      MessageShow('Zone mismatch');
+      Beep; Exit;
+    end;
 
     // check calibration
     for i := 1 to Merge_Count-1 do begin
@@ -365,26 +373,57 @@ begin
         if (tResolution <> u_Terrain.TerrainHeader.tResolution)
          OR (tDeltaX <> u_Terrain.TerrainHeader.tDeltaX)
          OR (tDeltaY <> u_Terrain.TerrainHeader.tDeltaY) then begin
-          MessageShow('Calibration mismatch');
-          Beep; Exit;
+//          MessageShow('Calibration mismatch');
+//          Beep; Exit;
+          AbleToMerge := false;
         end;
       end;
     end;
-    MessageShow('Calibration match');
+    if (AbleToMerge) then begin
+      MessageShow('Calibration match');
+    end else begin
+      MessageShow('Calibration mismatch');
+      Beep; Exit;
+    end;
 
     // check UTM grid for multiple of quarter tile
     for i := 1 to Merge_Count-1 do begin
       with Merge_Array[i].Header do begin
         xDelta := abs(tRightMapEasting) - abs(u_Terrain.TerrainHeader.tRightMapEasting);
         yDelta := abs(tBottomMapNorthing) - abs(u_Terrain.TerrainHeader.tBottomMapNorthing);
-        if (trunc(xDelta) MOD 256*90 <> 0)
-         OR (trunc(yDelta) MOD 256*90 <> 0) then begin
-          MessageShow('UTM grid mismatch');
-          Beep; Exit;
+//        if (trunc(xDelta) MOD 256*90 <> 0)
+//         OR (trunc(yDelta) MOD 256*90 <> 0) then begin
+        if (trunc(xDelta) MOD (64*90) <> 0)
+         OR (trunc(yDelta) MOD (64*90) <> 0) then begin
+//          MessageShow('UTM grid mismatch');
+         xDelta := - trunc(xDelta) MOD (64*90);
+          if (xDelta > (64*90 div 2)) then begin
+            xDelta := xDelta - (64*90);
+          end else begin
+            if (xDelta < (-64*90 div 2)) then begin
+              xDelta := xDelta + (64*90);
+            end;
+          end;
+          yDelta := - trunc(yDelta) MOD (64*90);
+          if (yDelta > (64*90 div 2)) then begin
+            yDelta := yDelta - (64*90);
+          end else begin
+            if (yDelta < (-64*90 div 2)) then begin
+              yDelta := yDelta + (64*90);
+            end;
+          end;
+          MessageShow(format('UTM grid mismatch %s %0.1f, %0.1f',[Merge_Array[i].Name,xDelta,yDelta]));
+//          Beep; Exit;
+          AbleToMerge := false;
         end;
       end;
     end;
-    MessageShow('UTM grid match');
+    if (AbleToMerge) then begin
+      MessageShow('UTM grid match');
+    end else begin
+//      MessageShow('UTM grid mismatch');
+      Beep; Exit;
+    end;
   end;
   // check maximum quarter-tile qt max indexes X=0..99 and Y=0..99
   with Merge_Array[0].Header do begin
@@ -444,7 +483,7 @@ begin
   Rows := Rows / 4;        // need tiles not qt
   MessageShow(Format('X= %0.2f, Y= %0.2f',[Columns,Rows]));
 
-  AbleToMerge := true;
+//  AbleToMerge := true;
 
   // create quarter-tile offsets, relative to overall
   for i := 0 to Merge_Count-1 do begin
@@ -469,7 +508,9 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := tWidth;
       bDib.bHeight := tHeight;
-      bDib.bImageByteSize := tWidth*tHeight*xColor24Size div 8;
+      //bDib.bImageByteSize := tWidth*tHeight*xColor24Size div 8;
+      // multiplying by 24 can exceed integer size and cause overflow
+      bDib.bImageByteSize := tWidth*tHeight*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
   end;
@@ -692,12 +733,14 @@ begin
           CopyFile(pchar(FilePath_a+'\'+File_Folder+'\'+File_Name_a),
             pchar(FilePath+'\'+File_Folder+'\'+File_Name),false);
           if (IF_Type = Type_C3D) then begin
-//      MessageShow(FilePath_a+'\'+File_Folder+'\'+File_Name_a);
-          ReadCondorC3Dfile(FilePath_a+'\'+File_Folder+'\'+File_Name_a, false);
-          // Need to copy textures for this object
-          CopyObjectTextures(FilePath+'\'+File_Folder,File_Name,
-                             FilePath_a+'\'+File_Folder,File_Name_a,
-                             '');
+            if (FileExists(FilePath_a+'\'+File_Folder+'\'+File_Name_a)) then begin
+//              MessageShow(FilePath_a+'\'+File_Folder+'\'+File_Name_a);
+              ReadCondorC3Dfile(FilePath_a+'\'+File_Folder+'\'+File_Name_a, false);
+              // Need to copy textures for this object
+              CopyObjectTextures(FilePath+'\'+File_Folder,File_Name,
+                                 FilePath_a+'\'+File_Folder,File_Name_a,
+                                 '');
+            end;                       
           end;
         end;
       end;
@@ -807,7 +850,7 @@ begin
       end;
     end;
   end;
-  
+
   // then add dummy missing files for empty areas
   // fix seams after to also make a good transition edge
   MessageShow('Adding missing tiles');
@@ -993,9 +1036,11 @@ begin
   // - open the O file and search for textures and copy
   // can open file and copy blocks of 72 bytes for each airport
   for i := 0 to Merge_Count-1 do begin
-    Append_APT_File(ce,
-      Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
-      Condor_folder+'\Landscapes\'+Merge_Array[i].Name,Merge_Array[i].Name);
+    with Merge_Array[i] do begin
+      Append_APT_File(ce, false, 0.0, 0.0,
+        Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
+        Condor_folder+'\Landscapes\'+{Merge_Array[i].}Name,{Merge_Array[i].}Name);
+    end;
   end;
 
   // merge .tdm thermal files
@@ -1118,7 +1163,11 @@ begin
 
   // Can't do with Condor_Tiles
   // create new .tha and .fha hash files with Landscape Editor.
-  MessageShow('You now need to create the .FHA and .THA files');
+  if (mgVersion = 'V3') then begin
+    MessageShow('You now need to create the .FHA, .THA, .AHA, .OHA files');
+  end else begin
+    MessageShow('You now need to create the .FHA and .THA files');
+  end;  
 
   // use the Condor Landscape Editor to calculate the hashes
   //MessageShow('creating the .FHA and .THA files');
@@ -1157,3 +1206,4 @@ end;
 {----------------------------------------------------------------------------}
 end.
 
+ 

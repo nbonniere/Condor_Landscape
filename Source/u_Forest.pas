@@ -837,7 +837,8 @@ begin
     with xBitmapHeader_24bitColor do begin
       bDib.bWidth := tColumns*ForestResolution;
       bDib.bHeight := tRows*ForestResolution;
-      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      //bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color24Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     end;
     BlockWrite(BitmapFile,xBitmapHeader_24bitColor,
@@ -890,7 +891,8 @@ begin
       bDib.bPaletteColors := 256; // 8 bit greyscale
       bDib.bWidth := ColumnCount*2;
       bDib.bHeight := RowCount*2;
-      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+//      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+      bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size;
       bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
       BlockWrite(Greyscale_File,BitmapHeader_8bitColor,
         sizeof(BitmapHeader_8bitColor));
@@ -1455,7 +1457,8 @@ begin
     bDib.bPaletteColors := 256; // 8 bit color
     bDib.bWidth := fSize*ForestResolution;
     bDib.bHeight := fSize*ForestResolution;
-    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+//    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size;
     bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     BlockWrite(Forest_File,BitmapHeader_8bitColor,
       sizeof(BitmapHeader_8bitColor));
@@ -1503,7 +1506,8 @@ begin
     bDib.bPaletteColors := 256; // 8 bit color
     bDib.bWidth := fSize*ForestResolution;
     bDib.bHeight := fSize*ForestResolution;
-    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+//    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size div 8;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color8Size;
     bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
     BlockWrite(Forest_File,BitmapHeader_8bitColor,
       sizeof(BitmapHeader_8bitColor));
@@ -1555,7 +1559,8 @@ begin
   with xBitmapHeader_24bitColor do begin
     bDib.bWidth := fSize*ForestResolution;
     bDib.bHeight := fSize*ForestResolution;
-    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+    //bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*xColor24Size div 8;
+    bDib.bImageByteSize := bDib.bWidth*bDib.bHeight*Color24Size;
     bH.bFileByteSize := bDib.bImageByteSize+bH.bPixelArrayOffset;
   end;
   BlockWrite(Forest_File,xBitmapHeader_24bitColor,

@@ -71,7 +71,7 @@ type
     Label21: TLabel;
     Label22: TLabel;
     Button_Shrink: TButton;
-    GroupBox1: TGroupBox;
+    GroupBox_Generic: TGroupBox;
     Button_WGET: TButton;
     ComboBox_GenericTileDownload: TComboBox;
     ComboBox_TileType: TComboBox;
@@ -111,6 +111,13 @@ type
     Label33: TLabel;
     Button_Obj_Autogen: TButton;
     Button_WarpCrop: TButton;
+    Button_ReduceBMP: TButton;
+    ComboBox_ColorDepth: TComboBox;
+    Label35: TLabel;
+    Button_TextureNameNormalize: TButton;
+    Label34: TLabel;
+    Label36: TLabel;
+    Label37: TLabel;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -149,6 +156,8 @@ type
     procedure Button_BMP_TM3Click(Sender: TObject);
     procedure Button_Obj_AutogenClick(Sender: TObject);
     procedure Button_WarpCropClick(Sender: TObject);
+    procedure Button_ReduceBMPClick(Sender: TObject);
+    procedure Button_TextureNameNormalizeClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -197,7 +206,8 @@ uses
   u_UTM, u_Util, u_SceneryHDR, u_TileList, u_Tile_XYZ, u_MakeGMID, u_MakeKML,
   u_GMIDlog, u_DXT, DXTC, u_Object, u_Airport, u_Tiff, u_MakeDDS, u_X_CX,
   u_QuarterTile, u_Condor_NaviconDLL, u_Airspace, u_AutoGen,
-  Unit_SimpleObjects, Unit_WarpCrop;
+  Unit_SimpleObjects, Unit_WarpCrop,
+  PaletteLibrary, ColorQuantizationLibrary;
 
 const
   faNormalFile = 0; // for use with FindFirst FindNext
@@ -459,6 +469,7 @@ end;
 
 // read '.FOR' file and save as bitmap
 // option to recombine 16 patches into one terragen ?
+// option to combine all patches into one overall forest ?
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.V2_FOR_BMP(Sender: TObject);
 var
@@ -592,7 +603,7 @@ var
 begin
   OpenDialog1.Options := [ofFileMustExist];
   OpenDialog1.InitialDir := Initial_Folder;
-  OpenDialog1.Filter := 'Terrain files (*.TRN;*.TR3;*.RAW)|*.TRN;*.TR3;*.RAW|All files (*.*)|*.*';
+  OpenDialog1.Filter := 'Terrain files (*.TRN;*.TR3;*.TR3F;*.RAW)|*.TRN;*.TR3;*.TR3F;*.RAW|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
     try
@@ -601,7 +612,11 @@ begin
       // read terrain header
       u_Terrain.Memo_Message := Memo_Message;
       u_Terrain.ProgressBar_Status := ProgressBar_Status;
-      TRN_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+      if (UpperCase(ExtractFileExt(FileName)) = '.RAW') then begin
+        RAW_To_Greyscale_Bitmap(FileName, FileName+'-bmp.bmp');
+      end else begin
+        TRN_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+      end;
     finally
       Screen.Cursor := crDefault;  // no longer busy
     end;
@@ -3604,6 +3619,142 @@ begin
   end;
 end;
 
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_ReduceBMPClick(Sender: TObject);
+var
+  FilePicture: TPicture; // to load BMP file
+  Filename : String;
+  File_Folder : String;
+  File_Name : String;
+  File_Name_NoExt : String;
+  Dest_File_Path : String;
+  i, j, k : integer;
+  pColorDepth : Integer;
+  pFormat : TpixelFormat;
+  pcolors : Integer;
+  cColor : Word;
+
+  ColorQuantizer : TColorQuantizer;
+  ReducedBitmap : TBitmap;
+  RGBQuadArray   : TRGBQuadArray;
+  P : pRGBArray;
+  Q : pWordArray;
+
+begin
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder;
+  OpenDialog1.Filter := 'BMP files (*.BMP)|*.BMP|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    with OpenDialog1.Files do begin
+      try
+        ProgressBar_Status.Max := Count;
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
+        FilePicture := TPicture.Create;
+
+        for i := 0 to Count - 1 do begin
+          FileName := Strings[i];
+          File_Folder := ExtractFileDir(FileName);
+          File_Name := ExtractFileName(FileName);
+          File_Name_NoExt := copy(File_Name,1,pos('.bmp',File_Name)-1);
+          Dest_File_Path := File_Folder+'\Working\ColorReduced';
+          ForceDirectories(Dest_File_Path);
+          // load Bitmap
+          FilePicture.LoadFromFile(FileName);
+
+          if (FilePicture.Bitmap.PixelFormat <> pf24bit) then begin
+            MessageShow('Error: '+File_Name+' Not 24 bit color bitmap');
+            continue;
+          end;
+
+          pColorDepth := StrToInt(ComboBox_ColorDepth.Text);
+          // convert to desired color depth
+          case pColorDepth of
+            16: begin
+              pFormat := pf16bit;
+//              pColors := 65536;
+            end;
+            8: begin
+              pFormat := pf8bit;
+              pColors := 256;
+            end;
+            4: begin
+              pFormat := pf4bit;
+              pColors := 16;
+            end;
+          end;
+
+//          FilePicture.Bitmap.PixelFormat := pFormat; // force color depth - how is palette created?
+//          // works but palette is not good at all - must use a standard palette or something
+
+          begin // do the pixel conversion
+            ReducedBitmap := TBitmap.Create;
+            ReducedBitmap.PixelFormat := pFormat;
+            ReducedBitmap.Width := FilePicture.bitmap.Width;
+            ReducedBitmap.Height := FilePicture.bitmap.Height;
+            case pColorDepth of
+              16: begin
+                for j := 0 to ReducedBitmap.Height-1 do begin
+                  P := pRGBArray(FilePicture.bitmap.Scanline[j]);
+                  Q := ReducedBitmap.Scanline[j];
+                  for k := 0 to ReducedBitmap.Width-1 do begin
+//                    Q^[k] := ((P^[k].rgbtRed SHR 3) SHL 11) +
+//                             ((P^[k].rgbtGreen SHR 2) SHL 5) +
+//                             ((P^[k].rgbtBlue SHR 3) );
+                    // add rounding - worth it ?
+                    cColor := P^[k].rgbtRed SHR 3;
+                    if ((cColor <> 31) AND (P^[k].rgbtRed AND $04 = $04) ) then begin
+                      Q^[k] := (cColor + 1) SHL 11;
+                    end else begin
+                      Q^[k] := (cColor) SHL 11;
+                    end;
+                    cColor := P^[k].rgbtGreen SHR 2;
+                    if ((cColor <> 63) AND (P^[k].rgbtGreen AND $02 = $02) ) then begin
+                      Q^[k] := Q^[k] + (cColor + 1) SHL 5;
+                    end else begin
+                      Q^[k] := Q^[k] + (cColor) SHL 5;
+                    end;
+                    cColor := P^[k].rgbtBlue SHR 3;
+                    if ((cColor <> 31) AND (P^[k].rgbtBlue AND $04 = $04) ) then begin
+                      Q^[k] := Q^[k] + (cColor + 1);
+                    end else begin
+                      Q^[k] := Q^[k] + (cColor);
+                    end;
+                  end;
+                end;
+              end;
+              else begin // use color quantizer to optimize the palette
+                ColorQuantizer := TColorQuantizer.Create(pColors, pColorDepth);
+                try
+                  ColorQuantizer.ProcessImage(FilePicture.bitmap.Handle);
+                  ColorQuantizer.GetColorTable(RGBQuadArray);
+                  SetDIBColorTable(ReducedBitmap.Canvas.Handle, 0, pColors, RGBQuadArray);
+                  ReducedBitmap.Canvas.Draw(0, 0, FilePicture.bitmap);
+                finally
+                  ColorQuantizer.Free
+                end;
+              end;
+            end;
+            // copy the bitmap back to the original
+            FilePicture.bitmap := ReducedBitmap;
+            ReducedBitmap.Free;
+          end;
+
+          FilePicture.SavetoFile(Dest_File_Path+'\'+File_Name_NoExt+'.bmp');
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+
+      finally
+        FilePicture.Free;
+        Screen.Cursor := crDefault;  // no longer busy
+        ProgressBar_Status.Position := 0;
+      end;
+      MessageShow('Conversion done.');
+    end;
+  end;
+end;
+
 //---------------------------------------------------------------------------
 procedure Make_Hashes(LandscapeName, BatchFileName : string);
 var
@@ -4009,6 +4160,45 @@ begin
 //  Form_WarpCrop.Image_Mask.Picture.Bitmap.TransparentColor := tNone.ColorValue{clBlack};
 
   Form_WarpCrop.ShowModal;
+end;
+
+//-------------------------------------------------------------------------------------
+procedure TForm_Utilities.Button_TextureNameNormalizeClick(Sender: TObject);
+var
+  FileName : String;
+  i : integer;
+  Changed : boolean;
+
+begin
+  // select files
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
+  OpenDialog1.InitialDir := Initial_Folder;
+  OpenDialog1.Filter := 'C3D files (*.C3D)|*.C3D|All files (*.*)|*.*';
+  OpenDialog1.FileName := '';
+  if OpenDialog1.Execute then begin
+    try
+      with OpenDialog1.Files do begin
+        ProgressBar_Status.Max := Count;
+        Screen.Cursor := crHourGlass;  // Let user know we're busy...
+        for i := 0 to Count - 1 do begin
+          FileName := Strings[i];
+
+          ReadCondorC3Dfile(FileName, false);
+          // Need to normalize texture names for this object
+          Changed := NormalizeObjectTextures;
+          // now write the updated file if anything has been changed
+          if (Changed) then begin
+            WriteCondorC3Dfile(FileName);
+          end;
+          ProgressBar_Status.StepIt; Application.ProcessMessages;
+        end;
+      end;
+    finally
+      ProgressBar_Status.Position := 0;
+      MessageShow('Texture name normalize done.');
+      Screen.Cursor := crDefault;  // no longer busy
+    end;
+  end;
 end;
 
 //-------------------------------------------------------------------------------------

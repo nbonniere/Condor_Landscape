@@ -139,14 +139,14 @@ begin
       result := -result;
     end;
   except
-    // IO error
     On E : EInOutError do begin
-    // Division by zero
+    // IO error
     end;
     On E : EDivByZero do begin
-    // Catch other errors
+    // Division by zero
     end;
     else begin
+    // Catch other errors
     end;
   end;
 end;
@@ -162,14 +162,14 @@ begin
       result := -result;
     end;
   except
-    // IO error
     On E : EInOutError do begin
-    // Division by zero
+    // IO error
     end;
     On E : EDivByZero do begin
-    // Catch other errors
+    // Division by zero
     end;
     else begin
+    // Catch other errors
     end;
   end;
 end;
