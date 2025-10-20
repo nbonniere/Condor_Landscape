@@ -298,7 +298,7 @@ function FindNextTexture(var NodeIndex : integer) : string;
 procedure UpdateTextureFileName(NodeIndex : integer; TextureFileName : string);
 procedure CopyObjectTextures (NewLandscapePath,NewLandscapeName,
                               OldLandscapePath,OldLandscapeName,
-                              CurrentPath : string);
+                              CurrentPath, NewPath : string);
 
 function readXplaneOBJ8file(FileName : string) : boolean;
 function GetXplaneOBJ8texture : string;
@@ -4193,7 +4193,7 @@ end;
 //-------------------------------------------------------------------------------------
 procedure CopyObjectTextures (NewLandscapePath,NewLandscapeName,
                               OldLandscapePath,OldLandscapeName,
-                              CurrentPath : string);
+                              CurrentPath, NewPath : string);
 var
   NodeIndex : integer;
   Tn : string;
@@ -4226,11 +4226,19 @@ end;
 //-------------------------------------------------------------------------------------
 Procedure CopyIt;
 begin
-  // create folder
-  ForceDirectories(NewLandscapePath+'\'+CurrentPath+'\'+ExtractFilePath(Tn));
-  // copy file
-  CopyFile(pchar(OldLandscapePath+'\'+CurrentPath+'\'+Tn),
-    pchar(NewLandscapePath+'\'+CurrentPath+'\'+Tn),false);
+  if (NewPath = 'Autogen') then begin
+    // create folder
+    ForceDirectories(NewLandscapePath+'\'+NewPath+'\Textures');
+    // copy file
+    CopyFile(pchar(OldLandscapePath+'\'+CurrentPath+'\'+Tn),
+      pchar(NewLandscapePath+'\'+NewPath+'\Textures\'+ExtractFileName(Tn)),false);
+  end else begin
+    // create folder
+    ForceDirectories(NewLandscapePath+'\'+NewPath+'\'+ExtractFilePath(Tn));
+    // copy file
+    CopyFile(pchar(OldLandscapePath+'\'+CurrentPath+'\'+Tn),
+      pchar(NewLandscapePath+'\'+NewPath+'\'+Tn),false);
+  end;
 end;
 
 //-------------------------------------------------------------------------------------
@@ -4286,6 +4294,9 @@ begin
             // relative to current object
             CopyIt;
           end;
+        end;
+        if (NewPath = 'Autogen') then begin
+          Tn := 'Textures\'+ExtractFileName(Tn);
         end;
         // update the name in the file
         UpdateTextureFileName(NodeIndex, Tn);

@@ -395,7 +395,7 @@ begin
               // Need to copy textures for this object
               CopyObjectTextures(FilePath,Filename,
                                  FilePath_a,Filename_a,
-                                 'World\Objects');
+                                 'World\Objects','World\Objects');
               // update if changed
               WriteCondorC3Dfile(ObjectFileName);
             end;

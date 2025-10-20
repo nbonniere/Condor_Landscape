@@ -753,6 +753,9 @@ var
 begin
   NewFileName := dxt_Path+'\'+dxt_FileName;
   FileName := dxt_Path+'\'+dxt_FileName+'.~dds'; // save original
+  if (FileExists(FileName)) then begin
+    DeleteFile(FileName);
+  end;
   RenameFile(NewFileName,FileName);
   if (NOT fileExists(FileName)) then begin
     MessageShow(format('File %s not found',[dxt_FileName]));

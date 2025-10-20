@@ -422,6 +422,21 @@ v0.10.8 - Aug 2025
        - because airport textures based on TR3F files are tightly tied together with floating-point
           elevation, airports should be tweaked to the TR3F resolution. Option Not done at this time.
 
+v0.10.9 - Oct 2025
+  - Landscape grid shift
+    - move airports AND move DDS textures to match the TR3F shift
+      - move objects and autogen as well to eliminate the errors
+      - if no TR3F, better to just shift airport relative to DDS
+  - World Objects to Autogen
+    - use Autogen folder instead of Working\Autogen
+    - copy textures
+
+v0.10.10 - Oct 2025
+  - Landscape grid shift
+    - support DXT1, DXT3 and DXT5 mix
+    - move V2, V3 FOR forest to match the TR3F shift
+  - Utilities - copy all extra AutoGen texture files on name normalization
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

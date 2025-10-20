@@ -90,7 +90,9 @@ procedure WriteAirportFile;
 procedure ExportCSV_AirportFile;
 procedure ImportCSV_AirportFile;
 procedure Append_APT_File(UTM_Limits : Extents;
-                          DoOffset : boolean; Offset_X, Offset_Y : single;
+                          DoOffset : boolean;
+                          Offset_X, Offset_Y : single;
+                          T3F_Found : boolean;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
 procedure List_APT_File_Object_Details(FilePath,Filename : string);
@@ -242,7 +244,9 @@ end;
 
 {----------------------------------------------------------------------------}
 procedure Append_APT_File(UTM_Limits : Extents;
-                          DoOffset : boolean; Offset_X, Offset_Y : single;
+                          DoOffset : boolean;
+                          Offset_X, Offset_Y : single;
+                          T3F_Found : boolean;
                           FilePath,Filename,
                           FilePath_a,Filename_a : string);
 var
@@ -306,28 +310,36 @@ begin
       end;
 
       // make a tweak to the position on a shifted landscape
-      // to make it match the offset error of the shifted DDS
+      // to make it match the offset error of the shifted landscape
       if (DoOffset) then begin
         with Airport_list[0] do begin
-          // need the DDS_Size
-          // UTM relative to scenery bottom right
-          AirportEasting := (u_Terrain.TerrainHeader.tRightMapEasting) - uEasting;
-          AirportNorthing := uNorthing - (u_Terrain.TerrainHeader.tBottomMapNorthing);
-          // find quarter tile that contains airport
-          Col := trunc(AirportEasting /(64*90));
-          Row := trunc(AirportNorthing/(64*90));
-          DDS_FileName := format('%s\Textures\t%s.dds',[FilePath,MakeTileName(Col, Row, TileNameMode)]);
-          dds_Size := DXT_ImageWidth(DDS_FileName);
-          if (dds_Size > 0) then begin // make sure file was found and is DDS
-            // DDS - with 4x4 pixel groups
-            res := 64*90/(dds_Size/4);
-            d_Error_X := ((Offset_X / res) - round(Offset_X / res)) * res;
-            d_Error_Y := ((Offset_Y / res) - round(offset_Y / res)) * res;
-            d_Error_long := d_Error_X * 360/(2*Pi*EarthRadius*1000) /cos(apLatitude/180*Pi);
-            d_Error_lat  := d_Error_Y * 360/(2*Pi*EarthRadius*1000);
-            apLongitude := apLongitude + d_Error_long;
-            apLatitude  := apLatitude  + d_Error_lat;
+          if (NOT T3f_Found) then begin
+            // need the DDS_Size to calculate res
+            // UTM relative to scenery bottom right
+            AirportEasting := (u_Terrain.TerrainHeader.tRightMapEasting) - uEasting;
+            AirportNorthing := uNorthing - (u_Terrain.TerrainHeader.tBottomMapNorthing);
+            // find quarter tile that contains airport
+            Col := trunc(AirportEasting /(64*90));
+            Row := trunc(AirportNorthing/(64*90));
+            DDS_FileName := format('%s\Textures\t%s.dds',[FilePath,MakeTileName(Col, Row, TileNameMode)]);
+            dds_Size := DXT_ImageWidth(DDS_FileName);
+            if (dds_Size > 0) then begin // make sure file was found and is DDS
+              // DDS - with 4x4 pixel groups
+              res := 64*90/(dds_Size/4); // use DDS res to match DDS
+            end else begin
+              exit;
+            end;
+          end else begin // T3F found
+            // align to TR3F instead but not so fast, DDS must be aligned too!
+            // DDS could be higher res and must be shifted too to the same shift ???
+            res := 22.5; // use TR3F res to match TR3F location
           end;
+          d_Error_X := ((Offset_X / res) - round(Offset_X / res)) * res;
+          d_Error_Y := ((Offset_Y / res) - round(offset_Y / res)) * res;
+          d_Error_long := d_Error_X * 360/(2*Pi*EarthRadius*1000) /cos(apLatitude/180*Pi);
+          d_Error_lat  := d_Error_Y * 360/(2*Pi*EarthRadius*1000);
+          apLongitude := apLongitude + d_Error_long;
+          apLatitude  := apLatitude  + d_Error_lat;
         end;
       end;
 
@@ -349,7 +361,7 @@ begin
           // Need to copy textures for this object
           CopyObjectTextures(FilePath,Filename,
                              FilePath_a,Filename_a,
-                             'Airports');
+                             'Airports','Airports');
           // update if changed
           WriteCondorC3Dfile(ObjectFileName);
         end;
@@ -366,7 +378,7 @@ begin
           // Need to copy textures for this object
           CopyObjectTextures(FilePath,Filename,
                              FilePath_a,FileName_a,
-                             'Airports');
+                             'Airports','Airports');
           // update if changed
           WriteCondorC3Dfile(ObjectFileName);
         end;

@@ -122,6 +122,8 @@ var
   Shift_Array : array of Shift_Type;
   ce_East, ce_West, ce_North, ce_South : integer;
   sh_E_W, sh_N_S : integer;
+  t3f_Error_X, t3f_Error_y : single;
+  t3f_Found : boolean;
 
 var
   oe : Extents; // overall extents
@@ -244,12 +246,11 @@ end;
 
 {----------------------------------------------------------------------------}
 procedure TForm_Shift.Button_CreateClick(Sender: TObject);
-var
+//var
 //  b_Error_X, b_Error_y : single;
-  d_Error_X, d_Error_y : single;
+//  d_Error_X, d_Error_y : single;
 //  f_Error_X, f_Error_y : single;
 //  t3_Error_X, t3_Error_y : single;
-//  t3f_Error_X, t3f_Error_y : single;
 begin
   if (LandscapeName <> '') then begin
 //    if (DirectoryExists(Condor_folder+'\Landscapes\'+LandscapeName)) then begin
@@ -279,16 +280,17 @@ begin
     // TR3 - 30m resolution
 //    t3_Error_X := ((sh_E_W / 30) - round(sh_E_W / 30)) * 30;
 //    t3_Error_Y := ((sh_N_S / 30) - round(sh_N_S / 30)) * 30;
-    // TR3 - 22.5m resolution
-//    t3f_Error_X := ((sh_E_W / 22.5) - round(sh_E_W / 22.5)) * 22.5;
-//    t3f_Error_Y := ((sh_N_S / 22.5) - round(sh_N_S / 22.5)) * 22.5;
+    // TR3F - 22.5m resolution
+    t3f_Error_X := ((sh_E_W / 22.5) - round(sh_E_W / 22.5)) * 22.5;
+    t3f_Error_Y := ((sh_N_S / 22.5) - round(sh_N_S / 22.5)) * 22.5;
+    MessageShow(format('TR3F Offset: %2.3f, %2.3f',[t3f_Error_X,t3f_Error_Y]));
     // FOR - 11.25m resolution
 //    f_Error_X := ((sh_E_W / 11.25) - round(sh_E_W / 11.25)) * 11.25;
 //    f_Error_Y := ((sh_N_S / 11.25) - round(sh_N_S / 11.25)) * 11.25;
-    // DDS - 22.55m resolution @ 1024x1024 with 4x4 pixel groups   64*90/(1024/4)=22.5
-    d_Error_X := ((sh_E_W / 22.5) - round(sh_E_W / 22.5)) * 22.5;
-    d_Error_Y := ((sh_N_S / 22.5) - round(sh_N_S / 22.5)) * 22.5;
-    MessageShow(format('DDS_1024 Offset: %2.3f, %2.3f',[d_Error_X,d_Error_Y]));
+    // DDS - 22.5m resolution @ 1024x1024 with 4x4 pixel groups   64*90/(1024/4)=22.5
+//    d_Error_X := ((sh_E_W / 22.5) - round(sh_E_W / 22.5)) * 22.5;
+//    d_Error_Y := ((sh_N_S / 22.5) - round(sh_N_S / 22.5)) * 22.5;
+//    MessageShow(format('DDS_1024 Offset: %2.3f, %2.3f',[d_Error_X,d_Error_Y]));
 
   end else begin
     MessageShow('No Landscape name specified');
@@ -770,10 +772,14 @@ var
   Patch_Files : array [0..4-1] of File of Byte;
   DDS_Headers : array [0..4-1] of array[0..32-1] of Cardinal; // TDDSHeader in u_DDS.pas
   DDS_MipMap :  array [0..4-1] of integer;
+  DDS_DXT_Type :  array [0..4-1] of integer;
+  DDS_dSize : array [0..4-1] of integer;
+  ref_Index : integer;
   ref_Mipmap : integer;
   FileCount : integer;  // need at least one file of 2 or 4 to generate TR3F file
 
   ExtractedIndexes : array[0..16-1] of Cardinal;
+  ExtractedAlphas : array[0..16-1] of Cardinal;
 const
   MaskTable : array[0..4-1] of array[0..8-1] of byte = (
     (5,4,5,4,1,0,1,0), (7,6,7,6,3,2,3,2),
@@ -924,10 +930,41 @@ begin
 end;
 
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+type
+  t_DDS_DXT3_Block_mod =
+    record
+//      alpha  : int64;    // SHR bug - use 32 bit instead
+      alpha_L  : cardinal;
+      alpha_H  : cardinal;
+      color0 : word;
+      color1 : word;
+      select : t_Select;
+    end;
+
+  t_DDS_DXT5_Block_mod =
+    record
+      alpha0, alpha1 : byte;
+      ixAlpha_L  : Word; // 16 bits
+      ixAlpha_M  : Word; // 16 bits
+      ixAlpha_H  : Word; // 16 bits
+      color0 : word;
+      color1 : word;
+      select : t_Select;
+    end;
+
+  a_dxt3 = t_DDS_DXT3_Block_mod;
+  pa_dxt3 = ^a_dxt3;
+  a_dxt5 = t_DDS_DXT5_Block_mod;
+  pa_dxt5 = ^a_dxt5;
+
+// what if DDS is missing? - use empty.dds?
+// read DDS Header of reference, get mipmap, size and DXT type
+// assumptions: DXT1,3,5, width=height, complete number of mipmaps
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure DDS_OpenTheFile(Index, i, j : integer; FileMask, Mask : byte);
 begin
   if (NOT ((FileMask AND Mask) = Mask)) then begin
-    exit; // skip
+    exit; // skip (only 2 files, not 4)
   end;
   File_Name_a := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
 
@@ -935,6 +972,17 @@ begin
   Reset(Patch_Files[Index]);
   BlockRead(Patch_Files[Index], DDS_Headers[Index], 128);
   DDS_MipMap[Index] := DDS_Headers[Index][7];
+  DDS_DXT_Type[Index] := DDS_Headers[Index][21];
+  if (DDS_DXT_Type[Index] = $31545844) then begin // DXT 1, 3 or 5 ?
+    DDS_dSize[Index] := 8;
+  end else begin
+    DDS_dSize[Index] := 16;
+    dSize := DDS_dSize[Index];
+  end;
+//dSize := 16; //for testing conversion dxt1 to dxt 3
+  if (Index = ref_Index) then begin
+    ref_Mipmap := DDS_MipMap[Index];
+  end;
 end;
 
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
@@ -950,7 +998,7 @@ begin
 end;
 
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
-function CreateNewMask(x,y : integer) : Cardinal;
+function CreateNewIndexes(x,y : integer) : Cardinal;
 var
   i : integer;
 begin
@@ -961,6 +1009,188 @@ begin
   end;
 end;
 
+// SHR bug on int64 - use 32 bits
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure ExtractDXT3alphas(AlphaBitArray_L, AlphaBitArray_H : Cardinal);
+var
+  i : integer;
+begin
+  // 16 groups of 4 bits
+  for i := 0 to 16-1 do begin
+    if (i < 8) then begin
+      ExtractedAlphas[i] := AlphaBitArray_L AND $F;
+      AlphaBitArray_L := AlphaBitArray_L SHR 4;
+    end else begin
+      ExtractedAlphas[i] := AlphaBitArray_H AND $F;
+      AlphaBitArray_H := AlphaBitArray_H SHR 4;
+    end;
+  end;
+end;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure CreateNewDXT3alphas(x,y : integer; var AlphaBitArray_L, AlphaBitArray_H : Cardinal);
+var
+  i : integer;
+begin
+  // 16 groups of 4 bits, with 2 groups the same
+  for i := 0 to 8-1 do begin
+    if (i < 4) then begin
+      AlphaBitArray_H := (AlphaBitArray_H SHL 4) OR ExtractedAlphas[ MaskTable[x+2*y][i] ];
+      AlphaBitArray_H := (AlphaBitArray_H SHL 4) OR ExtractedAlphas[ MaskTable[x+2*y][i] ];
+    end else begin
+      AlphaBitArray_L := (AlphaBitArray_L SHL 4) OR ExtractedAlphas[ MaskTable[x+2*y][i] ];
+      AlphaBitArray_L := (AlphaBitArray_L SHL 4) OR ExtractedAlphas[ MaskTable[x+2*y][i] ];
+    end;
+  end;
+end;
+
+const
+  // blue color gradient test pattern
+  DXT3TestPattern : array[0..16-1] of byte = ($FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF,
+                                              $1F,$00,$00,$00,$78,$7A,$7F,$55);
+//  // blue color alpha gradient test pattern
+//  DXT3TestPattern : array[0..16-1] of byte = ($8F,$04,$88,$04,$44,$04,$00,$00,
+//                                              $1F,$00,$00,$00,$00,$00,$00,$00);
+
+  // blue color alpha gradient test pattern
+  DXT5TestPattern : array[0..16-1] of byte = ($FF,$00,$D0,$58,$3F,$D0,$58,$3F,
+                                              $1F,$00,$00,$00,$00,$00,$00,$00);
+
+//  // blue color alpha gradient test pattern
+//  DXT5TestPattern : array[0..16-1] of byte = ($30,$C0,$4F,$39,$C1,$4F,$39,$C1,
+//                                              $00,$00,$1F,$55,$55,$55,$55,$55);
+
+// if not all same DXT type, convert to DXT3 as a standard
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure Convert_To_DXT3(Index, X, Y, local_xySize : integer);
+var
+  j, k, m : integer;
+  Q : pa_dxt3;
+  R : pa_dxt5;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure DXT1toDXT3alpha(var Q : a_dxt3);
+var
+  i : integer;
+  Selector : LongWord;
+  AlphaSelect : LongWord;
+begin
+  with Q do begin
+    // check for color3 use
+    for i := 0 to 16-1 do begin
+      Selector := select AND $00000003;
+      AlphaSelect := $0000000F; // assume opaque
+      if (Selector = $00000003) then begin
+        if (color0 <= color1) then begin // transparency indicator ?
+          Selector := 2; // do not use color3 !
+          AlphaSelect := $00000000; // transparent
+          // 3 colors not converted to 4 colors - not optimum
+        end;
+      end;
+      select := (select SHR 2) OR (Selector SHL 30); // roll data in
+      // bug with shifting 64 bits; use 32 instead
+//      alpha := (alpha SHR 4) OR (AlphaSelect SHL 60);
+      alpha_L := (alpha_L SHR 4) OR (Alpha_H SHL 28);
+      alpha_H := (alpha_H SHR 4) OR (AlphaSelect SHL 28);
+    end;
+  end;
+end;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure DXT5toDXT3alpha(R : a_dxt5; var Q : a_dxt3);
+var
+  i : integer;
+  ixExtracted : byte;
+  cAlpha : cardinal;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+function ixToValue(ix : byte) : cardinal;
+begin
+  with R do begin
+    if (alpha0 > alpha1) then begin  // 2 alpha plus 6 interpolated
+      case ix of
+        0: result := trunc(alpha0 / 16);
+        1: result := trunc(alpha1 / 16);
+        2: result := trunc((alpha0 * 6 + alpha1 * 1) /7 /16);
+        3: result := trunc((alpha0 * 5 + alpha1 * 2) /7 /16);
+        4: result := trunc((alpha0 * 4 + alpha1 * 3) /7 /16);
+        5: result := trunc((alpha0 * 3 + alpha1 * 4) /7 /16);
+        6: result := trunc((alpha0 * 2 + alpha1 * 5) /7 /16);
+        7: result := trunc((alpha0 * 1 + alpha1 * 6) /7 /16);
+      end;
+    end else begin // 2 alpha plus 4 interpolated plus opaque and transparent
+      case ix of
+        0: result := trunc(alpha0 / 16);
+        1: result := trunc(alpha1 / 16);
+        2: result := trunc((alpha0 * 4 + alpha1 * 1) /5 /16);
+        3: result := trunc((alpha0 * 3 + alpha1 * 2) /5 /16);
+        4: result := trunc((alpha0 * 2 + alpha1 * 3) /5 /16);
+        5: result := trunc((alpha0 * 1 + alpha1 * 4) /5 /16);
+        6: result :=  0; // tranparent
+        7: result := 15; // opaque
+      end;
+    end;
+  end;
+end;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+begin
+  // 16 groups of 3 bits
+  for i := 0 to 16-1 do begin
+    with R do begin
+      // first extract the alpha indexes
+      ixExtracted := ixAlpha_L AND $7;
+      ixAlpha_L := (ixAlpha_L SHR 3) OR (ixAlpha_M SHL 13);
+      ixAlpha_M := (ixAlpha_M SHR 3) OR (ixAlpha_H SHL 13);
+      ixAlpha_H :=  ixAlpha_H SHR 3;
+    end;
+    with Q do begin
+      // then Convert DXT5 Alpha indexes to DXT3 Alpha values
+      cAlpha := ixToValue(ixExtracted);
+      alpha_L := (alpha_L SHR 4) OR (Alpha_H SHL 28);
+      alpha_H := (alpha_H SHR 4) OR (cAlpha SHL 28);
+    end;
+  end;
+end;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+begin
+  if (DDS_DXT_Type[Index] = $31545844) then begin // DXT1 to DXT3
+    // first make room for alpha data
+    // 8 bytes of alpha need to be inserted before each 8 byte color block
+    j := local_xySize - 1; // start at bottom
+    repeat
+      k := local_xySize - 1; // start on right
+      repeat
+        for m := 0 to DDS_dSize[Index]-1 do begin
+          P^[(k*2+1)*DDS_dSize[Index] + m + (X + (j + Y) * (xySize+xySize))*dSize] :=
+            P^[(k)*DDS_dSize[Index] + m + (X + (j + Y) * (xySize+xySize))*dSize];
+//          P^[(k*2)*DDS_dSize[Index] + m + (X + (j + Y) * (xySize+xySize))*dSize] := $FF; // full alpha for testing
+//          P^[(k*2)*DDS_dSize[Index] + m + (X + (j + Y) * (xySize+xySize))*dSize] := $5A; // for testing
+        end;
+        dec(k);
+      until (k <0);
+      dec(j);
+    until (j <0);
+    // now make DXT3 alpha data
+    for j := 0 to local_xySize-1 do begin
+      for k := 0 to local_xySize-1 do begin
+        Q := @P^[(k + X + (j + Y) * (xySize+xySize))*dSize];
+        DXT1toDXT3alpha(Q^);
+      end;
+    end;
+  end else begin // DXT5 to DXT3
+    // make DXT3 alpha data
+    for j := 0 to local_xySize-1 do begin
+      for k := 0 to local_xySize-1 do begin
+        R := @P^[(k + X + (j + Y) * (xySize+xySize))*dSize];
+        Q := @P^[(k + X + (j + Y) * (xySize+xySize))*dSize];
+        DXT5toDXT3alpha(R^, Q^);
+      end;
+    end;
+  end;
+end;
+
 // more complex to shuffle the pixels in 4x4 blocks - looks reasonably good
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure dds_Expand(Index, X, Y : integer);
@@ -968,66 +1198,132 @@ var
   i, j, k, m : integer;
   dds_xySize : longint;
   dds_Expansion : integer;
-  Mask : cardinal;
+  Mask, Mask_H : cardinal;
   ii : cardinal;
+  Index_Offset : integer;
 begin
+    // calculate how much expansion needed
     dds_Expansion := ref_Mipmap - DDS_Mipmap[Index];
     dds_xySize := trunc(IntPower(2,DDS_Mipmap[Index]-1) /4); // 4x4 pixel blocks
     // copy lower-res data
     for i := 0 to (dds_xySize)-1 do begin
       BlockRead(Patch_Files[Index], P^[(X + (i + Y) * (xySize+xySize))*dSize],
-        (dds_xySize)*dSize);
+        (dds_xySize)*DDS_dSize[Index]);
     end;
     // backtrack the file pointer to the beginning of the mipmap
-    seek(Patch_Files[Index], FilePos(Patch_Files[Index])- dds_xySize*dds_xySize *dSize);
-    // expand data
+    seek(Patch_Files[Index], FilePos(Patch_Files[Index])- dds_xySize*dds_xySize *DDS_dSize[Index]);
+
+////color or alpha pattern for testing instead of reading the file
+//for i := 0 to dds_xySize-1 do begin
+//  for j := 0 to dds_xySize-1 do begin
+////    CopyMemory(@P^[(X + j + (i + Y) * (xySize+xySize))*dSize],@DXT3TestPattern,DDS_dSize[Index]);
+//    CopyMemory(@P^[(X + j + (i + Y) * (xySize+xySize))*dSize],@DXT5TestPattern,DDS_dSize[Index]);
+//  end;
+//end;
+
+    // now convert to DXT3 if not matching output type
+    if (DDS_DXT_Type[Index] <> DDS_DXT_Type[ref_Index]) then begin
+      convert_To_DXT3(Index, X, Y, dds_xySize);
+    end;
+
+    // calculate offset to indexes
+    if (dSize = 16) then begin // DXT3
+      Index_Offset := 8 + 4; // skip over alpha and color words
+    end else begin // dsize = 8, DXT1 (DXT1c DXT1a)
+      Index_Offset := 4; // skip over color words
+    end;
+
+    // now expand the data
     for i := 0 to dds_Expansion-1 do begin
       // copy and duplicate 4 times
       j := dds_xySize - 1; // start at bottom
       repeat
         k := dds_xySize - 1; // start on right
         repeat
-          ii := (X + k + (j + Y) * (xySize+xySize))*dSize + 4;
-          ExtractIndexes(P^[ii] + P^[ii+1] SHL 8 + P^[ii+2] SHL 16 + P^[ii+3] SHL 24); // need a better way - TBD
-          for m := 0 to dSize-1 do begin                                               // use Q with Q = @P ???
+          // point to color indexes & extract them
+          ii := (X + k + (j + Y) * (xySize+xySize))*dSize + Index_Offset;
+          ExtractIndexes(P^[ii] + P^[ii+1] SHL 8 + P^[ii+2] SHL 16 + P^[ii+3] SHL 24); // need a better way - TBD - use Q with Q = @P ???
+          if (dSize = 16) then begin // DXT3
+            // point to alpha values & extract them
+            ii := (X + k + (j + Y) * (xySize+xySize))*dSize;
+            ExtractDXT3alphas(P^[ii+0] + P^[ii+1] SHL 8 + P^[ii+2] SHL 16 + P^[ii+3] SHL 24,
+                          P^[ii+4] + P^[ii+5] SHL 8 + P^[ii+6] SHL 16 + P^[ii+7] SHL 24);
+          end;
+          // make first copy
+          for m := 0 to dSize-1 do begin
             P^[(X + k*2 + (j*2 + Y) * (xySize+xySize))*dSize + m] :=
               P^[(X + k + (j + Y) * (xySize+xySize))*dSize + m];
           end;
-          // then re-generate a new mask
-          ii := (X + k*2 + (j*2 + Y) * (xySize+xySize))*dSize + 4;
-          Mask := CreateNewMask((k*2) AND 1, (j*2) AND 1);
-          P^[ii]   := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+          // then re-generate new color indexes
+          ii := (X + k*2 + (j*2 + Y) * (xySize+xySize))*dSize + Index_Offset;
+          Mask := CreateNewIndexes(0, 0);
+          P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
           P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF; // need a better way - TBD
+          if (dSize = 16) then begin // DXT3
+            ii := (X + k*2 + (j*2 + Y) * (xySize+xySize))*dSize;
+            CreateNewDXT3alphas(0, 0, Mask, Mask_H);
+            P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+            P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF; // need a better way - TBD
+            P^[ii+4] := Mask_H AND $FF; P^[ii+5] := (Mask_H SHR 8) AND $FF;
+            P^[ii+6] := (Mask_H SHR 16) AND $FF; P^[ii+7] := (Mask_H SHR 24) AND $FF; // need a better way - TBD
+          end;
 
+          // make second copy
           for m := 0 to dSize-1 do begin
             P^[(X + k*2+1 + (j*2 + Y) * (xySize+xySize))*dSize + m] :=
               P^[(X + k + (j + Y) * (xySize+xySize))*dSize + m];
           end;
-          // then re-generate a new mask
-          ii := (X + k*2+1 + (j*2 + Y) * (xySize+xySize))*dSize + 4;
-          Mask := CreateNewMask((k*2+1) AND 1, (j*2) AND 1);
-          P^[ii]   := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+          // then re-generate new color indexes
+          ii := (X + k*2+1 + (j*2 + Y) * (xySize+xySize))*dSize + Index_Offset;
+          Mask := CreateNewIndexes(1, 0);
+          P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
           P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF;
+          if (dSize = 16) then begin // DXT3
+            ii := (X + k*2+1 + (j*2 + Y) * (xySize+xySize))*dSize;
+            CreateNewDXT3alphas(1, 0, Mask, Mask_H);
+            P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+            P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF; // need a better way - TBD
+            P^[ii+4] := Mask_H AND $FF; P^[ii+5] := (Mask_H SHR 8) AND $FF;
+            P^[ii+6] := (Mask_H SHR 16) AND $FF; P^[ii+7] := (Mask_H SHR 24) AND $FF; // need a better way - TBD
+          end;
 
+          // make third copy
           for m := 0 to dSize-1 do begin
             P^[(X + k*2 + (j*2+1 + Y) * (xySize+xySize))*dSize + m] :=
               P^[(X + k + (j + Y) * (xySize+xySize))*dSize + m];
           end;
-          // then re-generate a new mask
-          ii := (X + k*2 + (j*2+1 + Y) * (xySize+xySize))*dSize + 4;
-          Mask := CreateNewMask((k*2) AND 1, (j*2+1) AND 1);
-          P^[ii]   := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+          // then re-generate new color indexes
+          ii := (X + k*2 + (j*2+1 + Y) * (xySize+xySize))*dSize + Index_Offset;
+          Mask := CreateNewIndexes(0, 1);
+          P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
           P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF;
+          if (dSize = 16) then begin // DXT3
+            ii := (X + k*2 + (j*2+1 + Y) * (xySize+xySize))*dSize;
+            CreateNewDXT3alphas(0, 1, Mask, Mask_H);
+            P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+            P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF; // need a better way - TBD
+            P^[ii+4] := Mask_H AND $FF; P^[ii+5] := (Mask_H SHR 8) AND $FF;
+            P^[ii+6] := (Mask_H SHR 16) AND $FF; P^[ii+7] := (Mask_H SHR 24) AND $FF; // need a better way - TBD
+          end;
 
+          // make fourth copy
           for m := 0 to dSize-1 do begin
             P^[(X + k*2+1 + (j*2+1 + Y) * (xySize+xySize))*dSize + m] :=
               P^[(X + k + (j + Y) * (xySize+xySize))*dSize + m];
           end;
-          // then re-generate a new mask
-          ii := (X + k*2+1 + (j*2+1 + Y) * (xySize+xySize))*dSize + 4;
-          Mask := CreateNewMask((k*2+1) AND 1, (j*2+1) AND 1);
-          P^[ii]   := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+          // then re-generate new color indexes
+          ii := (X + k*2+1 + (j*2+1 + Y) * (xySize+xySize))*dSize + Index_Offset;
+          Mask := CreateNewIndexes(1, 1);
+          P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
           P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF;
+          if (dSize = 16) then begin // DXT3
+            ii := (X + k*2+1 + (j*2+1 + Y) * (xySize+xySize))*dSize;
+            CreateNewDXT3alphas(1, 1, Mask, Mask_H);
+            P^[ii+0] := Mask AND $FF; P^[ii+1] := (Mask SHR 8) AND $FF;
+            P^[ii+2] := (Mask SHR 16) AND $FF; P^[ii+3] := (Mask SHR 24) AND $FF; // need a better way - TBD
+            P^[ii+4] := Mask_H AND $FF; P^[ii+5] := (Mask_H SHR 8) AND $FF;
+            P^[ii+6] := (Mask_H SHR 16) AND $FF; P^[ii+7] := (Mask_H SHR 24) AND $FF; // need a better way - TBD
+          end;
 
           dec(k);
         until (k <0);
@@ -1037,44 +1333,6 @@ begin
     end;
 end;
 
-// simply expand 4x4 block - result is not good
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
-Procedure x_dds_Expand(Index, X, Y : integer);
-var
-  k, m, n, q, r : integer;
-  dds_xySize : longint;
-  dds_Expansion : integer;
-begin
-    dds_Expansion := trunc(IntPower(2,ref_Mipmap - DDS_Mipmap[Index]));
-    dds_xySize := trunc(IntPower(2,DDS_Mipmap[Index]-1) /4); // 4x4 pixel blocks
-    // copy lower-res data and duplicate/expand horiz and vert
-    for k := 0 to (dds_xySize+xyExtra)-1 do begin
-      BlockRead(Patch_Files[Index], P^[(X + (k * dds_Expansion + Y) * (xySize+xySize+xyExtra))*dSize],
-        (dds_xySize+xyExtra)*dSize);
-      // expand horiz
-      m := (xySize-1) * dSize; // start with last pixel group
-      q := (dds_xySize-1) * dSize; // start with last pixel group
-      repeat
-        for r := 0 to dds_Expansion-1 do begin
-          for n := 0 to dSize-1 do begin // do by dSize
-            P^[(X + (k * dds_Expansion + Y) * (xySize+xySize+xyExtra))*dSize + m+n] :=
-              P^[(X + (k * dds_Expansion + Y) * (xySize+xySize+xyExtra))*dSize + q+n];
-          end;
-          dec(m,dSize);
-        end;
-        dec(q,dSize);
-      until (q <= 0);
-      // expand vert
-      for m := 1 to dds_Expansion-1 do begin
-        CopyMemory(@P^[(X + (k * dds_Expansion + Y + m) * (xySize+xySize+xyExtra))*dSize], // destination
-          @P^[(X + (k * dds_Expansion + Y) * (xySize+xySize+xyExtra))*dSize], // source
-          xySize * dSize);
-      end;
-    end;
-    // backtrack the file pointer to the beginning of the mipmap
-    seek(Patch_Files[Index], FilePos(Patch_Files[Index])- dds_xySize*dds_xySize *dSize);
-end;
-
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure DDS_ReadTheFile(Index, X, Y : integer; FileMask, Mask : byte);
 var
@@ -1082,13 +1340,8 @@ var
   dds_xySize : longint;
 begin
   if (NOT ((FileMask AND Mask) = Mask)) then begin
-    exit; // skip
+    exit; // skip (only 2 files, not 4)
   end;
-  // need to check DXT type and convert if needed - TBD ???
-  // DXT1 -> DXT3, DXT1 -> DXT5 ?
-  // DXT3 -> DXT1, DXT3 -> DXT5 ?
-  // DXT5 -> DXT1, DXT5 -> DXT3 ?
-
   // need to check mipmap level
   // - expand if smaller
   // - skip to correct mipmap if bigger
@@ -1097,14 +1350,21 @@ begin
     while (ref_Mipmap < DDS_Mipmap[Index]) do begin
       // advance file pointer from current pos to skip over
       dds_xySize := trunc(IntPower(2,DDS_Mipmap[Index]-1) /4); // 4x4 pixel blocks
-      seek(Patch_Files[Index], FilePos(Patch_Files[Index])+ dds_xySize*dds_xySize *dSize);
+//      seek(Patch_Files[Index], FilePos(Patch_Files[Index])+ dds_xySize*dds_xySize *dSize);
+      seek(Patch_Files[Index], FilePos(Patch_Files[Index])+ dds_xySize*dds_xySize * DDS_dSize[Index]);
       dec(DDS_Mipmap[Index]);
     end;
     // now copy the data
-    for k := 0 to (xySize+xyExtra)-1 do begin
-      BlockRead(Patch_Files[Index], P^[(X + (k + Y) * (xySize+xySize+xyExtra))*dSize],
-        (xySize+xyExtra)*dSize);
+    for k := 0 to (xySize)-1 do begin
+      BlockRead(Patch_Files[Index], P^[(X + (k + Y) * (xySize+xySize))*dSize],
+//        (xySize)*dSize);
+        (xySize)*DDS_dSize[Index]);
     end;
+    // convert to DXT3 if not matching output type
+    if (DDS_DXT_Type[Index] <> DDS_Headers[ref_Index][21]) then begin
+      Convert_To_DXT3(Index, X, Y, xySize);
+    end;
+    // mipmap level done
     dec(DDS_Mipmap[Index]);
   end else begin // hi-res data missing so need to duplicate some lower-res data
     dds_Expand(Index, X, Y);
@@ -1115,7 +1375,7 @@ end;
 Procedure DDS_CloseTheFile(Index : integer; FileMask, Mask : byte);
 begin
   if (NOT ((FileMask AND Mask) = Mask)) then begin
-    exit; // skip
+    exit; // skip (only 2 files, not 4)
   end;
   CloseFile(Patch_Files[Index]);
 end;
@@ -1153,9 +1413,9 @@ begin
     end;
   end;
 
-  for k := 0 to (xySize+xyExtra)-1 do begin
-    BlockWrite(Patch_File, P^[(oX + (k + oY) * (xySize+xySize+xyExtra)) * dSize],
-      (xySize+xyExtra)*dSize);
+  for k := 0 to (xySize)-1 do begin
+    BlockWrite(Patch_File, P^[(oX + (k + oY) * (xySize+xySize)) * dSize],
+      (xySize)*dSize);
   end;
 end;
 
@@ -1170,11 +1430,11 @@ end;
   // if DXT1 -> dSize := 8
   // if DXT3 -> dSize := 16
   // if DXT5 -> dSize := 16
+  // in case of DXT type mix, convert all to DXT3
   // problem if change of size and/or change of DXT
-    // keep DXT format of file that has largest chunk  i.e. > or < 2880
+    // keep mipmap size of file that has largest chunk  i.e. > or < 2880
     // if SHx >0 then largest chunk is in i+1
     // if SHy <0 then largest chunk is in j+1
-    // keep mipmap size of file that has largest chunk  i.e. > or < 2880
       // expand mimap or skip mipmap as needed
 // write each mipmap
 // write a new DDS
@@ -1195,35 +1455,38 @@ begin
   begin
     Inc(Index_Y);
   end;
+  ref_Index := Index_Y * 2 + Index_X;
 
-  // what if DDS is missing? - use empty.dds?
-  // read DDS Header of reference
-  // assumptions: DXT1,2,3, width=height, complete number of mipmaps
-  File_Name_a := format('%s%s%s',[File_Prefix,MakeTileName(i+index_X, j+index_Y, TileNameMode),File_Ext]);
-  AssignFile(Patch_File,FilePath_a+'\'+File_Folder+'\'+File_Name_a);
-  Reset(Patch_File);
-  BlockRead(Patch_File, DDS_Headers[0], 128);
-  if (DDS_Headers[0][21] = $31545844) then begin // DXT1 ?
-    dSize := 8;
-  end else begin // DXT3, or DXT5
-    dSize := 16;
-  end;
-  ref_Mipmap := DDS_Headers[0][7];
-  xySize := trunc(IntPower(2,ref_Mipmap-1) /4); // 4x4 pixel blocks
-  resolution := 90.0 * 64 / xySize;
-  CloseFile(Patch_File);
-  // create a new DDS file
-  DDS_Open_WriteTheFile(i, j);
-  // write the new DDS header
-  BlockWrite(Patch_File, DDS_Headers[0], 128);
-  // Allocate memory for top MipMap
-  P := AllocMem( (xySize+xySize) * (xySize+xySize) * dSize);
-  // open 2 or 4 files
+  // assume output file DXT1 for now
+  dSize := 8;
+  // open 2 or 4 files and read parameters
   FileMask := TwoOrFourFiles(X, Y);
   DDS_OpenTheFile(0, i,   j  , FileMask, 1);
   DDS_OpenTheFile(1, i+1, j  , FileMask, 2);
   DDS_OpenTheFile(2, i,   j+1, FileMask, 4);
   DDS_OpenTheFile(3, i+1, j+1, FileMask, 8);
+
+  xySize := trunc(IntPower(2,ref_Mipmap-1) /4); // 4x4 pixel blocks
+  resolution := 90.0 * 64 / xySize;
+
+  // create a new DDS file
+  DDS_Open_WriteTheFile(i, j);
+  // re-use DDS header of ref_Index and set correct parameters
+  if (dSize = 8) then begin
+    // no change
+  end else begin
+    // if currently DXT1 then double the size
+    if (DDS_DXT_Type[ref_Index] = $31545844) then begin
+      // adjust the size
+      DDS_Headers[ref_Index][5] := DDS_Headers[ref_Index][5] * 2;
+    end;
+    // use DXT3 as standard type (unless all 2 or 4 are DXT5 ??? then leave as DXT5 ???)
+    DDS_Headers[ref_Index][21] := $33545844;
+  end;
+  // write the new DDS header
+  BlockWrite(Patch_File, DDS_Headers[ref_Index], 128);
+  // Allocate memory for top MipMap
+  P := AllocMem( (xySize+xySize) * (xySize+xySize) * dSize);
 
   While (ref_Mipmap > 0) do begin
     //read each mipmap from 2 or 4 files
@@ -1232,6 +1495,7 @@ begin
     DDS_ReadTheFile(2,  xySize, 0,      FileMask, 4);
     DDS_ReadTheFile(3,  0,      0,      FileMask, 8);
     // write the shifted mipmap data
+    // includes tweak for TR3F resolution
     DDS_WriteTheFile(X, Y);
     xySize := xySize div 2;
     if (xySize = 0) then begin
@@ -1285,7 +1549,7 @@ begin
     // Need to copy textures for this object
     CopyObjectTextures(FilePath+'\'+File_Folder,File_Name,
                        FilePath_a+'\'+File_Folder,File_Name_a,
-                    '');
+                    '','');
     // now write the updated file
     File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
     WriteCondorC3Dfile(FilePath+'\'+File_Folder+'\'+File_Name);
@@ -1314,7 +1578,7 @@ begin
       dSize := 4;  // 4 byte floating-point
 //      dSize := sizeof(single);  // 4 byte floating-point
     end;
-    Type_FOR: begin
+    Type_FOR: begin // V2, V3
       File_Prefix := '';
       File_Ext := '.for';
       File_Folder := 'ForestMaps';
@@ -1329,7 +1593,7 @@ begin
       File_Folder := 'Textures';
 //      Resolution := 0; // variable
 //      xySize := 0;     // variable
-      xyExtra := 0;
+//      xyExtra := 0;
 //      dSize := 0;      // variable
     end;
     Type_C3D: begin // autogen
@@ -1377,15 +1641,31 @@ begin
             if (FileCount > 0) then begin
               // for TR3F, 4 files created, and most are not needed
               // need to check airport to see which to actually keep ??? TBD
-              WriteTheFile(i, j, Offset_X,Offset_Y);
+              // for forest, can tweak if desired
+              if ((IF_Type = Type_FOR) AND (Form_Shift.CheckBox_ApTweak.Checked) AND (t3f_Found)) then begin
+                // make a shift referenced to TR3F resolution
+                WriteTheFile(i, j, Offset_X - t3f_Error_X, Offset_Y - t3f_Error_Y);
+              end else begin
+                WriteTheFile(i, j, Offset_X, Offset_Y);
+              end;
             end;
             FreeMem(P);
           end;
           Type_DDS: begin
-            Process_DDS(i, j, Offset_X,Offset_Y);
+            if ((Form_Shift.CheckBox_ApTweak.Checked) AND (t3f_Found)) then begin
+              // make a shift referenced to TR3F resolution
+              Process_DDS(i, j, Offset_X - t3f_Error_X, Offset_Y - t3f_Error_Y);
+            end else begin
+              Process_DDS(i, j, Offset_X, Offset_Y);
+            end;
           end;
           Type_C3D: begin
-            Process_C3D(i, j, Offset_X,Offset_Y);
+            if ((Form_Shift.CheckBox_ApTweak.Checked) AND (t3f_Found)) then begin
+              // make a shift referenced to TR3F resolution
+              Process_C3D(i, j, Offset_X - t3f_Error_X, Offset_Y - t3f_Error_Y);
+            end else begin
+              Process_C3D(i, j, Offset_X, Offset_Y);
+            end;
           end;
         end;
         ProgressBar_Status.StepIt;
@@ -1443,7 +1723,17 @@ begin
   Crop_Min_Y := (ce.yMin-oe.yMin) / 90;
   Crop_Max_Y := Crop_Min_Y + TerrainHeader.tHeight;
 
-{  // Shift the 'Textures' folder
+  // see if there are any tr3f files
+  t3f_Found := false; // assume for now
+  FolderName := Condor_folder+'\Landscapes\'+
+    Shift_Array[0].Name + '\HeightMaps\22.5m';
+  if (FindFirst(FolderName+'\*.tr3f', faNormalFile, SearchRec)) = 0 then begin
+    t3f_Found := true;
+    FindClose(SearchRec);
+  end;
+{
+// for partial testing
+  // Shift the 'Textures' folder
   // need to offset XY tile indexes/names
   MessageShow('Shifting Textures');
   for i := 0 to Shift_Count-1 do begin
@@ -1454,7 +1744,8 @@ begin
         Condor_folder+'\Landscapes\'+Name, Name);
     end;
   end;
-exit; }  
+exit;
+}
   // now Shift the landscape
   // first, terrain file
   for i := 0 to Shift_Count-1 do begin
@@ -1631,14 +1922,25 @@ exit; }
   // can open file and copy blocks of 152 bytes for each object
   for i := 0 to Shift_Count-1 do begin
     with Shift_Array[i] do begin
-      Append_OBJ_File(qtX * 90,  // needs to be UTM grid relative
-                      qtY * 90,
-                      Crop_Min_X * 90,
-                      Crop_Max_X * 90,
-                      Crop_Min_Y * 90,
-                      Crop_Max_Y * 90,
-        Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
-        Condor_folder+'\Landscapes\'+Name,Name);
+      if ((Form_Shift.CheckBox_ApTweak.Checked) AND (t3f_Found)) then begin
+        Append_OBJ_File(qtX * 90 + t3f_Error_X,
+                        qtY * 90 + t3f_Error_Y,
+                        Crop_Min_X * 90,
+                        Crop_Max_X * 90,
+                        Crop_Min_Y * 90,
+                        Crop_Max_Y * 90,
+          Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
+          Condor_folder+'\Landscapes\'+Name,Name);
+      end else begin
+        Append_OBJ_File(qtX * 90,  // needs to be UTM grid relative
+                        qtY * 90,
+                        Crop_Min_X * 90,
+                        Crop_Max_X * 90,
+                        Crop_Min_Y * 90,
+                        Crop_Max_Y * 90,
+          Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
+          Condor_folder+'\Landscapes\'+Name,Name);
+      end;
     end;
   end;
 
@@ -1656,6 +1958,7 @@ exit; }
   for i := 0 to Shift_Count-1 do begin
     with Shift_Array[i] do begin
       Append_APT_File(ce, {Form_Shift.}CheckBox_ApTweak.Checked, sh_E_W, sh_N_S,
+        t3f_Found,
         Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
         Condor_folder+'\Landscapes\'+{Shift_Array[i].}Name,{Shift_Array[i].}Name);
     end;

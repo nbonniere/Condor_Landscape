@@ -93,6 +93,7 @@ procedure Force_DecimalSeparator;
 
 function CopyFolder(const SrcFolder, DestFolder: String;
   OverWrite: Boolean; ShowDialog: Boolean): Boolean;
+procedure RenameFolder(FolderOld, FolderNew: string);
 
 function OpenDialog(oDiag : TOpenDialog; VAR fName : string;
   fDir, fFilter : string) : boolean;
@@ -787,6 +788,12 @@ begin
     fName := sDiag.FileName;
     result := true;
   end;
+end;
+
+//---------------------------------------------------------------------------
+procedure RenameFolder(FolderOld, FolderNew: string);
+begin
+  RenameFile(FolderOld, FolderNew);
 end;
 
 //---------------------------------------------------------------------------

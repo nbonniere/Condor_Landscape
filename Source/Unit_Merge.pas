@@ -739,7 +739,7 @@ begin
               // Need to copy textures for this object
               CopyObjectTextures(FilePath+'\'+File_Folder,File_Name,
                                  FilePath_a+'\'+File_Folder,File_Name_a,
-                                 '');
+                                 '','');
             end;                       
           end;
         end;
@@ -1037,7 +1037,7 @@ begin
   // can open file and copy blocks of 72 bytes for each airport
   for i := 0 to Merge_Count-1 do begin
     with Merge_Array[i] do begin
-      Append_APT_File(ce, false, 0.0, 0.0,
+      Append_APT_File(ce, false, 0.0, 0.0, false,
         Condor_folder+'\Landscapes\'+LandscapeName,LandscapeName,
         Condor_folder+'\Landscapes\'+{Merge_Array[i].}Name,{Merge_Array[i].}Name);
     end;

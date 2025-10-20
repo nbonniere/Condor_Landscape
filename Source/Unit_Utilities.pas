@@ -4011,6 +4011,7 @@ var
   AutogenFileName, oFilename, oFileExt : string;
   X, Y, A, E : single;
   append : boolean;
+  Blank_File : TextFile;
 
 begin
   // need landscape header and tile extent
@@ -4053,6 +4054,9 @@ begin
   end;
 
   // make sure folder is created
+  // new autogen folder
+  ForceDirectories(Initial_Folder +'\Autogen');
+  // to save old files if any
   ForceDirectories(Working_Folder +'\Autogen');
 
   // check each patch for objects and if any convert to Autogen
@@ -4068,8 +4072,13 @@ begin
         if (Patch[TileIndex].NumDetail > 0) then begin
           // create the Autogen file (similar to Save_C_C3D)
           Append := false; // for first file
-          AutogenFileName := Working_Folder +'\Autogen\o' +
+//          AutogenFileName := Working_Folder +'\Autogen\o' +
+          AutogenFileName := Initial_Folder +'\Autogen\o' +
             MakeTileName(j, i, TileNameMode) + '.c3d';
+          // if already exists rename as original copy
+          if (FileExists(AutogenFileName)) then begin
+            RenameFile(AutogenFileName,Working_Folder +'\Autogen\Orig_'+ExtractFileName(AutogenFileName));
+          end;
           Reset_FTM_Unity;   // only once as the same values are changed
           InjectFTM := True; // for all files
           with Patch[TileIndex] do begin
@@ -4114,11 +4123,24 @@ begin
           end;
         end;
         if (Append = true) then begin // make sure at east one file was found
+          // Need to copy textures for this object
+          CopyObjectTextures(Working_Folder +'\..','',
+                             Working_Folder +'\..\World\Objects','',
+                          '','Autogen');
           WriteCondorObjectFile(AutogenFileName,None,false);
         end;
         ProgressBar_Status.StepIt; Application.ProcessMessages;
       end;
     end;
+    // now move obj file and create blank obj file
+    RenameFile(Object_FolderName+'\'+Object_FileName,
+      Working_Folder +'\Autogen\Orig_'+Object_FileName);
+    AssignFile(Blank_File,Object_FolderName+'\'+Object_FileName);
+    Rewrite(Blank_File);
+    // empty file
+    CloseFile(Blank_File);
+    // now move World folder
+    RenameFolder(Working_Folder +'\..\World',Working_Folder +'\Autogen\World')
   finally
     Screen.Cursor := crDefault;  // no longer busy
     ProgressBar_Status.Position := 0;
@@ -4168,6 +4190,8 @@ var
   FileName : String;
   i : integer;
   Changed : boolean;
+  SearchRec: TSearchRec;
+  FolderName, NewFolderName : string;
 
 begin
   // select files
@@ -4176,6 +4200,22 @@ begin
   OpenDialog1.Filter := 'C3D files (*.C3D)|*.C3D|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
+    // first attempt to copy extra Autogen textures files
+    FolderName := ApplicationPath+'\AutoGen_Textures';
+    if (DirectoryExists(FolderName)) then begin
+      NewFolderName := ExtractFileDir(OpenDialog1.FileName)+'\Textures';
+      ForceDirectories(NewFolderName);
+      if (FindFirst(FolderName+'\*.dds', faNormalFile, SearchRec)) = 0 then begin
+        CopyFile(pchar(FolderName+'\'+SearchRec.Name),
+          pchar(NewFolderName+'\'+SearchRec.Name),false);
+        while (FindNext(SearchRec) = 0) do begin
+          CopyFile(pchar(FolderName+'\'+SearchRec.Name),
+            pchar(NewFolderName+'\'+SearchRec.Name),false);
+        end;
+        FindClose(SearchRec);
+      end;
+    end;
+    // now check file(s)
     try
       with OpenDialog1.Files do begin
         ProgressBar_Status.Max := Count;
