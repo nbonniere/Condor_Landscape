@@ -55,10 +55,6 @@ type
     GroupBox_Texture: TGroupBox;
     Button_T_Exit: TButton;
     Image_Texture: TImage;
-    Label_File: TLabel;
-    Edit_TextureFileName: TEdit;
-    Label_Path: TLabel;
-    Edit_TextureFilePath: TEdit;
     Button_T_Open: TButton;
     Button_T_Save: TButton;
     Label_FileName: TLabel;
@@ -78,6 +74,13 @@ type
     Button_C_New: TButton;
     Button_S_New: TButton;
     Button_T_New: TButton;
+    GroupBox_TexturePath: TGroupBox;
+    Edit_TextureFileName: TEdit;
+    Label_File: TLabel;
+    Label_Path: TLabel;
+    Edit_TextureFIlePath: TEdit;
+    CheckBox_TileTexture: TCheckBox;
+    CheckBox_TileFraction: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure Button_S_OpenClick(Sender: TObject);
     procedure Button_S_ExitClick(Sender: TObject);
@@ -128,6 +131,19 @@ var
   objFolder : string;
   objFolderOpen : boolean;
 
+//---------------------------------------------------------------------------
+type
+//  Vector = array[0..3-1] of single;
+  Vector = array[0..2-1] of single;
+  Coords = array[0..2-1] of single;
+  Triangle = array[0..3-1] of integer;
+
+var
+  Vectors  : array of Vector;
+  tCoords  : array of Coords;
+  Surfaces : array of triangle;
+  Nx, Ny : integer;
+
 //----------------------------------------------------------------------------
 implementation
 
@@ -151,7 +167,9 @@ var
   coFilename : string;
 
 procedure MakeGrid(SizeMax, X, Y : single); forward;
-procedure WritePXfile(oType, pxFileName : string); forward;
+procedure MakeTileGrid(SizeMax, X, Y : single); forward;
+procedure WritePXfile(oType, pxFileName : string; vectorCount, surfaceCount : integer;
+                      cIntensity, cAlpha : single); forward;
 
 // duplicate of function in Main.pas
 //---------------------------------------------------------------------------
@@ -291,7 +309,9 @@ const
       (oFile : ('Building_FlatRoof.px', 'Building_PeakRoof.px','Building_Domed.px','Silo.px',
                 'pole.px', 'windsock.px', 'windsock2.px', 'windsock3.px',
                 'asphalt.px', 'grass.px', 'asphaltpaint.px', 'grasspaint.px', 'grass3d.px');
-       oButtons  : ($37, $3F, $37, $35, $35, $06, $06, $06, $33, $33, $33, $33, $33);
+       oButtons  : ($37, $3F, $37, $35,
+                    $35, $06, $06, $06,
+                    $73, $33, $33, $33, $33);
        oDefaults : (
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '0.0'; od_File : 'H_PK_S_Red.bmp';  od_Path : ('Textures/') ),
         ( od_Width : '15.0'; od_Length : ' 25.0'; od_Height : ' 8.0'; od_Peak : '2.0'; od_File : 'H_PK_Blue.bmp';   od_Path : ('Textures/') ),
@@ -301,11 +321,11 @@ const
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.0'; od_Length : '  2.0'; od_Height : '10.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
-        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('128_muck.dds'); od_Path : ('Textures/') ),
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
         ( od_Width : ' 0.2'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : (''); od_Path : ('') ),
-        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('green_128_muck.dds'); od_Path : ('Textures/') )
+        ( od_Width : '20.0'; od_Length : '800.0'; od_Height : ' 0.0'; od_Peak : '0.0'; od_File : ('Grass3D_Area.dds'); od_Path : ('Textures/') )
        )
       );
 var
@@ -326,6 +346,8 @@ begin
     Edit_Peak.{enabled}Visible   := (Select AND 8) = 8;
     Edit_TextureFileName.{enabled}Visible   := (Select AND 16) = 16;
     Edit_TextureFilePath.{enabled}Visible   := (Select AND 32) = 32;
+    CheckBox_TileTexture.{enabled}Visible   := (Select AND 64) = 64;
+    CheckBox_TileFraction.{enabled}Visible  := (Select AND 64) = 64;
   end;
 end;
 
@@ -396,6 +418,11 @@ begin
       Edit_Peak.text := ReadCSV(TempSTR);
       Edit_TextureFileName.Text := ReadCSV(TempSTR);
       Edit_TextureFilePath.Text := ReadCSV(TempSTR);
+      if (ReadCSV(TempSTR) = 'Tiled') then begin
+        CheckBox_TileTexture.Checked := True;
+      end else begin
+        CheckBox_TileTexture.Checked := False;
+      end;
       CloseFile(SO_file);
       ComboBoxMatchString(ComboBox_Type, ComboBox_Type.Text);
       Enable_Edits(oObject.oButtons[ComboBox_Type.ItemIndex]);
@@ -413,6 +440,7 @@ var
   oFileName : string;
   oFileExt : string;
   W, L, H, P : single;
+  CheckBoxText : string;
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   Procedure Save_S_C3D(FileName : string);
@@ -433,9 +461,16 @@ var
       // check for special case(s)
       // if grass3d, then create it on-the-fly
       case ComboBox_Type.ItemIndex of
+        8: begin // Asphalt
+          if (CheckBox_TileTexture.checked) then begin
+            MakeTileGrid(30,W,L);
+            oFileName := ApplicationPath+'\SimpleObjects\'+'tAsphalt.px';
+            WritePXfile('Asphalt',oFileName,(Nx*2)*(Ny*2),(Nx)*(Ny)*2, 0.75, 0.7);
+          end;
+        end;
         12: begin // grass3D
           MakeGrid(30,W,L);
-          WritePXfile('Grass3D',oFileName);
+          WritePXfile('Grass3D',oFileName,(Nx+1)*(Ny+1),(Nx)*(Ny)*2, 0.75, 0.7);
         end;
       end;
       // read the simple object file
@@ -525,15 +560,19 @@ var
           UpdateFTM('FTM_0',FTM);
         end;
         8: begin // asphalt
-          FTM[ 0] := W;
-          FTM[ 5] := L;
-          //FTM[10] := 0.0;
-          //FTM[11] := 0.0;
-          UpdateFTM('FTM_0',FTM);
-          // adjust texture coord ratio !
-          TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
-          TC[1] := TC[0];
-          UpdateTC('tc_Asphalt', TC);
+          if (CheckBox_TileTexture.checked) then begin
+            // don't update some values; already done
+          end else begin
+            FTM[ 0] := W;
+            FTM[ 5] := L;
+            //FTM[10] := 0.0;
+            //FTM[11] := 0.0;
+            UpdateFTM('FTM_0',FTM);
+            // adjust texture coord ratio !
+            TC[0] := strtofloat(Edit_Width.text)/strtofloat(Edit_Length.text);
+            TC[1] := TC[0];
+            UpdateTC('tc_Asphalt', TC);
+          end;
           UpdateTF('TF_0',Edit_TextureFilepath.Text+Edit_TextureFileName.Text);
         end;
         9: begin // grass
@@ -627,16 +666,22 @@ begin
         CopyFile(pChar(soFileName),pChar(soFilename+'~'),false);
       end;
       // save the SO file
+      if (CheckBox_TileTexture.checked) then begin
+        CheckBoxText := 'Tiled';
+      end else begin
+        CheckBoxText := 'NotTiled';
+      end;
       AssignFile(SO_file, soFileName);
       Rewrite(SO_file);
-      writeln(SO_File,format('%s,%s,%s,%s,%s,%s,%s',[
+      writeln(SO_File,format('%s,%s,%s,%s,%s,%s,%s,%s',[
         ComboBox_Type.text,
         Edit_Width.text,
         Edit_Length.text,
         Edit_Height.text,
         Edit_Peak.text,
         Edit_TextureFileName.Text,
-        Edit_TextureFilePath.Text
+        Edit_TextureFilePath.Text,
+        CheckBoxText
           ]));
       CloseFile(SO_file);
       // also save C3D
@@ -769,16 +814,30 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+const
+  bFlat : Array [0..8-1] of string = (
+    '','Rear','','Front',
+    'Roof Left','Roof Right','Left Side','Right Side');
+  bPeak : Array [0..8-1] of string = (
+    'Rear Peak','Rear','Front Peak','Front',
+    'Roof Left','Roof Right','Left Side','Right Side');
+  bDome : Array [0..2-1] of string = (
+    'Roof and Rear','Front');
+//---------------------------------------------------------------------------
 procedure TForm_SimpleObjects.Image_TextureMouseMove(Sender: TObject;
   Shift: TShiftState; X, Y: Integer);
 var
   sX, sY : integer;
 begin
   CalcSector(X, Y, Image_Texture.Width, Image_Texture.Height, sX, sY);
-    Label_Coords.Caption := format('%d,%d',[
-      (sX), (sY)
-      ]);
+//  Label_Coords.Caption := format('%d,%d',[(sX), (sY)]);
+  case ComboBox_T_Type.ItemIndex of
+   0: Label_Coords.Caption := format('%s',[bFlat[sX*4+sY]]);
+   1: Label_Coords.Caption := format('%s',[bPeak[sX*4+sY]]);
+   2: Label_Coords.Caption := format('%s',[bDome[sY div 2]]);
+  else
   end;
+end;
 
 //---------------------------------------------------------------------------
 procedure TForm_SimpleObjects.ComboBox_T_TypeChange(Sender: TObject);
@@ -792,10 +851,10 @@ begin
     end;
     // draw the areas
     case ComboBox_T_Type.ItemIndex of
-      0, 1: begin // flat roof
+      0, 1: begin // peak, flat roof
          Draw_Sectors;
       end;
-      2: begin // flat roof
+      2: begin // dome
         Draw_Halves;
       end;
     end;
@@ -1331,25 +1390,6 @@ begin
 end;
 
 //---------------------------------------------------------------------------
-type
-//  Vector = array[0..3-1] of single;
-  Vector = array[0..2-1] of single;
-  Coords = array[0..2-1] of single;
-  Triangle = array[0..3-1] of integer;
-
-var
-  Vectors  : array of Vector;
-  tCoords  : array of Coords;
-  Surfaces : array of triangle;
-  Nx, Ny : integer;
-
-//---------------------------------------------------------------------------
-function MakeIndex (i,j : integer) : integer;
-begin
-  result := j*(nX+1)+i;
-end;
-
-//---------------------------------------------------------------------------
 procedure MakeGrid(SizeMax, X, Y : single);
 var
   i, j, k : integer;
@@ -1357,6 +1397,13 @@ var
   index : integer;
   xyRange : single;
 
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+function MakeIndex (i,j : integer) : integer;
+begin
+  result := j*(Nx+1)+i;
+end;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
   // calculate number of dX and dY steps
   Nx := trunc((X+SizeMax)/SizeMax);
@@ -1376,42 +1423,118 @@ begin
   for j := 0 to Ny do begin
     for i := 0 to Nx do begin
       index := MakeIndex(i,j);
-     Vectors[index][0] := i*dX - X/2;
-     Vectors[index][1] := j*dY - Y/2;
-//     Vectors[index][2] := 0.0;
-     // reverse x,y for clockwise vector sequence
-     tCoords[index][0] := j*dY/xyRange;
-     tCoords[index][1] := i*dX/xyRange;
+      Vectors[index][0] := i*dX - X/2;
+      Vectors[index][1] := j*dY - Y/2;
+//      Vectors[index][2] := 0.0;
+      // reverse x,y for clockwise vector sequence
+      tCoords[index][0] := j*dY/xyRange;
+      tCoords[index][1] := i*dX/xyRange;
     end;
   end;
-  // make Surfaces (counter-clockwise vector sequence)
+//  // make Surfaces (counter-clockwise vector sequence)
+  // make Surfaces (clockwise vector sequence)
   setLength(Surfaces,(Nx)*(Ny)*2);
   k := 0;
   for j := 1 to Ny do begin
     for i := 1 to Nx do begin
-     Surfaces[k][0] := MakeIndex(i-1,j);
-     Surfaces[k][1] := MakeIndex(i,j-1);
-     Surfaces[k][2] := MakeIndex(i-1,j-1);
-     inc(k);
-     Surfaces[k][0] := MakeIndex(i,j-1);
-     Surfaces[k][1] := MakeIndex(i-1,j);
-     Surfaces[k][2] := MakeIndex(i,j);
-     inc(k);
+      Surfaces[k][0] := MakeIndex(i-1,j);
+//      Surfaces[k][1] := MakeIndex(i,j-1);
+//      Surfaces[k][2] := MakeIndex(i-1,j-1);
+      Surfaces[k][1] := MakeIndex(i-1,j-1);
+      Surfaces[k][2] := MakeIndex(i,j-1);
+      inc(k);
+      Surfaces[k][0] := MakeIndex(i,j-1);
+//      Surfaces[k][1] := MakeIndex(i-1,j);
+//      Surfaces[k][2] := MakeIndex(i,j);
+      Surfaces[k][1] := MakeIndex(i,j);
+      Surfaces[k][2] := MakeIndex(i-1,j);
+      inc(k);
     end;
   end;
 end;
 
 //---------------------------------------------------------------------------
-procedure WritePXfile(oType, pxFileName : string);
+procedure MakeTileGrid(SizeMax, X, Y : single);
+var
+  i, j, k : integer;
+  dX, dY : single;
+  index : integer;
+  xyRange : single;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+function MakeIndex (i,j : integer) : integer;
+begin
+//  result := 2*i+2*j*(2*Nx);
+  result := 4*i+4*j*(Nx);
+end;
+
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  // calculate number of dX and dY steps
+  Nx := trunc((X+SizeMax)/SizeMax);
+  Ny := trunc((Y+SizeMax)/SizeMax);
+  // calculate dX, dY
+  dX := X / Nx;
+  dY := Y / Ny;
+  // calculate xyRange
+  if (X > Y) then begin
+    xyRange := X;
+  end else begin
+    xyRange := Y;
+  end;
+  // make Vectors
+  setLength(Vectors,(Nx*2)*(Ny*2));
+  setLength(tCoords,(Nx*2)*(Ny*2));
+  for j := 0 to Ny-1 do begin
+    for i := 0 to Nx-1 do begin
+//      index := 2*i+2*j*(2*Nx);
+      index := MakeIndex(i,j);
+      Vectors[index+0][0] := (i+0)*dX - X/2;
+      Vectors[index+0][1] := (j+0)*dY - Y/2;
+      Vectors[index+1][0] := (i+1)*dX - X/2;
+      Vectors[index+1][1] := (j+0)*dY - Y/2;
+      Vectors[index+2][0] := (i+0)*dX - X/2;
+      Vectors[index+2][1] := (j+1)*dY - Y/2;
+      Vectors[index+3][0] := (i+1)*dX - X/2;
+      Vectors[index+3][1] := (j+1)*dY - Y/2;
+      // reverse x,y for clockwise vector sequence (?)
+      tCoords[index+0][0] := 0.0;
+      tCoords[index+0][1] := 0.0;
+      tCoords[index+1][0] := 0.0;
+      tCoords[index+1][1] := 1.0;
+      tCoords[index+2][0] := 1.0;
+      tCoords[index+2][1] := 0.0;
+      tCoords[index+3][0] := 1.0;
+      tCoords[index+3][1] := 1.0;
+    end;
+  end;
+//  // make Surfaces (counter-clockwise vector sequence)
+  // make Surfaces (clockwise vector sequence)
+  setLength(Surfaces,(Nx)*(Ny)*2);
+  k := 0;
+  for j := 1 to Ny do begin
+    for i := 1 to Nx do begin
+      index := MakeIndex(i-1,j-1);
+      Surfaces[k][0] := Index+2;
+      Surfaces[k][1] := Index+0;
+      Surfaces[k][2] := Index+1;
+      inc(k);
+      Surfaces[k][0] := Index+1;
+      Surfaces[k][1] := Index+3;
+      Surfaces[k][2] := Index+2;
+      inc(k);
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
+procedure WritePXfile(oType, pxFileName : string; vectorCount, surfaceCount : integer;
+                      cIntensity, cAlpha : single);
 var
   i : integer;
-  vectorCount, surfaceCount : integer;
   pxFile : TextFile;
 
 begin
-  vectorCount := (Nx+1)*(Ny+1);
-  surfaceCount := (Nx)*(Ny)*2;
-
   assignFile(pxFile,pxFileName);
   rewrite(pxFile);
   writeln(pxFile,'xof 0303txt 0032');
@@ -1483,7 +1606,7 @@ begin
   writeln(pxFile,'          1;');
   writeln(pxFile,'          0;');
   writeln(pxFile,'Material  {');
-  writeln(pxFile,'  1.0;  1.0;  1.0;  1.0;;');
+  writeln(pxFile,format('  %0.3f;  %0.3f;  %0.3f;  %0.3f;;',[cIntensity,cIntensity,cIntensity,cAlpha]));
   writeln(pxFile,'  1.0;');
   writeln(pxFile,'  0.0;  0.0;  0.0;;');
   writeln(pxFile,'  1.0;  1.0;  1.0;;');
@@ -1499,8 +1622,6 @@ end;
 
 //---------------------------------------------------------------------------
 begin
-//  MakeGrid(113,789,30);
-//  WritePXfile('Asphalt','TESTFILE.PX');
 
 end.
 

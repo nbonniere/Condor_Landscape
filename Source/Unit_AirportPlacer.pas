@@ -1,6 +1,6 @@
 {
  * Unit_AirportPlacer.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -102,6 +102,7 @@ type
     Panel1: TPanel;
     TreeView_O: TTreeView;
     PaintBox1: TPaintBox;
+    Button_Grass3D: TButton;
     procedure Label_DirectionDblClick(Sender: TObject);
     procedure Label_LengthDblClick(Sender: TObject);
     procedure Label_WidthDblClick(Sender: TObject);
@@ -171,6 +172,7 @@ type
     procedure FormActivate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure PaintBox1Paint(Sender: TObject);
+    procedure Button_Grass3DClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -188,6 +190,9 @@ var
   Memo_Message : TMemo;  // external TMemo for messages
   CurrentLandscape : string;
   apVersion : string;
+
+  G_FilePath : string;
+  G_FileName : string;
 
 //---------------------------------------------------------------------------
 implementation
@@ -659,6 +664,8 @@ var
 //  useColor : TColor;
   nName : string;
 
+// Condor coord -X,  Y, bottom right
+// Delphi coord  X, -Y, top left
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Procedure DrawObject(useColor : TColor);
 var
@@ -671,7 +678,7 @@ begin
 //    Canvas.Pen.Width := 1;
     Canvas.Pen.Color := useColor;
     for j := 0 to length(G_Object)-1 do begin
-      // -180 because of Condor airport definition
+      // -180 -> trick to go from -X,Y condor coord to X,-Y for drawing from top left
       Rotate_Array(G_Object[j], AirportDirection-180);
 
       Offset_Array(G_Object[j], Airport_CoordXY);
@@ -743,6 +750,8 @@ var
 //  useColor : TColor;
   nName : string;
 
+// Condor coord -X,  Y, bottom right
+// Delphi coord  X, -Y, top left
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Procedure DrawObject(useColor : TColor);
 var
@@ -754,7 +763,7 @@ begin
 //    Canvas.Pen.Style := psSolid;
 //    Canvas.Pen.Width := 1;
     Canvas.Pen.Color := useColor;
-    // -180 because of Condor airport definition
+    // -180 -> trick to go from -X,Y condor coord to X,-Y for drawing from top left
     Rotate_Array(O_Object_Outline, AirportDirection-180);
 
     Offset_Array(O_Object_Outline, Airport_CoordXY);
@@ -1212,6 +1221,8 @@ begin
     end;
   end;
 
+  // Condor coord -X,  Y, bottom right -> -xCoord
+  // Delphi coord  X, -Y, top left -> -yCoord
   if (BitmapAvail) then begin
     cSIN := sin(-AirportDirection/180*PI);
     cCOS := cos(-AirportDirection/180*PI);
@@ -1386,16 +1397,16 @@ end;
 procedure TForm_AirportPlacer.Search_Airport_Details;
 var
   SearchRec: TSearchRec;
-  path, mask : string;
+  FilePath, FileName, FileMask : string;
 begin
     // find objects in O file
     u_X_CX.oTreeView := TreeView_O;
     ClearTreeView(TreeView_O); // and append to not show headers
-
+{
     // look for O.c3d or O.x or O.cx
-    Path := Airport_FolderName+'\Airports\';
-    Mask := Airport_List[ItemIndex].apName + 'O.*';
-    if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
+    FilePath := Airport_FolderName+'\Airports\';
+    FileMask := Airport_List[ItemIndex].apName + 'O.*';
+    if (FindFirst(FilePath+FileMask, faAnyFile, SearchRec)) = 0 then begin
       if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
         ReadCondorC3Dfile(Path+SearchRec.Name, true);
       end else begin
@@ -1407,15 +1418,25 @@ begin
       ClearTreeView(TreeView_O);
     end;
     FindClose(SearchRec);
+}
+    // look for O.c3d
+    FilePath := Airport_FolderName+'\Airports';
+    FileName := Airport_List[ItemIndex].apName + 'O.C3D';
+    if (FileExists(FilePath+'\'+FileName)) then begin
+      ReadCondorC3Dfile(FilePath+'\'+FileName, true);
+    end else begin
+      // clear treeview
+      ClearTreeView(TreeView_O);
+    end;
 
     // find objects in G file
     u_X_CX.oTreeView := TreeView_G;
     ClearTreeView(TreeView_G); // and append to not show headers
-
+{
     // look for G.c3d or G.x or G.cx
-    Path := Airport_FolderName+'\Airports\';
-    Mask := Airport_List[ItemIndex].apName + 'G.*';
-    if (FindFirst(Path+Mask, faAnyFile, SearchRec)) = 0 then begin
+    FilePath := Airport_FolderName+'\Airports\';
+    FileMask := Airport_List[ItemIndex].apName + 'G.*';
+    if (FindFirst(FilePath+FileMask, faAnyFile, SearchRec)) = 0 then begin
       if (uppercase(ExtractFileExt(SearchRec.Name)) = '.C3D') then begin
         ReadCondorC3Dfile(Path+SearchRec.Name, true);
       end else begin
@@ -1427,7 +1448,19 @@ begin
       ClearTreeView(TreeView_G);
     end;
     FindClose(SearchRec);
-
+}
+    // look for G.c3d
+    FilePath := Airport_FolderName+'\Airports';
+    FileName := Airport_List[ItemIndex].apName + 'G.C3D';
+    if (FileExists(FilePath+'\'+FileName)) then begin
+      ReadCondorC3Dfile(FilePath+'\'+FileName, true);
+      G_FileName := FileName;
+      G_FilePath := FilePath;
+    end else begin
+      G_FileName := '';
+      // clear treeview
+      ClearTreeView(TreeView_G);
+    end;
 end;
 
 //---------------------------------------------------------------------------
@@ -1804,6 +1837,7 @@ procedure TForm_AirportPlacer.FormActivate(Sender: TObject);
 begin
 //  Button_HiResRunway.Enabled := false;
   Button_HiResRunway.Enabled := true;
+  Button_Grass3D.Enabled := true;
 end;
 
 //---------------------------------------------------------------------------
@@ -2222,8 +2256,8 @@ begin
   // calculate corners in UTM metres
   Airport_Length := STRtoFloat(form_HiResRunway.Edit_Length.text);
   Airport_Width := STRtoFloat(form_HiResRunway.Edit_Width.text);
-  Airport_WidthOffset := STRtoFloat(form_HiResRunway.Edit_WidthOffset.text);
-  Airport_LengthOffset := STRtoFloat(form_HiResRunway.Edit_LengthOffset.text);
+  Airport_WidthOffset := STRtoFloat(form_HiResRunway.Edit_WidthOffset.text);   // metres right, not left
+  Airport_LengthOffset := STRtoFloat(form_HiResRunway.Edit_LengthOffset.text); // metres up
   Airport_Corners[0][0] :=  Airport_Width /2; Airport_Corners[0][1] :=  Airport_Length /2;
   Airport_Corners[1][0] :=  Airport_Width /2; Airport_Corners[1][1] := -Airport_Length /2;
   Airport_Corners[2][0] := -Airport_Width /2; Airport_Corners[2][1] := -Airport_Length /2;
@@ -2237,10 +2271,16 @@ begin
 
   // get airport direction (degrees) and create rotation matrix
   Airport_Direction := strtofloat(Edit_Direction.Text);
+{
   Rotation_Matrix[0][0] :=  COS((Airport_Direction-180)/180*Pi);
   Rotation_Matrix[0][1] := -SIN((Airport_Direction-180)/180*Pi);
   Rotation_Matrix[1][0] :=  SIN((Airport_Direction-180)/180*Pi);
   Rotation_Matrix[1][1] :=  COS((Airport_Direction-180)/180*Pi);
+}
+  Rotation_Matrix[0][0] :=  COS((Airport_Direction)/180*Pi);
+  Rotation_Matrix[0][1] := -SIN((Airport_Direction)/180*Pi);
+  Rotation_Matrix[1][0] :=  SIN((Airport_Direction)/180*Pi);
+  Rotation_Matrix[1][1] :=  COS((Airport_Direction)/180*Pi);
 
   // rotate airport corners
   Temp := Rotation_Matrix[0][0] * Airport_Corners[0][0] +
@@ -2395,6 +2435,72 @@ begin
   // now make a Batch ALL
   Make_Airport_All_BatchFile(3857, FilePath, FileName);
   Make_Airport_All_BatchFile(4326, FilePath, FileName); // geid as well
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_Grass3DClick(Sender: TObject);
+var
+  Index : Integer;
+  iGrass3D, iGrasspaint : integer;
+  g3dSize, Airport_Direction : single;
+  nName : string;
+  g3dTextureFileName : string;
+  tFileWidth, tFileHeight : Word;
+
+begin
+  // need Grass3D and GrassPaint objects in G file, else exit
+  Index := 0; iGrass3D := -1; iGrasspaint := -1;
+  While (Index <> -1) do begin
+    // scan TreeView_G looking for mesh name = asphalt or grass
+    Index := FindNodebyType({Form_AirportPlacer.}TreeView_G, Index, oMesh, nName);
+    if (Index <> -1) then begin
+      if (upperCase(nName) = 'GRASS3D') then begin
+        iGrass3D := Index;
+        g3dTextureFileName := pFileName(pObjectItem(TreeView_G.Items[Index+5].data)^.oPointer).tqName;
+        // need the overall mesh size
+        g3dSize := pMesh(pObjectItem(TreeView_G.Items[Index].data)^.oPointer).tMinMaxArray[6];
+        // also need distance from centre
+        g3dSize := g3dSize + sqrt(SQR(
+            pMesh(pObjectItem(TreeView_G.Items[Index].data)^.oPointer).tMinMaxArray[4]
+            )+ SQR(
+            pMesh(pObjectItem(TreeView_G.Items[Index].data)^.oPointer).tMinMaxArray[5]
+            ));
+      end else begin
+        if (upperCase(nName) = 'GRASSPAINT') then begin
+          iGrassPaint := Index;
+        end;
+      end;
+      INC(Index);
+    end;
+  end;
+  if ( (iGrass3D = -1) OR (iGrassPaint = -1) ) then begin
+    MessageShow('Grass3D and/or GrassPaint not found');
+    exit; // alternate enable/disable button on airport selection
+  end;
+  if (g3dTextureFileName = '') then begin
+    MessageShow('No Grass3D file name');
+    exit;
+  end;
+  // get texture file size - TBD ??? - could be DDS or other...
+  // GetSize(path+g3dTextureFileName,tFileWidth,tFileHeight);
+  tFileWidth := 2048; tFileHeight := 2048; // for now
+
+  // get airport direction (degrees) and create rotation matrix
+  Airport_Direction := strtofloat(Edit_Direction.Text);
+
+  // rotate around airport centre, and use same scale for Grass3D and GrassPaint
+  // create new texture coords for Grass2D
+  RotateMeshAndSaveAsTextureCoords(TreeView_G, iGrass3D, g3dSize*2, Airport_Direction);
+
+  // create new texture coords for GrassPaint
+  RotateMeshAndSaveAsTextureCoords(TreeView_G, iGrassPaint, g3dSize*2, Airport_Direction);
+
+  // Make a mask file for Grasspaint
+  MakeGrassPaintMask(TreeView_G, iGrassPaint, G_FilePath, 'Grass3D_Area_Alpha.bmp', tFileWidth, tFileHeight);
+
+  // save the changes to the texture coordinates
+  // the lastTreeView loaded was the G file, so OK to save as G file
+  WriteCondorC3Dfile(G_FilePath+'\'+G_FileName);
 end;
 
 //---------------------------------------------------------------------------

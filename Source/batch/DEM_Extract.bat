@@ -5,9 +5,14 @@ echo Will now unpack the downloaded data
 echo.
 timeout 3 /nobreak > /nul
 
+rem goto directory where batch file is
+cd /d %~dp0
+
 rem make sure needed programs exist
+call Set_Path.bat 2> nul
 set PATH=%PATH%;c:\Programs\7-Zip;c:\Program Files\7-Zip
 where 7z
+
 IF %ERRORLEVEL% NEQ 0 (
    echo ERROR: You need to install the 7z program to retrieve files.
    echo Copy this link to your browser: https://www.SoaringTools.org/downloads/7z2201-x64.msi
@@ -17,10 +22,6 @@ IF %ERRORLEVEL% NEQ 0 (
    pause
    exit /b 9
 )
-
-rem set PATH=%PATH%;"C:\Program Files\Allmapsoft\gmid\geotiff"
-rem goto directory where batch file is
-cd /d %~dp0
 
 rem loop thru ZIPs.txt file and unzip
 set ZIPS=ZIPs.txt

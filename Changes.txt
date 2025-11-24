@@ -437,6 +437,18 @@ v0.10.10 - Oct 2025
     - move V2, V3 FOR forest to match the TR3F shift
   - Utilities - copy all extra AutoGen texture files on name normalization
 
+v0.10.11 - Nov 2025
+  - SimpleObject - Grass3D, triangles clockwise fix
+  - SimpleObject - asphalt - option for tiles (concrete slabs)
+  - ObjectView - bug fix - mesh - plot from bottom-left (0,0) instead of top-left
+  - ObjectView - add right-click on texture coordinates to overwrite coords from mesh - fixes AsphaltPaint
+  - fixBMPfile - bug fix for large file (bColorBits div 8), and use bigger buffer for speed
+  - AirportPlacer - add Make Grass3D mask
+    - also make 16x Grass2D 32x32m, and then reduce by 4 to create green grass like texture
+  - DEM alternate batch files - make adjustment to use Set_path.bat
+  - V2-to_V3 - add rotation of Texture coords.
+
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

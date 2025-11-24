@@ -867,6 +867,13 @@ begin
     end;
     CloseFile(URL_file);
 
+    // create a file to set the path
+    AssignFile(DEM_file, File_folder+'\Set_Path.bat');
+    Rewrite(DEM_file);
+    writeln(DEM_file,'set PATH=%PATH%;'+WGETfolder);
+    writeln(DEM_file,'set PATH=%PATH%;'+sZIPfolder);
+    CloseFile(DEM_file);
+
     // a file to download the HGT files
     // first check if alternate batch file is available
     if (FileExists(ApplicationPath+'\Batch\DEM_WGET.bat')) then begin

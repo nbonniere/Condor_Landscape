@@ -106,7 +106,9 @@ Procedure OverrideTerrainCalibration(TerrainFileName : string);
 Procedure CreateColorGradientBitmap(TerrainFileName,ColorGradientFileName : string);
 Procedure CreateSlopeGradientBitmap(TerrainFileName,SlopeGradientFileName : string);
 Procedure TRN_To_Greyscale_Bitmap(TRN_FileName,Greyscale_FileName : string);
+Procedure TRN_To_16bit_Bitmap(TRN_FileName, Color16_FileName : string);
 Procedure RAW_To_Greyscale_Bitmap(RAW_FileName, Greyscale_FileName : string);
+Procedure RAW_To_16bit_Bitmap(RAW_FileName, Color16_FileName : string);
 Procedure TRN_To_Color_Bitmap(TRN_FileName, Color_FileName : string);
 Procedure RAW_To_TRN(RAW_FileName, TRN_FileName : string);
 Procedure RAW_To_TR3(RAW_FileName, TR3_FilePath : string);
@@ -1383,6 +1385,141 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
+Procedure RAW_To_16bit_Bitmap(RAW_FileName, Color16_FileName : string);
+const
+  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+  pColor : ColorConvert;
+  RAW_File : File of byte;
+  RAW_FileSize : longint;
+  Color16_File : File of byte;
+//  TRN_Header : CondorTerrainHeader;
+//  ByteCount : longint;
+  Q : PWordArray;
+  P : PByteArray;
+  Value : single;
+  WithPadding : integer;
+  ByteWidth : integer;
+  HDR_Filename : string;
+  WidthHeight : string;
+
+{----------------------------------------------------------------------------}
+function ParseWidthHeight(WidthHeight : string) : boolean;
+var
+  i : integer;
+begin
+  i := pos(',',WidthHeight);
+  if (i = 0) then begin
+    result := false;
+  end else begin
+    try
+      ColumnCount := strToInt(copy(WidthHeight,1,i-1));
+      try
+        RowCount := strToInt(copy(WidthHeight,i+1,length(WidthHeight)));
+        result := true;
+      except
+        result := false;
+      end;
+    except
+      result := false;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+begin
+  if (NOT FileExists(RAW_FileName)) then begin
+    MessageShow('Error - File not found');
+  end else begin
+    AssignFile(RAW_File,RAW_FileName);
+    Reset(RAW_File);
+//    seek(RAW_File,0);
+    // need to read a header to get width and height
+    // first look for 'scenery.hdr'
+    HeaderOpen := false;
+    HDR_Filename := extractFilePath(RAW_FileName) + '\scenery.hdr';
+    if (FileExists(HDR_Filename)) then begin // if found calc, size and see if 1x or 3x and select correct
+      ReadSceneryHeader(HDR_Filename);
+    end else begin  // if not, look for same name but with .hdr extension
+      HDR_Filename := copy(RAW_FileName,1,length(RAW_FileName)-length(ExtractFileExt(RAW_FileName))) + '.hdr';
+      if (FileExists(HDR_Filename)) then begin
+        ReadSceneryHeader(HDR_Filename);
+      end;
+    end;
+
+    if (NOT HeaderOpen) then begin  // if not, prompt for size
+      WidthHeight := InputBox('Dimensions of terrain', 'Width, Height', 'Width, Height');
+      if (NOT ParseWidthHeight(WidthHeight)) then begin
+        MessageShow('Error - Invalid values');
+        SysUtils.Beep;
+        Exit;
+      end;
+    end;
+
+    // validate - file size must be width * height * 2
+    RAW_FileSize := FileSize(Raw_File);
+    if (NOT (RAW_FileSize = ColumnCount * RowCount * 2) ) then begin
+      if (RAW_FileSize = ColumnCount*3 * RowCount*3 * 2) then begin
+        ColumnCount := ColumnCount * 3;
+        RowCount := RowCount * 3;
+      end else begin
+        if (RAW_FileSize = (ColumnCount div 3) * (RowCount div 3) * 2) then begin
+          ColumnCount := ColumnCount div 3;
+          RowCount := RowCount div 3;
+        end else begin
+          MessageShow('Error - File size');
+          SysUtils.Beep;
+          Exit;
+        end;
+      end;
+    end;
+
+    // Bitmap byte width must be divisible by 4
+    ByteWidth := ((ColumnCount * (Color16Size) +3) div 4) * 4;
+    MessageShow('Converting terrain file to 16 bit bitmap...');
+    AssignFile(Color16_File,Color16_FileName);
+    Rewrite(Color16_File);
+    // create a BMP header
+    with BitmapHeader_16bitColor do begin
+      bDib.bWidth := ColumnCount;
+      bDib.bHeight := RowCount;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color16Size;
+      bH.bFileByteSize := ColumnCount*(Color16Size) *ByteWidth + bH.bPixelArrayOffset;
+      BlockWrite(Color16_File,BitmapHeader_16bitColor,
+        sizeof(BitmapHeader_16bitColor));
+
+//      // write dummy last byte to force filesize
+//      seek(Color16_File,bH.bPixelArrayOffset+ByteWidth*RowCount-1);
+//      Write(Color16_File,pColor.ByteValue[3]);
+      try
+        P := AllocMem(ColumnCount*2); // one row at a time
+        Q := PWordArray(P);
+        ProgressBar_Status.Max := RowCount;
+        for i := 0 to RowCount-1 do begin
+          BlockRead(RAW_File,P^,ColumnCount*2);
+	  //Now write bitmap row - in bitmap, first row data is bottom pixel row
+          seek(Color16_File,bH.bPixelArrayOffset +  (RowCount-1 - i)*ByteWidth);
+          BlockWrite(Color16_File,P^,ColumnCount*2);
+
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
+      end;
+    end;
+
+    Close(RAW_File);
+    Close(Color16_File);
+    MessageShow('16 bit color bitmap created');
+    ProgressBar_Status.Position := 0;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
 Procedure TRN_To_Greyscale_Bitmap(TRN_FileName, Greyscale_FileName : string);
 const
   ZeroByte : byte = 0;
@@ -1507,7 +1644,107 @@ begin
   end;
 end;
 
-// use 16 bit elevation and make colors
+{----------------------------------------------------------------------------}
+Procedure TRN_To_16bit_Bitmap(TRN_FileName, Color16_FileName : string);
+const
+  ZeroByte : byte = 0;
+
+var
+  i, j :integer;
+//  FileByte : byte;
+  pColor : ColorConvert;
+  TRN_File : File of byte;
+  Color16_File : File of byte;
+  TRN_Header : CondorTerrainHeader;
+//  ByteCount : longint;
+  F : PFloatArray;
+  Q : PWordArray;  // PWordArray in sysutils is pointer to array[0..16383] of word
+                   // not pointer to array of word. Leave as is for now
+  P : PByteArray;
+  Value : single;
+  WithPadding : integer;
+  ByteWidth : integer;
+  DataSize : integer;
+
+begin
+  if (NOT FileExists(TRN_FileName)) then begin
+    MessageShow('Terrain file not found');
+  end else begin
+    AssignFile(TRN_File,TRN_FileName);
+    Reset(TRN_File);
+//    seek(TRN_File,0);
+
+    if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TR3') then begin
+      ColumnCount := 193;
+      RowCount := 193;
+      DataSize := 2;
+    end else begin
+      if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TRN') then begin
+        BlockRead(TRN_File,TRN_Header,sizeof(TRN_Header));
+        ColumnCount := TRN_Header.tWidth;
+        RowCount := TRN_Header.tHeight;
+        DataSize := 2;
+      end else begin
+        if (UpperCase(ExtractFileExt(TRN_FileName)) = '.TR3F') then begin
+          ColumnCount := 257;
+          RowCount := 257;
+          DataSize := 4;
+        end else begin
+          MessageShow('Unable to convert'); Exit;
+        end;
+      end;
+    end;
+    // Bitmap byte width must be divisible by 4
+    ByteWidth := ((ColumnCount * (Color16Size) +3) div 4) * 4;
+    MessageShow('Converting terrain file to 16 bit color bitmap...');
+    AssignFile(Color16_File,Color16_FileName);
+    Rewrite(Color16_File);
+    // create a BMP header
+    with BitmapHeader_16bitColor do begin
+      bDib.bWidth := ColumnCount;
+      bDib.bHeight := RowCount;
+      bDib.bImageByteSize := ColumnCount*RowCount*Color16Size;
+      bH.bFileByteSize := ColumnCount*(Color16Size) *ByteWidth + bH.bPixelArrayOffset;
+      BlockWrite(Color16_File,BitmapHeader_16bitColor,
+        sizeof(BitmapHeader_16bitColor));
+
+      // write dummy last byte to force filesize
+      seek(Color16_File,bH.bPixelArrayOffset+ByteWidth*RowCount-1);
+      Write(Color16_File,pColor.ByteValue[3]);
+      try
+        P := AllocMem(RowCount*DataSize); // one column at a time
+        Q := PWordArray(P);
+        F := @P;
+        ProgressBar_Status.Max := ColumnCount;
+        for i := 0 to ColumnCount-1 do begin
+          BlockRead(TRN_File,P^,RowCount*Datasize);
+	  //Now write as a column instead of a row
+          for j := 0 to RowCount-1 do begin
+            seek(Color16_File,bH.bPixelArrayOffset+((j)*ByteWidth)+(ColumnCount-1-i)*Color16Size);
+            if (DataSize = 2) then begin
+              // already two byte integer
+            end else begin
+              Q^[j] := round(F^[j]);
+            end;
+            BlockWrite(Color16_File,Q^[j], Color16Size);
+          end;
+
+          ProgressBar_Status.StepIt;
+          Application.ProcessMessages;
+        end;
+      finally
+        freemem(P);
+      end;
+    end;
+
+    Close(TRN_File);
+    Close(Color16_File);
+    MessageShow('16 bit color bitmap created');
+    ProgressBar_Status.Position := 0;
+  end;
+end;
+
+// use 16 bit elevation and make 24 bit colors
 {----------------------------------------------------------------------------}
 Procedure TRN_To_Color_Bitmap(TRN_FileName, Color_FileName : string);
 const

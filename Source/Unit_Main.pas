@@ -2084,6 +2084,7 @@ begin
   Unit_Objects.CondorFolder := CondorPathName;
   Unit_Objects.WorkingFolder := WorkingPathName;
   Unit_Objects.Memo_Message := Memo_Info;
+  u_X_CX.Memo_Message := Memo_Info;
   u_X_CX.OBJ_Type := Form_Objects.ComboBox_OBJ_Type.ItemIndex;
 
 //  if (NOT DirectoryExists(WorkingPathName+'\Temp')) then begin

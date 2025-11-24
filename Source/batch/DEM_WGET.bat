@@ -5,7 +5,12 @@ echo Will first download terrain data from USGS.
 echo.
 timeout 3 /nobreak > /nul
 
-set PATH=%PATH%;c:\Programs\wget
+rem goto directory where batch file is
+cd /d %~dp0
+
+rem make sure needed programs exist
+call Set_Path.bat 2> nul
+set PATH=%PATH%;c:\Programs\wget;c:\Program Files\wget
 where wget
 
 IF %ERRORLEVEL% NEQ 0 (
@@ -23,8 +28,6 @@ IF %ERRORLEVEL% NEQ 0 (
    exit /b 9
 )
 
-rem goto directory where batch file is
-cd /d %~dp0
 echo USGS SRTM data download
 set uuuu=user
 set pppp=password

@@ -374,17 +374,18 @@ const
   BitmapHeader_16bitColor : BMP_V1_Header_Mask = (
     bH:(
       bSignature: $4D42{BitmapSignature};
-      bFileByteSize: 256*256*Color16Size +
+      bFileByteSize: 256*256*Color16Size + sizeof(BMP_DIB_ColorMask) +
         sizeof(BMP_Header) + sizeof(BMP_DIB_Header);
       bReserved: 0;
-      bPixelArrayOffset: sizeof(BMP_Header) + sizeof(BMP_DIB_Header) );
+      bPixelArrayOffset: sizeof(BMP_DIB_ColorMask) +
+        sizeof(BMP_Header) + sizeof(BMP_DIB_Header) );
     bDIB:(
       bHeaderSize: sizeof(BMP_DIB_Header);
       bWidth:  256;
       bHeight: 256;
-      bPlanes: 3;  // 3 color masks rgb565
+      bPlanes: 1;
       bColorBits: Color16SizeBits;
-      bComp_biField: 0;
+      bComp_biField: 3;    // 3 color masks rgb565
       bImageByteSize: 256*256*Color16Size;
       bHoriz_Ppm: 0;
       bVert_Ppm:  0;

@@ -244,6 +244,7 @@ var
   Path : string; // external path for Condor program folder
   tvBitmap : TBitmap;
   mBitmap : TBitmap;
+  dBitmap : TBitmap; // to draw texture mask
   oTreeView : TTreeView;
 
   SavedMeshData : pMesh;
@@ -265,10 +266,10 @@ Procedure Normal_To_CX(var S: string);
 Procedure ReadCondorXfile(FileName : string; Append : boolean);
 Procedure WriteCondorXfile(FileName : string; ForViewer : Viewer_Type; TC_InvertY : boolean);
 
-Procedure PlotIt(aData : tCountFloatArray);
+//Procedure PlotIt(aData : tCountFloatArray);
 Procedure sPlotIt(Ptr : pointer);
 //Procedure mPlotIt(aData : tCountFloatArray);
-Procedure mPlotIt(Ptr, PtrMinMax : pointer);
+//Procedure mPlotIt(Ptr, PtrMinMax : pointer);
 Procedure msPlotIt(Ptr : pointer);
 Procedure CalcExtents(Ptr, PtrMinMax : pointer);
 Procedure NormalizeMesh(Ptr, PtrMinMax : pointer; LowestHeight : boolean);
@@ -289,7 +290,7 @@ Procedure ReadCondorC3Dfile(FileName : string; Append : boolean);
 procedure Append_C3D_Details(c3dName, FileName : string);
 Procedure WriteCondorC3Dfile(FileName : string);
 //Procedure C3D_PlotIt(count : integer; aData : pFloatArray);
-Procedure C3D_PlotIt(count : integer; aData : pointer);
+//Procedure C3D_PlotIt(count : integer; aData : pointer);
 
 Procedure ClearTreeView(oTreeView : TTreeView);
 Procedure WriteCondorObjectFile(FileName : string; ForViewer : Viewer_Type; TC_InvertY : boolean);
@@ -326,6 +327,11 @@ Procedure ExtractMaterialList(var NewMaterialList : tMaterialList; oTreeView : T
 Procedure ExtractMaterial(var NewMaterial : tMaterial; oTreeView : TTreeView; Index : integer);
 Procedure ExtractTFileName(var NewFileName : tpFileName; oTreeView : TTreeView; Index : integer);
 Function NormalizeObjectTextures : boolean;
+
+Procedure RotateMeshAndSaveAsTextureCoords(oTreeView : TTreeView;
+  Index : integer; Scale, Angle : single);
+Procedure MakeGrassPaintMask(oTreeView : TTreeView;
+  Index : integer; tPath, tFilename : string; tFileWidth, tFileHeight : Word);
 
 //===========================================================================
 IMPLEMENTATION
@@ -1593,7 +1599,7 @@ begin
 
       ByteCount := Header.bDIB.bWidth*
                    Header.bDIB.bWidth*
-                   Header.bDIB.bColorBits div 8;
+                   (Header.bDIB.bColorBits div 8);
       if (ByteCount <> Header.bDIB.bImageByteSize) then begin
         Header.bDIB.bImageByteSize := ByteCount;
       end;
@@ -1615,13 +1621,16 @@ end;
 
 {----------------------------------------------------------------------------}
 function LoadBMPfileFixAndSaveAsBMP(FileIn, FileOut : string) : Boolean;
+const
+  st_Size = 1024*1024;
 var
   ByteCount : longint;
   NumBytesRead : integer;
   BMP_InFile : File of byte;
   BMP_OutFile : File of byte;
   Header : BMP_V1_Header;
-  P : Array[0..256-1] of byte;
+//  P : Array[0..256-1] of byte;
+  P : PByteArray;
 
 begin
   result := false; // assume no fixing required
@@ -1633,11 +1642,12 @@ begin
 
       ByteCount := Header.bDIB.bWidth*
                    Header.bDIB.bWidth*
-                   Header.bDIB.bColorBits div 8;
+                   (Header.bDIB.bColorBits div 8);
       // check for error in file format
       if (ByteCount <> Header.bDIB.bImageByteSize) then begin
         result := true; // fixing required
         Header.bDIB.bImageByteSize := ByteCount;
+        P := AllocMem(st_Size); // allocate memory
         // now write substitute file with fix
         try
           AssignFile(BMP_OutFile,FileOut);
@@ -1645,12 +1655,13 @@ begin
           BlockWrite(BMP_OutFile,Header,sizeof(Header));
           ByteCount := Header.bH.bFileByteSize - sizeof(Header);
           While ByteCount > 0 do begin
-            BlockRead(BMP_InFile,  P,sizeof(P), NumBytesRead);
-            BlockWrite(BMP_OutFile,P,NumBytesRead);
+            BlockRead(BMP_InFile, P^, st_Size, NumBytesRead);
+            BlockWrite(BMP_OutFile, P^, NumBytesRead);
             ByteCount := ByteCount - NumBytesRead;
           end;
         finally
           Close(BMP_OutFile);
+          freemem(P);
         end;
       end;
 
@@ -2274,6 +2285,7 @@ begin
   end;
 end;
 
+// plot texture-coordinates
 {----------------------------------------------------------------------------}
 Procedure PlotIt(aData : tCountFloatArray);
 var
@@ -2334,7 +2346,8 @@ begin
 
 end;
 
-// plot texture coordinate surfaces
+// plot texture-coordinates using surfaces/triangles
+// 0,0 is top left, not bottom left!
 {----------------------------------------------------------------------------}
 Procedure sPlotIt(Ptr : pointer);
 var
@@ -2582,6 +2595,9 @@ begin
   end;
 end;
 
+// plot mesh vertexes
+// Condor coord -X,  Y, bottom right
+// Delphi coord  X, -Y, top left, not bottom left
 {----------------------------------------------------------------------------}
 Procedure mPlotIt(Ptr, PtrMinMax : pointer);
 var
@@ -2611,15 +2627,15 @@ begin
       Canvas.Brush.Color := clWhite;
       Canvas.FillRect(rect(0,0,Width,Height)); //erase first
       //iX := round((aArray[0][0]-Xcentre)*255/Scale + 127.5);
-      // condor has reversed X axis
-      iX := round((aArray[0][0]-Xcentre)*255/-Scale + 127.5);
-      iY := round((aArray[0][1]-ycentre)*255/Scale + 127.5);
+      iX := round((aArray[0][0]-Xcentre)*255/-Scale + 127.5); // condor has reversed X axis
+//      iY := round((aArray[0][1]-ycentre)*255/Scale + 127.5);
+      iY := round((aArray[0][1]-ycentre)*255/-Scale + 127.5); // inverse Y to plot from bottom-left instead of top-left
       Canvas.MoveTo(iX,iY);
       for i := 1 to aCount-1 do begin
         //iX := round((aArray[i][0]-Xcentre)*255/Scale + 127.5);
-        // condor has reversed X axis
-        iX := round((aArray[i][0]-Xcentre)*255/-Scale + 127.5);
-        iY := round((aArray[i][1]-Ycentre)*255/Scale + 127.5);
+        iX := round((aArray[i][0]-Xcentre)*255/-Scale + 127.5); // condor has reversed X axis
+//        iY := round((aArray[i][1]-Ycentre)*255/Scale + 127.5);
+        iY := round((aArray[i][1]-Ycentre)*255/-Scale + 127.5); // inverse Y to plot
         Canvas.LineTo(iX,iY);
 //  if (i >= StrToInt(Unit_Objects.Form_Objects.Edit_Steps.text)) then begin
 //    break;
@@ -2629,7 +2645,9 @@ begin
   end;
 end;
 
-// plot surfaces
+// plot mesh using surfaces/triangles
+// Condor coord -X,  Y, bottom right
+// Delphi coord  X, -Y, top left, not bottom left
 {----------------------------------------------------------------------------}
 Procedure msPlotIt(Ptr : pointer);
 var
@@ -2660,18 +2678,92 @@ begin
       Canvas.Brush.Color := clWhite;
       Canvas.FillRect(rect(0,0,Width,Height)); //erase first
       for i := 0 to sArray.aCount-1 do begin
-
+//        iY := round((tArray.aArray[sArray.aArray[i].aArray[sArray.aArray[i].aCount-1]][1]-ycentre)*255/ Scale + 127.5);
         iX := round((tArray.aArray[sArray.aArray[i].aArray[sArray.aArray[i].aCount-1]][0]-Xcentre)*255/-Scale + 127.5);  // condor has reversed X axis
-        iY := round((tArray.aArray[sArray.aArray[i].aArray[sArray.aArray[i].aCount-1]][1]-ycentre)*255/ Scale + 127.5);
+        iY := round((tArray.aArray[sArray.aArray[i].aArray[sArray.aArray[i].aCount-1]][1]-ycentre)*255/-Scale + 127.5); // inverse Y to plot from bottom-left instead of top-left
         Canvas.MoveTo(iX,iY);
         for j := 0 to sArray.aArray[i].aCount-1 do begin
           iX := round((tArray.aArray[sArray.aArray[i].aArray[j]][0]-Xcentre)*255/-Scale + 127.5);
-          iY := round((tArray.aArray[sArray.aArray[i].aArray[j]][1]-ycentre)*255/ Scale + 127.5);
+//          iY := round((tArray.aArray[sArray.aArray[i].aArray[j]][1]-ycentre)*255/ Scale + 127.5);
+          iY := round((tArray.aArray[sArray.aArray[i].aArray[j]][1]-ycentre)*255/-Scale + 127.5); // inverse Y to plot
           Canvas.LineTo(iX,iY);
         end;
       end;
     end;
   end;
+end;
+
+// Condor coord -X,  Y, bottom right
+// Texture coord X, -Y, top left
+{----------------------------------------------------------------------------}
+Procedure RotateMeshAndSaveAsTextureCoords(oTreeView : TTreeView;
+  Index : integer; Scale, Angle : single);
+var
+  i : integer;
+  mX, mY : single;
+  COSfactor, SINfactor : single;
+  mPtr, tPtr : pointer;
+
+begin
+  mPtr := pObjectItem(oTreeView.Items[Index].data)^.oPointer;   // vertexes
+  tPtr := pObjectItem(oTreeView.Items[Index+2].data)^.oPointer; // texture coordinates
+  // -180 -> trick to go from -X,Y condor coord to X,-Y for drawing from top left
+  Angle := (Angle-180) * Pi /180.0;
+  SINfactor := sin(Angle);
+  COSfactor := cos(Angle);
+  for i := 0 to pMesh(mPtr)^.tArray.aCount-1 do begin
+    mX := pMesh(mPtr)^.tArray.aArray[i][0] * COSfactor - pMesh(mPtr)^.tArray.aArray[i][1] * SINfactor;
+    mY := pMesh(mPtr)^.tArray.aArray[i][0] * SINfactor + pMesh(mPtr)^.tArray.aArray[i][1] * COSfactor;
+    pMeshTcoord(tPtr)^.tArray.aArray[i][0] := mX/Scale + 0.5;
+    pMeshTcoord(tPtr)^.tArray.aArray[i][1] := mY/Scale + 0.5;
+  end;
+end;
+
+// Condor texture coordinates 0,0 is top left, X, -Y
+// Delphi coord  X, -Y, top left, same, so no X,Y change
+{----------------------------------------------------------------------------}
+Procedure MakeGrassPaintMask(oTreeView : TTreeView;
+  Index : integer;
+  tPath, tFilename : string;
+  tFileWidth, tFileHeight : Word);
+var
+  i, j, k : integer;
+  Xcentre, Ycentre,Scale : double;
+  iX, iY : integer;
+  DrawPoints : Array of Tpoint;
+  mPtr, tPtr : pointer;
+
+begin
+  mPtr := pObjectItem(oTreeView.Items[Index].data)^.oPointer;   // vertexes
+  tPtr := pObjectItem(oTreeView.Items[Index+2].data)^.oPointer; // texture coordinates
+  dBitmap.Width := tFileWidth;
+  dBitmap.Height := tFileHeight;
+  dBitmap.PixelFormat := pf24bit; //force 24 bit color
+//  with pMeshTcoord(pObjectItem(oTreeView.Items[Index].data)^.oPointer)^ do begin
+    with dBitmap do begin
+      Canvas.Pen.Style := psSolid;
+      Canvas.Pen.Mode := pmCopy;
+//      Canvas.Pen.Color := clWhite;
+      Canvas.Brush.Color := $00404040; // TColor ABGR default 64/256
+      Canvas.FillRect(rect(0,0,Width,Height)); // fill with default 64/256
+      Canvas.Brush.Color := clBlack; // $00000000; // ABGR
+      Canvas.Pen.Color := Canvas.Brush.Color;
+      for i := 0 to pMesh(mPtr)^.sArray.aCount-1 do begin
+        SetLength(DrawPoints,pMesh(mPtr)^.sArray.aArray[0].aCount);
+        k := 0;
+        for j := 0 to pMesh(mPtr)^.sArray.aArray[i].aCount-1 do begin
+          iX := round((pMeshTcoord(tPtr)^.tArray.aArray[pMesh(mPtr)^.sArray.aArray[i].aArray[j]][0]-0.5)*tFileWidth + (tFileWidth div 2));
+          iY := round((pMeshTcoord(tPtr)^.tArray.aArray[pMesh(mPtr)^.sArray.aArray[i].aArray[j]][1]-0.5)*tFileHeight + (tFileHeight div 2));
+          DrawPoints[k].X := iX; DrawPoints[k].Y := iY;
+          Inc(k);
+        end;
+        Canvas.Polygon(DrawPoints);
+      end;
+//    end;
+  end;
+  // now save the bitmap
+  dBitmap.PixelFormat := pf8bit; //force 8 bit color
+  dBitmap.SaveToFile(tPath+'\'+tFileName);
 end;
 
 {----------------------------------------------------------------------------}
@@ -3169,7 +3261,7 @@ type
   Surface_C3D = packed record
     vertex1, vertex2, vertex3 : longword;
   end;
-  aSurface_C3D =  array[0..1] of Surface_C3D; // cannot use 'array of' because there is overhead data to be accounted for
+//  aSurface_C3D =  array[0..1] of Surface_C3D; // cannot use 'array of' because there is overhead data to be accounted for
 
 var
   Magic_3D : array[0..3-1] of char;
@@ -3395,6 +3487,8 @@ begin
 
 end;
 
+//procedure Autogen_MakeObjectList; forward;
+
 //----------------------------------------------------------------------------
 procedure readCondorC3Dfile(FileName : string; Append : Boolean);
 var
@@ -3456,6 +3550,9 @@ Objects_C3D[i].name := StringReplace(Objects_C3D[i].name, ' ', '_', [rfReplaceAl
 
   if (NOT FileError) then begin
     CondorC3Dfile_CreateTreeViewVersion(Append);
+
+// Autogen_MakeObjectList; // here for testing the function
+
   end;
 end;
 
@@ -4888,8 +4985,253 @@ begin
   XplaneOBJ8file_CreateTreeViewVersion;
 end;
 
+//----------------------------------------------------------------------------
 // also include Wavefront object type
 {$I u_WaveFront_Obj.pas}
+
+//----------------------------------------------------------------------------
+procedure Autogen_MakeObjectList;
+type
+  ObjectListType = record
+    ObjectNumber     : LongWord;
+    TextureListIndex : LongWord;
+    SurfaceListIndex : LongWord;
+  end;
+var
+  i : LongWord;
+  oIndex : LongWord;
+  oObject : LongWord;
+  oSurface : LongWord;
+  iSurface : LongWord;
+  iFound : LongWord;
+  pObjLastSurface : LongWord;
+  SurfaceListCount : LongWord;
+  TextureListCount : LongWord;
+  ObjectListCount : LongWord;
+  SurfaceList : array of array of LongWord;
+  TextureList : array of String;
+  ObjectList  : array of ObjectListType;
+
+  vOffset, sOffset : LongWord;
+  vIndex, sIndex : LongWord;
+  nObjects, nVertices, nSurfaces : LongWord;
+  ObjectIsGrouped : boolean;
+  AllSurfacesGrouped : boolean;
+  LastFoundSurface : LongWord;
+  Temp_Surfaces_C3D : Surface_C3D;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+function ScanForMatchingVertex(oObject,oIndex, sIndex, iSurface, iCount : LongWord; Reverse : Boolean) : boolean;
+var
+  i : LongWord;
+  Min, Max : LongWord;
+begin
+  result := false; // assume for now
+  if (Reverse) then begin
+    Max := iSurface;
+    if (iSurface-1 > iCount) then Min := iSurface-1-iCount else Min := 0;
+//    if (nSurfaces = 240) then begin
+//      i := Max;
+//    end else begin
+      i := Max;
+//    end;
+  end else begin
+    Min := iSurface;
+    if (iSurface+1+iCount < nSurfaces-1) then Max := iSurface+1+iCount else Max := nSurfaces-1;
+    i := Min;
+  end;
+  Repeat
+    if (Reverse) then begin
+      Dec(i);
+    end else begin
+      Inc(i);
+    end;
+    iFound := i; // assume for now
+//    if (SurfaceList[oIndex][i] = oObject) then begin // check only included surfaces
+    begin
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex1 = Surfaces_C3D[i+sIndex+sOffset].vertex1) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex1].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex1].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex1].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex1].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex2 = Surfaces_C3D[i+sIndex+sOffset].vertex1) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex2].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex1].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex2].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex1].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex3 = Surfaces_C3D[i+sIndex+sOffset].vertex1) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex3].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex1].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex3].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex1].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex1 = Surfaces_C3D[i+sIndex+sOffset].vertex2) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex1].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex2].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex1].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex2].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex2 = Surfaces_C3D[i+sIndex+sOffset].vertex2) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex2].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex2].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex2].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex2].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex3 = Surfaces_C3D[i+sIndex+sOffset].vertex2) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex3].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex2].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex3].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex2].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex1 = Surfaces_C3D[i+sIndex+sOffset].vertex3) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex1].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex3].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex1].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex3].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex2 = Surfaces_C3D[i+sIndex+sOffset].vertex3) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex2].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex3].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex2].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex3].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+      if (Surfaces_C3D[iSurface+sIndex+sOffset].vertex3 = Surfaces_C3D[i+sIndex+sOffset].vertex3) then begin
+        result := true; exit;
+      end else begin // also check matching X, Y
+        if ((ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex3].X -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex3].X) < 0.01) AND
+            (ABS(Meshes_C3D[Surfaces_C3D[iSurface+sIndex+sOffset].vertex3].Y -
+                 Meshes_C3D[Surfaces_C3D[i+sIndex+sOffset].vertex3].Y) < 0.01)
+            ) then begin
+          result := true; exit;
+        end;
+      end;
+    end;
+  until ((Reverse AND (i = Min)) OR ((Not Reverse) AND (i = Max)) );
+end;
+
+{- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -}
+begin
+  // process C3D data directly not through oTreeView
+  oObject := 1; // first Object
+  // analyse each object
+  nObjects := Headers_C3D.Number_Objects;
+  SetLength(SurfaceList,nObjects);
+  for oIndex := 0 to nObjects - 1 do begin
+    with Objects_C3D[oIndex] do begin
+      vIndex := 0; sIndex := 0; // relative to current object
+      // the vertices and surfaces
+      vOffset   := Indexes.Vertex_Offset;
+      nVertices := Indexes.NumVertices;
+      sOffset   := Indexes.Surface_Offset div 3;
+      nSurfaces := Indexes.NumSurfaceVertices div 3;
+ MessageShow(format('Texture:   %s',[extractFileName(Objects_C3D[oIndex].TexturePath)]));
+ MessageShow(format('Vertices:  %d',[nVertices]));
+ MessageShow(format('Triangles: %d',[nSurfaces]));
+      // create a SurfaceList
+      SetLength(SurfaceList[oIndex],nSurfaces);
+      // scan surfaces to group objects
+      iSurface := 0; pObjLastSurface := 0;
+      // clear the list
+      for i := 0 to nSurfaces-1 do begin
+        SurfaceList[oIndex][i] := 0;
+      end;
+      repeat
+        // first surface automatically belongs to current object
+        SurfaceList[oIndex][iSurface] := oObject;
+        lastFoundSurface := iSurface;
+        if (iSurface >= nSurfaces) then begin
+          MessageShow(format('Problem: %d',[oObject-1]));
+          break;
+        end;
+        inc(iSurface); // next surface
+        if (iSurface >= nSurfaces) then begin
+          break; // no more surfaces
+        end;
+        // scan for matching surfaces and vertices
+        repeat
+          ObjectIsGrouped := true; // assume to start
+          // search backwards from current point
+          if (ScanForMatchingVertex(oObject,oIndex,sIndex,iSurface,iSurface-pObjLastSurface-1, True)) then begin
+//          if (ScanForMatchingVertex(oObject,oIndex,sIndex,iSurface,nSurfaces-1,True)) then begin
+            // add surface, belongs to current object
+            SurfaceList[oIndex][iSurface] := oObject;
+            lastFoundSurface := iSurface;
+            // not grouped yet every time a new surface is added
+            ObjectIsGrouped := false;
+            inc(iSurface); // next surface
+          end else begin
+//            ObjectIsGrouped := true;
+            // search ahead and swap surface if found
+//            for i := iSurface-1 downto pObjLastSurface do begin // no, scan compares at i,i+1, not i,iSurface-1+1
+            for i := iSurface-1 downto iSurface-1 do begin // just check last for now
+              if (ScanForMatchingVertex(oObject,oIndex,sIndex,i,nSurfaces-iSurface-1, False)) then begin
+                // swap surface pointers (iSurface,iMatch)
+                CopyMemory(@Temp_Surfaces_C3D,@Surfaces_C3D[iFound],sizeof(Surface_C3D));
+                CopyMemory(@Surfaces_C3D[iFound],@Surfaces_C3D[iSurface],sizeof(Surface_C3D));
+                CopyMemory(@Surfaces_C3D[iSurface],@Temp_Surfaces_C3D,sizeof(Surface_C3D));
+                SurfaceList[oIndex][iSurface] := oObject;
+                lastFoundSurface := iSurface;
+                // not grouped yet every time a new surface is added
+                ObjectIsGrouped := false;
+                inc(iSurface); // next surface
+                break;
+              end;
+            end;
+          end;
+        until (ObjectIsGrouped OR (iSurface >= nSurfaces));
+        pObjLastSurface := iSurface-1; // keep track of last surface in object
+        Inc(oObject);
+      until (iSurface >= nSurfaces);
+      MessageShow(format('Found: %d',[oObject-1]));
+    end;
+    // now group partial objects to make full objects
+    // How ???
+
+  end;
+end;
 
 {----------------------------------------------------------------------------}
 begin { Initialization }

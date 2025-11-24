@@ -1,6 +1,6 @@
 {
  * Unit_Utilities.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -118,6 +118,7 @@ type
     Label34: TLabel;
     Label36: TLabel;
     Label37: TLabel;
+    CheckBox_C16: TCheckBox;
     procedure Button_BMP_ConvrtClick(Sender: TObject);
     procedure Button_BMP_TDMClick(Sender: TObject);
     procedure Button_TDM_BMPClick(Sender: TObject);
@@ -613,9 +614,17 @@ begin
       u_Terrain.Memo_Message := Memo_Message;
       u_Terrain.ProgressBar_Status := ProgressBar_Status;
       if (UpperCase(ExtractFileExt(FileName)) = '.RAW') then begin
-        RAW_To_Greyscale_Bitmap(FileName, FileName+'-bmp.bmp');
+        if (CheckBox_C16.checked) then begin
+          RAW_To_16bit_Bitmap(FileName, FileName+'-16.bmp');
+        end else begin
+          RAW_To_Greyscale_Bitmap(FileName, FileName+'-BW.bmp');
+        end;
       end else begin
-        TRN_To_Greyscale_Bitmap(FileName,FileName+'-bmp.bmp');
+        if (CheckBox_C16.checked) then begin
+          TRN_To_16bit_Bitmap(FileName,FileName+'-16.bmp');
+        end else begin
+          TRN_To_Greyscale_Bitmap(FileName,FileName+'-BW.bmp');
+        end;
       end;
     finally
       Screen.Cursor := crDefault;  // no longer busy
@@ -2956,7 +2965,7 @@ begin
   fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, '',pObjectData);
   New(pObjectData); //allocate space for an object data
   pObjectData^.oType := oFileName;
-  NewFileNameData^.tqName := 'Textures/grass_rgba.dds';
+  NewFileNameData^.tqName := 'Textures/Grass3D_Area.dds';
   pObjectData^.oPointer := NewFileNameData;
   fTreeNode2 := oTreeView.Items.AddChildObject(fTreeNode2, '',pObjectData);
 
@@ -3004,12 +3013,12 @@ begin
          [oFileName]) ) then begin
       TextureFileName := pFileName(pObjectItem(oTreeView.Items[Index+5].data)^.oPointer)^.tqName;
 //      if (upperCase(TextureFileName) = 'TRANSPARENT.DDS') then begin
-      if (pos('TRANSPARENT.DDS',upperCase(TextureFileName)) <> 0) then begin
+      if (pos('TRANSPARENT.DDS',upperCase(TextureFileName)) <> 0) then begin //black runway problem
         //change material Alpha to 0.0
         AdjustMaterial(u_X_CX.oTreeView, Index+4, 0, 0.0);
         MessageShow('- Adjust: Alpha ');
       end else begin
-        if ((TextureFileName) = '') then begin
+        if ((TextureFileName) = '') then begin //white runway problem
           //change material color to 0.55, 0.55, 0.55
           AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.55);
           MessageShow('- Adjust: Color ');
@@ -3023,6 +3032,7 @@ end;
 Procedure AdjustAsphaltPaintMesh(oTreeView : TTreeView; Index : integer);
 var
   TextureFileName : string;
+  tCoordSize : single;
 begin
   // examine the texturefilename 5 nodes ahead
   if (oTreeView.Items.Count < Index+5) then begin
@@ -3036,7 +3046,66 @@ begin
       TextureFileName := pFileName(pObjectItem(oTreeView.Items[Index+5].data)^.oPointer)^.tqName;
       if ((TextureFileName) = '') then begin
         //change material color to 0.55, 0.55, 0.55
+        AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.55);
+        MessageShow('- Adjust: Color ');
+        //use mesh as texture coords
+        // need the overall mesh size
+        tCoordsize := pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index].data)^.oPointer).tMinMaxArray[6];
+         // also need distance from centre
+         tCoordsize := tCoordsize + sqrt(SQR(
+             pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index].data)^.oPointer).tMinMaxArray[4]
+             )+ SQR(
+             pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index].data)^.oPointer).tMinMaxArray[5]
+             ));
+        // no need to rotate for airport direction for AsphaltPaint -> use -90 deg
+        RotateMeshAndSaveAsTextureCoords(u_X_CX.oTreeView, Index, tCoordSize*2, -90.0);
+        MessageShow('- Adjust: Coords ');
+      end else begin
+        // pure white issue
+        //change material color to 0.75, 0.75, 0.75
         AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.75);
+        MessageShow('- Adjust: Color ');
+      end;
+    end;
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure AdjustGrassPaintMesh(oTreeView : TTreeView; Index : integer; AirportDirection : single);
+var
+  TextureFileName : string;
+  tCoordSize : single;
+begin
+  // examine the texturefilename 5 nodes ahead
+  if (oTreeView.Items.Count < Index+5) then begin
+    // error
+    Exit;
+  end else begin
+    // check if indeed oFileName
+    if ( (oTreeView.Items[Index+5].data <> nil) AND
+         (pObjectItem(oTreeView.Items[Index+5].data)^.oType in
+         [oFileName]) ) then begin
+      TextureFileName := pFileName(pObjectItem(oTreeView.Items[Index+5].data)^.oPointer)^.tqName;
+      if ((TextureFileName) = '') then begin
+        //change material color to 0.85, 0.85, 0.85
+        AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.85);
+        MessageShow('- Adjust: Color ');
+        //use mesh as texture coords
+        // need the overall mesh size
+        tCoordsize := pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index].data)^.oPointer).tMinMaxArray[6];
+        // also need distance from centre
+        tCoordsize := tCoordsize + sqrt(SQR(
+            pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index].data)^.oPointer).tMinMaxArray[4]
+            )+ SQR(
+            pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index].data)^.oPointer).tMinMaxArray[5]
+            ));
+        // need to rotate for airport direction for GrassPaint with Grass3D
+        RotateMeshAndSaveAsTextureCoords(u_X_CX.oTreeView, Index, tCoordSize*2, AirportDirection);
+        MessageShow('- Adjust: Coords ');
+      end else begin
+        // pure white issue
+        //change material color to 0.85, 0.85, 0.85
+        AdjustMaterial(u_X_CX.oTreeView, Index+4, 1, 0.85);
         MessageShow('- Adjust: Color ');
       end;
     end;
@@ -3053,6 +3122,7 @@ var
   SearchRec: TSearchRec;
   GrassDone : boolean;
   Grass3DInserted : boolean;
+  tCoordSize : single;
 
   Dummy_File : file;
 begin
@@ -3181,8 +3251,24 @@ begin
                     //    INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
                         AddGrass3Dframe(u_X_CX.oTreeView, Index);
                         Grass3DInserted := true;
-//                        INC(Index,7-1); // 7 because 7 processed, so just keep
+        // need to rotate for airport direction for GrassPaint with Grass3D. Not needed for Asphalt and AsphaltPaint
+        //use mesh as texture coords
+        // need the overall mesh size
+        tCoordsize := pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index+1].data)^.oPointer).tMinMaxArray[6];
+        // also need distance from centre
+        tCoordsize := tCoordsize + sqrt(SQR(
+            pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index+1].data)^.oPointer).tMinMaxArray[4]
+            )+ SQR(
+            pMesh(pObjectItem(u_X_CX.oTreeView.Items[Index+1].data)^.oPointer).tMinMaxArray[5]
+            ));
+                        RotateMeshAndSaveAsTextureCoords(u_X_CX.oTreeView, Index+1, tCoordSize*2, apDirection);
+                        // now adjust index to skip over Grass3D and Grass
+//                        INC(Index,7-1); // 7 because 7 processed,
                         INC(Index,14-1); // 14 because added 7 above and processed 7 - ??? messy find another way ?
+                      end else begin
+                        if (upperCase(nName) = 'GRASSPAINT') then begin
+                          AdjustGrassPaintMesh(u_X_CX.oTreeView, Index, apDirection);
+                        end;
                       end;
                     end;
                   end;
@@ -3199,12 +3285,12 @@ begin
       end;
     end;
 
-    // if grass3D inserted, also copy Textures/green_64.dds
+    // if grass3D inserted, also copy Textures/Grass3D_Area.dds
     if (Grass3DInserted) then begin
       ForceDirectories(Airport_FolderName+'\Airports\Textures');
-      if (NOT fileExists(Airport_FolderName+'\Airports\Textures\grass_rgba.dds')) then begin
-        CopyFile(pchar(ApplicationPath+'\Condor_V2\grass_rgba.dds'),
-          pchar(Airport_FolderName+'\Airports\Textures\grass_rgba.dds'),false);
+      if (NOT fileExists(Airport_FolderName+'\Airports\Textures\Grass3D_Area.dds')) then begin
+        CopyFile(pchar(ApplicationPath+'\Condor_V2\Grass3D_Area.dds'),
+          pchar(Airport_FolderName+'\Airports\Textures\Grass3D_Area.dds'),false);
       end;
     end;
 

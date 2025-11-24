@@ -24,7 +24,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls;
+  StdCtrls, ExtCtrls;
 
 type
   TForm_HiResRunway = class(TForm)
@@ -44,6 +44,9 @@ type
     Label_LO_m: TLabel;
     Edit_WidthOffset: TEdit;
     Edit_LengthOffset: TEdit;
+    GroupBox_RelativeCentre: TGroupBox;
+    RadioButton_AirportCentre: TRadioButton;
+    RadioButton_RunwayOffset: TRadioButton;
     procedure Button_CancelClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_ProceedClick(Sender: TObject);

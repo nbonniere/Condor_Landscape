@@ -1,6 +1,6 @@
 {
  * Unit_Objects.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -471,6 +471,7 @@ procedure TForm_Objects.TreeView_ObjectMouseDown(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   Node : TTreeNode;
+  tCoordSize : single;
 begin
     Node := TreeView_Object.GetNodeAt(X, Y);
     if (Node <> nil) then begin
@@ -483,13 +484,29 @@ begin
             oMesh: begin
               Label_Name.Caption := pMesh(oPointer)^.tName;
       //        mPlotIt(@pMesh(oPointer)^.tArray,@pMesh(oPointer)^);
-              // improve by plotting surfaces instead of list of virtexes
+              // improve by plotting surfaces instead of list of vertexes
               msPlotIt(@pMesh(oPointer)^);
             end;
             oMeshTextureCoord: begin
               Label_Name.Caption := pMeshTcoord(oPointer)^.tName;
+              if (Button = mbRight) then begin
+                if MessageDlg('Do you want to overwrite the texture coordinates from the mesh ?', mtConfirmation,
+                              [mbYes, mbNo], 0) = mrYes then begin
+                  // mesh reference is -2 from this node
+                  // need the overall mesh size
+                  tCoordsize := pMesh(pObjectItem(TreeView_Object.Items[Node.AbsoluteIndex-2].data)^.oPointer).tMinMaxArray[6];
+                  // also need distance from centre
+                  tCoordsize :=  tCoordsize + sqrt(SQR(
+                     pMesh(pObjectItem(u_X_CX.oTreeView.Items[Node.AbsoluteIndex-2].data)^.oPointer).tMinMaxArray[4]
+                   )+ SQR(
+                     pMesh(pObjectItem(u_X_CX.oTreeView.Items[Node.AbsoluteIndex-2].data)^.oPointer).tMinMaxArray[5]
+                   ));
+                  RotateMeshAndSaveAsTextureCoords(TreeView_Object, Node.AbsoluteIndex-2, tCoordSize*2, -90.0);
+                end;
+              end else begin
+              end;
       //        PlotIt(pMeshTcoord(oPointer)^.tArray);
-              // improve by plotting surfaces instead of list of virtexes
+              // improve by plotting surfaces instead of list of vertexes
               sPlotIt(@pMeshTcoord(oPointer)^);
             end;
             oFileName: begin
@@ -514,7 +531,7 @@ begin
 //              Label_Name.Caption := '';
 //              C3D_PlotIt(p3DmeshTcoord(oPointer)^.mCount, p3DmeshTcoord(oPointer)^.mArray);
 //              PlotIt(pMeshTcoord(oPointer)^.tArray);
-//              // improve by plotting surfaces instead of list of virtexes
+//              // improve by plotting surfaces instead of list of vertexes
 //            end;
 //            o3Dmaterial: begin
 //              Label_Name.Caption := '';
@@ -545,7 +562,10 @@ begin
   Image_Mesh.Picture.Bitmap.Height := Image_Mesh.HeigHt;
   mBitmap := Image_Mesh.Picture.Bitmap;
 
-  ComboBox_OBJ_Type.ItemIndex := 0;
+  // bitmap to draw triangles - needs to be in u_X_CX.pas, but doesn't work there ???
+  dBitmap := TBitMap.Create;
+
+    ComboBox_OBJ_Type.ItemIndex := 0;
 end;
 
 //---------------------------------------------------------------------------
