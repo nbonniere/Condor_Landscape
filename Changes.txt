@@ -448,6 +448,17 @@ v0.10.11 - Nov 2025
   - DEM alternate batch files - make adjustment to use Set_path.bat
   - V2-to_V3 - add rotation of Texture coords.
 
+v0.10.12 - Feb 2026
+  - Autogen - delete 81 byte or less incomplete/empty Autogen files
+  - GrassPaint mask - read file size and set mask to same size
+  - airport DDS load - check for manually generated .reduced.dds file
+    - for now when file size > 8192
+  - fix buggy Generic tile download - not done properly in v0.10.0
+  - SimpleObjects - fix object Type error using comma
+  - AirportPlacer - add distance and angle to clipboard on click
+  - AirportPlacer - add outline - eventually to be used for 'flattening'
+  - Graphics - add polygon
+  - DEM - USGS URL change
 
 
 Issues:

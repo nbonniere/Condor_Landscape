@@ -146,7 +146,6 @@ type
     procedure RadioButton_ElevMouseUp(Sender: TObject;
       Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure ScrollBox_ImageResize(Sender: TObject);
-    procedure Image_TileClick(Sender: TObject);
     procedure Image_TileMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure Image_TileMouseUp(Sender: TObject; Button: TMouseButton;
@@ -173,6 +172,7 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure PaintBox1Paint(Sender: TObject);
     procedure Button_Grass3DClick(Sender: TObject);
+    procedure Label_AltitudeDblClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -187,6 +187,7 @@ type
 var
   Form_AirportPlacer : TForm_AirportPlacer;
 
+  WorkingFolder : string;
   Memo_Message : TMemo;  // external TMemo for messages
   CurrentLandscape : string;
   apVersion : string;
@@ -202,7 +203,7 @@ implementation
 uses
   FileCtrl, ClipBrd, Math,
   Unit_Graphics, Unit_Main, u_MakeGDAL, u_MakeDDS, Unit_HiResRunway,
-  u_Terrain, u_Airport, u_TileList, u_UTM, u_MakeGMID,
+  u_Terrain, u_Airport, u_TileList, u_UTM, u_MakeGMID, u_Util,
   u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT, Unit_Help;
 
 const
@@ -211,7 +212,7 @@ const
 
 var
   GUI_State : (IdleScreen, DirectionSelectScreen, CentreSelectScreen,
-    LengthSelectScreen, WidthSelectScreen, ScrollScreen, CancelScreen);
+    LengthSelectScreen, WidthSelectScreen, ScrollScreen, ElevationOutlineScreen, CancelScreen);
   ItemIndex : integer;
   AirportsChanged : boolean;
   BitmapAvail : boolean;
@@ -230,6 +231,43 @@ var
   cX, cY : double;  // current centre relative
 //  DDS_Bitmap : TBitMap;
   MeshName : string;
+
+//---------------------------------------------------------------------------
+var
+  AirportCorners : TCoordXY_Array;
+  CentreMark : TCoordXY_Array;
+  TowPlaneTrack : TCoordXY_Array;
+  GliderTrack : TCoordXY_Array;
+  WindSock : TCoordXY_Array;    // V1
+
+  G_Object : TArray_CoordXY_Array; // G file asphalt and grass
+  O_Object_Outline : TCoordXY_Array; // O file object
+
+  Elev_Outline : TCoordXY_Array; // for flattening/smoothing
+
+  TP_CR : TCoordXY;
+  TP_TD : TCoordXY;
+  TP_PK : TCoordXY;
+  GL_TO : TCoordXY;
+  WS    : TCoordXY;
+
+// V1
+// note - drawing on canvas has Y reversed !
+// X is reversed if take-off is on opposite side
+// Glider take-off position =    (+17,            +200 -runwy_L/2) // 14..17 - seems to move sometimes
+// TowPlane touchdown position = ( -5,            +50  -runwy_L/2)
+// TowPlane corner position =    (-75,            +350 -runwy_L/2)
+// TowPlane parking position =   (-40,            +200 -runwy_L/2)
+// Winsock position (V1) =       (+30 +runwy_W/2, +320 -runwy_L/2)
+// V2 (V3?)
+// note - drawing on canvas has Y reversed !
+// reference runwy_W min is 25m
+// X is reversed if take-off is on opposite side
+// Glider take-off position =    ( +2,            +200 -runwy_L/2) // 14..17 - seems to move sometimes
+// TowPlane touchdown position = (-12 -runwy_W/2,    0 -runwy_L/2)
+// TowPlane corner position =    (-50 -runwy_W/2, +350 -runwy_L/2)
+// TowPlane parking position =   (-25 -runwy_W/2, +200 -runwy_L/2)
+
 
 // TScollBox addition
 //---------------------------------------------------------------------------
@@ -314,7 +352,7 @@ begin
   prevDDS_Col := -1; prevDDS_Row := -1;
   aprange := T_Range; // 23040 km to start with
   apZoomScale := 1.0;
-//  AirportsChanged := false;
+  SetLength(Elev_Outline,0); // clear any existing outline
   Airport_Change_Show(False, False, False);
 
   // clear treeview
@@ -338,39 +376,45 @@ begin
   CheckBox_Tow_Secondary_Left.checked := False;
 end;
 
+// change to relative UTM ???
 //---------------------------------------------------------------------------
+Procedure Write_Elevation_Outline(FilePath, FileName : string);
 var
-  AirportCorners : TCoordXY_Array;
-  CentreMark : TCoordXY_Array;
-  TowPlaneTrack : TCoordXY_Array;
-  GliderTrack : TCoordXY_Array;
-  WindSock : TCoordXY_Array;    // V1
+  Elev_File : TextFile;
+  Index : integer;
+begin
+  ForceDirectories(FilePath);
+  AssignFile(Elev_File, FilePath+'\'+FileName);
+  Rewrite(Elev_File);
+  Index := 0;
+  for Index := 0 to length(Elev_Outline)-1 do begin
+    Writeln(Elev_File, format('%0.3f,%0.3f',[Elev_Outline[Index].X,Elev_Outline[Index].Y]));
+  end;
+  CloseFile(Elev_File);
+end;
 
-  G_Object : TArray_CoordXY_Array; // G file asphalt and grass
-  O_Object_Outline : TCoordXY_Array; // O file object
-
-  TP_CR : TCoordXY;
-  TP_TD : TCoordXY;
-  TP_PK : TCoordXY;
-  GL_TO : TCoordXY;
-  WS    : TCoordXY;
-
-// V1
-// note - drawing on canvas has Y reversed !
-// X is reversed if take-off is on opposite side
-// Glider take-off position =    (+17,            +200 -runwy_L/2) // 14..17 - seems to move sometimes
-// TowPlane touchdown position = ( -5,            +50  -runwy_L/2)
-// TowPlane corner position =    (-75,            +350 -runwy_L/2)
-// TowPlane parking position =   (-40,            +200 -runwy_L/2)
-// Winsock position (V1) =       (+30 +runwy_W/2, +320 -runwy_L/2)
-// V2
-// note - drawing on canvas has Y reversed !
-// reference runwy_W min is 25m
-// X is reversed if take-off is on opposite side
-// Glider take-off position =    ( +2,            +200 -runwy_L/2) // 14..17 - seems to move sometimes
-// TowPlane touchdown position = (-12 -runwy_W/2,    0 -runwy_L/2)
-// TowPlane corner position =    (-50 -runwy_W/2, +350 -runwy_L/2)
-// TowPlane parking position =   (-25 -runwy_W/2, +200 -runwy_L/2)
+// change to relative UTM ???
+//---------------------------------------------------------------------------
+Procedure Read_Elevation_Outline(FilePath, FileName : string);
+var
+  Elev_File : TextFile;
+  Index : integer;
+  TempSTR : string;
+begin
+  if (FileExists(FilePath+'\'+FileName)) then begin
+    AssignFile(Elev_File, FilePath+'\'+FileName);
+    Reset(Elev_File);
+    Index := 0;
+    while (Not EOF(Elev_File)) do begin
+      SetLength(Elev_Outline,Index+1);
+      Readln(Elev_File, TempSTR);
+      Elev_Outline[Index].X := StrToFloat(ReadCSV(TempSTR));
+      Elev_Outline[Index].Y := StrToFloat(ReadCSV(TempSTR));
+      Inc(Index);
+    end;
+    CloseFile(Elev_File);
+  end;
+end;
 
 //---------------------------------------------------------------------------
 procedure Init_Positions;
@@ -816,9 +860,40 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+Procedure Draw_Elevation_Outline(useColor : TColor);
+var
+  i : integer;
+  ScaleX , ScaleY : double;
+begin
+  with Form_AirportPlacer do begin
+//    // for Image
+//    ScaleX := Image_Tile.Width/apRange * apZoomScale;
+//    ScaleY := Image_Tile.Height/apRange * apZoomScale;
+    // for PaintBox
+    ScaleX := Image_Tile.Width/apRange;
+    ScaleY := Image_Tile.Height/apRange;
+  end;
+
+  with Form_AirportPlacer.PaintBox1 do begin
+//    Canvas.Pen.Mode := pmCopy; // needed for pixels[] !
+//    Canvas.Pen.Style := psSolid;
+    Canvas.Pen.Width := 2;
+    Canvas.Pen.Color := useColor;
+    // start with last point to draw a closed surface
+    Canvas.MoveTo(round(Elev_Outline[Length(Elev_Outline)-1].X * ScaleX), Round(Elev_Outline[Length(Elev_Outline)-1].Y * ScaleY));
+    for i := 0 to Length(Elev_Outline)-1 do begin
+      Canvas.LineTo(round(Elev_Outline[i].X * ScaleX), Round(Elev_Outline[i].Y * ScaleY));
+    end;
+  end;
+end;
+
+//---------------------------------------------------------------------------
 procedure DrawObjects(TileIndex : integer);
+var
+  CurrentCursor : integer;
 begin
 if (ItemIndex <> -1) then begin
+  CurrentCursor := Screen.Cursor;
   Screen.Cursor := crHourGlass;  // Let user know we're busy...
   try
     with Form_AirportPlacer do begin
@@ -836,9 +911,12 @@ if (ItemIndex <> -1) then begin
       if (CheckBox_O_File.Checked) then begin
         Draw_O_Objects;
       end;
+      if (length(Elev_Outline) > 2) then begin
+        Draw_Elevation_Outline(clYellow);
+      end;
     end;
   finally
-    Screen.Cursor := crDefault;  // no longer busy
+    Screen.Cursor := CurrentCursor;  // no longer busy
   end;
 end;
 end;
@@ -932,7 +1010,7 @@ begin
   Row := trunc(Northing/(QT_Range/2));
   // airport quarter tile DDS name
 //  Form_AirportPlacer.Label_Tile.Caption := format('(q)%2.2d%2.2d',[Col div 2, Row div 2]);
-  Form_AirportPlacer.Label_Tile.Caption := format('(q)%s',[MakeTIleName(Col div 2, Row div 2, TileNameMode)]);
+  Form_AirportPlacer.Label_Tile.Caption := format('(q)%s',[MakeTileName(Col div 2, Row div 2, TileNameMode)]);
   // find BR quarter tile
   Col := trunc((Col+1)/2)-1;      // bottom right DDS tile
   Row := trunc((Row+1)/2)-1;      // bottom right DDS tile
@@ -1059,11 +1137,18 @@ begin
             DDS_Size := 0;
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
-//                FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
                 FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
                 Temp := DXT_ImageWidth(FileName);
+
+                // check if reduced file exists - for now check for manually reduced file
+                if (Temp > 8192) then begin
+                  FileName := format('%s\Textures\t%s.reduced.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
+                  Temp := DXT_ImageWidth(FileName);
+                end;
+
                 if (Temp > DDS_Size) then begin
-{ While (DDS_Size > 8192) do begin
+{ //auto reduce file
+ While (DDS_Size > 8192) do begin
   ReducedFileName := ???
   // if reduced exists
   if (NOT FileExist(ReducedFilaName)) then begin
@@ -1127,16 +1212,18 @@ end; }
               // load 4 dds tiles and draw onto Image_Tile
               for i := 0 to 2-1 do begin
                 for j := 0 to 2-1 do begin
-//                  FileName := format('%s\Textures\t%2.2d%2.2d.dds',[Airport_FolderName,DDS_Col+(1-i),DDS_Row+(1-j)]);
-                  FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-       // try ReducedFileName first
+                 // try ReducedFileName first
+                  FileName := format('%s\Textures\t%s.reduced.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
                   if (NOT FileExists(FileName)) then begin
-//                  BitmapAvail := false; // no, change - allow even if no files
-                    // blank image
-                    Screen.Cursor := crDefault;  // no longer busy
-              //      Image_Tile_Clear;
-              //      exit;
-                    continue;
+                    FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
+                    if (NOT FileExists(FileName)) then begin
+//                    BitmapAvail := false; // no, change - allow even if no files
+                      // blank image
+                      Screen.Cursor := crDefault;  // no longer busy
+                //      Image_Tile_Clear;
+                //      exit;
+                      continue;
+                    end;
                   end;
                   FilePicture := TPicture.Create;
                   try
@@ -1293,20 +1380,59 @@ procedure TForm_AirportPlacer.Image_TileMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   dx, dy : Integer;
-  Angle : single;
-  Value : single;
+  Distance, Angle : single;
+  ValueX, ValueY : single;
+  Index : integer;
+  All_Done : boolean;
+  Horiz, Vert, Temp : double;
+  cCOS, cSIN : double;
 
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure CalcDistance;
 begin
+  // TBD - improve (?)
+  Distance := sqrt(dx*dx + dy*dy) * apRange/Image_Tile.Width;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure CalcAngle;
+begin
+  if (dy <> 0.0) then begin
+    Angle := ArcTan2(dx, -dy) * 180 / PI;
+    if (Angle < 0.0) then begin
+      Angle := Angle + 360;
+    end;
+  end else begin
+    if dx < 0 then begin
+      Angle := 270.0;
+    end else begin
+      Angle := 90.0;
+    end;
+  end;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure CalcCentre;
+begin
+  // calc halfway between two points
+  ValueX := (X + FMousePos.X) /2;
+  ValueY := (Y + FMousePos.Y) /2;
+  // convert to meters
+  ValueX := apRange*(ValueX/Image_Tile.Width);
+  ValueY := apRange*(ValueY/Image_Tile.Height);
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  All_Done := true; // assume for now
   dx := X - FMousePos.X;
   dy := Y - FMousePos.Y;
   case GUI_State of
     CentreSelectScreen: begin
-      xCoord := (X + FMousePos.X) /2;
-      yCoord := (Y + FMousePos.Y) /2;
+      CalcCentre;
       // convert to absolute UTM
-//      uEasting := UTM_Right - (apRange-xCoord + apBR_X);
-      uEasting := UTM_Right - (apRange*(1-xCoord/Image_Tile.Width) + apBR_X);
-      uNorthing := UTM_Bottom + (apRange*(1-yCoord/Image_Tile.Height) + apBR_Y);
+      uEasting :=  UTM_Right  - (apRange - ValueX + apBR_X);
+      uNorthing := UTM_Bottom + (apRange - ValueY + apBR_Y);
       // convert to lat/long
       UTMtoLatLong(uNorthing, uEasting, UTM_Zone, UTM_ZoneNS);
       // save result
@@ -1318,42 +1444,70 @@ begin
       Edit_LatitudeExit(Sender);
     end;
     DirectionSelectScreen: begin
-      if (dy <> 0.0) then begin
-        Angle := ArcTan2(dx, -dy) * 180 / PI;
-        if (Angle < 0.0) then begin
-          Angle := Angle + 360;
-        end;
-      end else begin
-        if dx < 0 then begin
-          Angle := 270.0;
-        end else begin
-          Angle := 90.0;
-        end;
-      end;
+      CalcAngle;
       Edit_Direction.Text := floatToStr(Angle);
       Edit_Direction.Modified := true;
       Edit_DirectionExit(Sender);
     end;
     LengthSelectScreen: begin
-      // TBD - improve - in-line distance
-      Value := sqrt(dx*dx + dy*dy) *
-        apRange/Image_Tile.Width;
-      Edit_Length.Text := intToStr(round(Value));
+      CalcDistance;
+      Edit_Length.Text := intToStr(round(Distance));
       Edit_Length.Modified := true;
       Edit_LengthExit(Sender);
     end;
     WidthSelectScreen: begin
-      // TBD - improve - perpendicular distance
-      Value := sqrt(dx*dx + dy*dy) *
-        apRange/Image_Tile.Width;
-      Edit_Width.Text := intToStr(round(Value));
+      CalcDistance;
+      Edit_Width.Text := intToStr(round(Distance));
       Edit_Width.Modified := true;
       Edit_WidthExit(Sender);
     end;
+    ElevationOutlineScreen: begin
+      if (ssCtrl in Shift) then begin // add a point
+        Index := length(Elev_Outline);
+        SetLength(Elev_Outline,Index+1);
+        CalcCentre;
+//        // convert to relative UTM
+//        ValueX := apRange - ValueX + apBR_X;
+//        ValueY := apRange - ValueY + apBR_Y;
+        Elev_Outline[Index].X := ValueX;
+        Elev_Outline[Index].Y := ValueY;
+        All_Done := false;
+      end else begin
+        // All done
+      end;
+      // save the elevation outline
+      Write_Elevation_Outline(WorkingFolder+'\Objects\'+Edit_AirportName.Text,
+                             'Outline.csv');
+      // Update the display
+      Airport_Change_Show(False, False, True);
+    end;
+    else begin // copy position to clipboard
+      CalcCentre;
+      CalcDistance;
+      CalcAngle;
+      // convert to airport centre, rotated
+      cSIN := sin(-AirportDirection/180*PI);
+      cCOS := cos(-AirportDirection/180*PI);
+      Horiz := -xCoord + (apRange - ValueX);
+      Vert  := -yCoord + (apRange - ValueY);
+      Temp  := Horiz * cCOS + Vert * -cSIN;
+      Vert  := Horiz * cSIN + Vert *  cCOS;
+      Horiz := Temp;
+      // convert to relative UTM
+      ValueX := apRange - ValueX + apBR_X;
+      ValueY := apRange - ValueY + apBR_Y;
+
+//      Clipboard.AsText := format('%0.2f, [%0.2f, %0.2f, %0.1f], (%s, %0.1f)',
+//        [Distance, ValueX, ValueY, Angle, Label_Coords.Caption, (Angle - strToFloat(Edit_Direction.Text))]);
+      Clipboard.AsText := format('%0.2f, [%0.2f, %0.2f, %0.1f], (%0.2f, %0.2f, %0.1f)',
+        [Distance, ValueX, ValueY, Angle, Horiz, Vert, (Angle - strToFloat(Edit_Direction.Text))]);
+    end;
   end;
-  Screen.Cursor := crDefault;
-  Image_Tile.ShowHint := True;
-  GUI_State := IdleScreen;
+  if (All_Done) then begin
+    Screen.Cursor := crDefault;
+    Image_Tile.ShowHint := True;
+    GUI_State := IdleScreen;
+  end;
 end;
 
 //---------------------------------------------------------------------------
@@ -1461,6 +1615,11 @@ begin
       // clear treeview
       ClearTreeView(TreeView_G);
     end;
+
+    // look for any elevation outline
+    FilePath := WorkingFolder+'\Objects\'+Airport_List[ItemIndex].apName;
+    FileName := 'Outline.csv';
+    Read_Elevation_Outline(FilePath, FileName);
 end;
 
 //---------------------------------------------------------------------------
@@ -1470,8 +1629,8 @@ begin
   ItemIndex := ListBox_ObjectList.ItemAtPos(point(X,Y), true);
   if (ItemIndex <> -1) then begin
     apZoomScale := 1.0;
+    SetLength(Elev_Outline,0); // clear any existing outline
     Search_Airport_Details; // get details from G and O files
-//    ShowItem(Sender);
     Airport_Change_Show(True, AirportsChanged, True);
   end;
 end;
@@ -1985,8 +2144,13 @@ begin
     apZoomScale := apZoomScale * Image_Tile.Width; // make more exact using before and after
 //    Image_Tile.Width := Image_Tile.Width + Image_Tile.Width div 2;
 //    Image_Tile.Height := Image_Tile.Height + Image_Tile.Height div 2;
+  if (Image_Tile.Width * 1.5 < 32768.0) then begin
     Image_Tile.Width := round(Image_Tile.Width * 1.5);
     Image_Tile.Height := round(Image_Tile.Height * 1.5);
+  end else begin
+    Image_Tile.Width := 32767;
+    Image_Tile.Height := 32767;
+  end;
     apZoomScale := apZoomScale / Image_Tile.Width;
     ScrollBox_Image.HorzScrollBar.Range := Image_Tile.Width;
     ScrollBox_Image.VertScrollBar.Range := Image_Tile.Height;
@@ -2060,12 +2224,6 @@ begin
     PaintBox1.Width  := Image_Tile.Width;
     PaintBox1.Height := Image_Tile.Height;
   end;
-end;
-
-//---------------------------------------------------------------------------
-procedure TForm_AirportPlacer.Image_TileClick(Sender: TObject);
-begin
-  Clipboard.AsText := Label_Coords.Caption;
 end;
 
 //---------------------------------------------------------------------------
@@ -2445,7 +2603,9 @@ var
   g3dSize, Airport_Direction : single;
   nName : string;
   g3dTextureFileName : string;
+  g3dTextureFileExt : string;
   tFileWidth, tFileHeight : Word;
+  Airport_Name : string;
 
 begin
   // need Grass3D and GrassPaint objects in G file, else exit
@@ -2481,9 +2641,24 @@ begin
     MessageShow('No Grass3D file name');
     exit;
   end;
-  // get texture file size - TBD ??? - could be DDS or other...
-  // GetSize(path+g3dTextureFileName,tFileWidth,tFileHeight);
-  tFileWidth := 2048; tFileHeight := 2048; // for now
+  // make mask file same size as texture file
+  // assume a default size to start
+  tFileWidth := 2048; tFileHeight := 2048; // default
+  // get texture file size - could be DDS or other...
+  g3dTextureFileExt := ExtractFileExt(g3dTextureFileName);
+  if (UpperCase(g3dTextureFileExt) = '.DDS') then begin
+    if (DXT_ImageSize(G_FilePath+'\'+g3dTextureFileName)) then begin
+      tFileWidth := dds_Width; tFileHeight := dds_Height;
+    end;
+  end else begin
+    if (UpperCase(g3dTextureFileExt) = '.BMP') then begin
+      u_BMP.BMPfolder := G_FilePath;
+      if (Bitmap_GetWidthHeight(g3dTextureFileName)) then begin
+        tFileWidth := BitmapWidth; tFileHeight := BitmapHeight;
+      end;
+    end else begin // check other file types ???
+    end;
+  end;
 
   // get airport direction (degrees) and create rotation matrix
   Airport_Direction := strtofloat(Edit_Direction.Text);
@@ -2496,7 +2671,13 @@ begin
   RotateMeshAndSaveAsTextureCoords(TreeView_G, iGrassPaint, g3dSize*2, Airport_Direction);
 
   // Make a mask file for Grasspaint
-  MakeGrassPaintMask(TreeView_G, iGrassPaint, G_FilePath, 'Grass3D_Area_Alpha.bmp', tFileWidth, tFileHeight);
+//  // name same as Texture
+//  g3dTextureFileName := copy(g3dTextureFileName,1,pos(g3dTextureFileExt,g3dTextureFileName)-1);
+//  g3dTextureFileName := StringReplace(g3dTextureFileName,'/','\', [rfReplaceAll]);
+//  MakeGrassPaintMask(TreeView_G, iGrassPaint, G_FilePath, g3dTextureFileName+'_Alpha.bmp', tFileWidth, tFileHeight);
+  // name same as Airport Name
+  Airport_Name := Edit_AirportName.Text;
+  MakeGrassPaintMask(TreeView_G, iGrassPaint, G_FilePath, Airport_Name+'_GP_Alpha.bmp', tFileWidth, tFileHeight);
 
   // save the changes to the texture coordinates
   // the lastTreeView loaded was the G file, so OK to save as G file
@@ -2541,6 +2722,18 @@ begin
   GUI_State := CentreSelectScreen;
   Screen.Cursor := crCross;
   Image_Tile.ShowHint := False;
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Label_AltitudeDblClick(Sender: TObject);
+begin
+  GUI_State := ElevationOutlineScreen;
+  Screen.Cursor := crCross;
+  Image_Tile.ShowHint := False;
+  if (Length(Elev_Outline) > 0) then begin
+    SetLength(Elev_Outline,0); // clear any existing outline
+    Airport_Change_Show(False, False, True);
+  end;
 end;
 
 //---------------------------------------------------------------------------

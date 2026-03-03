@@ -1,6 +1,6 @@
 {
  * Unit_Graphics.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -100,6 +100,7 @@ type
     Button_ZoomOut: TButton;
     Button_Save_TIF: TButton;
     Button_Help: TButton;
+    Button_Polygon: TButton;
     procedure Button_ExitClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_Color0Click(Sender: TObject);
@@ -171,6 +172,7 @@ type
     procedure Button_Save_TIFClick(Sender: TObject);
     procedure ScrollBox_ImageResize(Sender: TObject);
     procedure Button_HelpClick(Sender: TObject);
+    procedure Button_PolygonClick(Sender: TObject);
   private
     { Private declarations }
     procedure MyScrollHorz(Sender: TObject);
@@ -227,7 +229,7 @@ uses
 
 type
   ToolType = (t_None,t_Pen,t_Line,t_Brush,t_Flood,t_Replace,
-              t_Pick,t_Select,t_Rectangle,t_Ellipse,
+              t_Pick,t_Select,t_Rectangle,t_Ellipse,t_Polygon,
               t_Swell,t_Shrink);
 
 var
@@ -243,6 +245,7 @@ var
   BrushBitmap : TBitMap;
   BitMap_Save : TBitMap;
   cX, cY : double;  // current centre relative
+  PolyGon : array of TPoint;
 
 // TScollBox addition
 //---------------------------------------------------------------------------
@@ -887,7 +890,7 @@ begin
             Canvas.Pixels[x_coord,y_coord] := ActivePixelColor;
             GUI_State := SelectScreen;
           end;
-          t_Select,t_Rectangle,t_Line,t_Ellipse: begin
+          t_Select,t_Rectangle,t_Line,t_Ellipse,t_Polygon: begin
             Canvas.Pen.Mode := pmNOTXOR;
             Canvas.Pen.Style := psSolid;
 //            Canvas.Pen.Color := clBlack; //'NOT' white because pen pmNOTXOR is used
@@ -898,14 +901,25 @@ begin
             case EditTool of
               t_Line: begin
                 Canvas.Pen.Width := BrushSize;
-{
-                Canvas.MoveTo(DownXcoord,DownYcoord);
-                IncludeLineEnd(DownXcoord,DownYcoord,x_coord,y_coord);
-                Canvas.LineTo(x_coord,y_coord);
-}
                 Canvas.Pixels[x_coord,y_coord] := Canvas.Pen.Color;
                 Canvas.MoveTo(x_coord,y_coord);
                 Canvas.LineTo(DownXcoord,DownYcoord);
+              end;
+              t_Polygon: begin
+                Canvas.Pen.Width := 1;
+                setlength(PolyGon,length(Polygon)+1);
+                if (length(Polygon) < 2) then begin
+                  Polygon[length(Polygon)-1] := Point(DownXcoord,DownYcoord);
+                  setlength(PolyGon,length(Polygon)+1);
+                  Polygon[length(Polygon)-1] := Point(x_coord,y_coord);
+                end;
+               { if (Length(Polygon) < 3) then begin
+                  Canvas.Pixels[x_coord,y_coord] := Canvas.Pen.Color;
+                  Canvas.MoveTo(x_coord,y_coord);
+                  Canvas.LineTo(DownXcoord,DownYcoord);
+                end else} begin
+                  Canvas.Polyline(Polygon);
+                end;
               end;
               t_Select,t_Rectangle: begin
                 Canvas.Pen.Width := 1;
@@ -978,7 +992,7 @@ begin
         t_Brush: begin
           Canvas.Draw(x_coord-3,y_coord-3,BrushBitmap);
         end;
-        t_Line,t_Select,t_Rectangle,t_Ellipse: begin
+        t_Line,t_Select,t_Rectangle,t_Ellipse,t_Polygon: begin
           case EditTool of
             t_Line: begin
 {
@@ -997,6 +1011,20 @@ begin
               LastYcoord := y_coord;
               Canvas.MoveTo(LastXcoord,LastYcoord);
               Canvas.LineTo(DownXcoord,DownYcoord);
+            end;
+            t_Polygon: begin
+             { if (length(Polygon) < 3) then begin
+                Canvas.MoveTo(LastXcoord,LastYcoord);
+                Canvas.LineTo(DownXcoord,DownYcoord);
+                LastXcoord := x_coord;
+                LastYcoord := y_coord;
+                Canvas.MoveTo(LastXcoord,LastYcoord);
+                Canvas.LineTo(DownXcoord,DownYcoord);
+              end else} begin // at least 3 points
+                Canvas.Polyline(Polygon); // erase
+                Polygon[length(Polygon)-1] := Point(x_coord,y_coord);
+                Canvas.Polyline(Polygon); // draw
+              end;
             end;
             t_Select,t_Rectangle: begin
               Canvas.Rectangle(DownXcoord,DownYcoord,LastXcoord,LastYcoord);
@@ -1106,6 +1134,16 @@ begin
           Canvas.MoveTo(x_coord,y_coord);
           Canvas.LineTo(DownXcoord,DownYcoord);
 //          GUI_State := IdleScreen;
+        end;
+        t_Polygon: begin
+          Canvas.Polyline(Polygon); // erase
+          if (ssShift in Shift) then begin
+            Canvas.Pen.Mode := pmCopy;
+            Canvas.Pen.Color := ActivePixelColor;
+            Canvas.Brush.Color := ActivePixelColor;
+            Canvas.Polygon(Polygon);
+            SetLength(Polygon,0);
+          end;
         end;
         t_Select: begin
           Canvas.Rectangle(DownXcoord,DownYcoord,x_coord,y_coord);
@@ -1480,6 +1518,13 @@ begin
 end;
 
 //---------------------------------------------------------------------------
+procedure TForm_Graphic.Button_PolygonClick(Sender: TObject);
+begin
+  EditTool := t_Polygon;
+  setlength(PolyGon,0);
+end;
+
+//---------------------------------------------------------------------------
 procedure TForm_Graphic.Button_EllipseClick(Sender: TObject);
 begin
   EditTool := t_Ellipse;
@@ -1728,6 +1773,10 @@ begin
 
     ord('A'), ord('a'): begin
       ToggleAlternateView(nil);
+    end;
+
+    ord('Z'), ord('z'): begin
+      Button_UndoClick(nil);
     end;
 
     else begin

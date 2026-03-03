@@ -809,7 +809,7 @@ var
   HGT_Lat_Min, HGT_Lat_Max, HGT_Long_Min, HGT_Long_Max : integer;
   DEM_File : TextFile;
   URL_File : TextFile;
-  SS, DD : string;
+//  SS, DD : string;
 
 //---------------------------------------------------------------------------
 function HGT_Name(i,j : integer): string;
@@ -862,7 +862,10 @@ begin
     Rewrite(URL_file);
     for i := HGT_Lat_Min to HGT_Lat_Max do begin
       for j := HGT_Long_Min to HGT_Long_Max do begin
-        writeln(URL_file, 'https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/'+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
+//        writeln(URL_file, 'https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/'+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
+        // USGS website change 2026
+        writeln(URL_file, 'https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-protected/SRTMGL1.003/'
+                          +HGT_Name(i,j)+'.SRTMGL1.hgt/'+HGT_Name(i,j)+'.SRTMGL1.hgt.zip');
       end;
     end;
     CloseFile(URL_file);

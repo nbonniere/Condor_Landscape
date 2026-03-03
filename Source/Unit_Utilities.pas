@@ -684,6 +684,7 @@ end;
 
 // change to use matching strings {z}{x}{y} but only works if file name is single
 // parameter such as {y].jpg since file needs to be combined and need bare file name only
+// combiner has changed - use old version saved for safekeeping
 //-------------------------------------------------------------------------------------
 procedure WGET_Generic(Row_B, Col_R, Row_T, Col_L, ZoomLevel : Integer;
   TMStype, SwapXY : Boolean; URL, Name, FilePath : string);
@@ -741,6 +742,10 @@ begin
     if (NOT DirectoryExists(FilePath+'\URLs')) then begin
       ForceDirectories(FilePath+'\URLs');
     end;
+    // in case filename doesn't have an extension, add .jpeg
+    if (NOT DirectoryExists(FilePath+'\RENs')) then begin
+      ForceDirectories(FilePath+'\RENs');
+    end;
 
     if (SwapXY) then begin
       // convert from tile Z/X/Y to Z/Y/X format
@@ -776,7 +781,7 @@ begin
         AssignFile(RENfile, FilePath +'\RENs\rens_'+IntToStr(i)+'.bat');
         Rewrite(RENfile);
         writeln(RENfile,'setlocal');
-        writeln(RENfile,'cd /d %~dp0');
+//        writeln(RENfile,'cd /d %~dp0');
         AssignFile(URLfile, FilePath +'\URLs\urls_'+IntToStr(i)+'.txt');
         Rewrite(URLfile);
         for j := Generic_TN[0,1] to Generic_TN[1,1] do begin
@@ -787,32 +792,35 @@ begin
           writeln(URLfile, f_URL);
           f_File := StringReplace(f_URL,'/','\', [rfReplaceAll]);
           f_File := ExtractFileName(f_File);
-          writeln(RENfile, 'rename ..\Overall\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
+//          writeln(RENfile, 'rename ..\Overall\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
+          writeln(RENfile, 'rename '+Name+'\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
         end;
         writeln(RENfile,'endlocal');
         CloseFile(RENfile);
         CloseFile(URLfile);
       end;
     end else begin
-      writeln(GDALfile, 'mkdir '+Name+'\WG');  // use Download folder in case of name conflict
+      writeln(GDALfile, 'mkdir '+Name+'\WG');  // use download folder WG in case of name conflict
       for i := Generic_TN[0,1] to Generic_TN[1,1] do begin
         writeln(GDALfile, 'wget -P '+Name+'\WG\'+IntToStr(i)+' -i URLs\urls_'+IntToStr(i)+'.txt');
         writeln(GDALfile, 'call RENs\rens_'+IntToStr(i)+'.bat');
         AssignFile(RENfile, FilePath +'\RENs\rens_'+IntToStr(i)+'.bat');
         Rewrite(RENfile);
         writeln(RENfile,'setlocal');
-        writeln(RENfile,'cd /d %~dp0');
+//        writeln(RENfile,'cd /d %~dp0');
         AssignFile(URLfile, FilePath +'\URLs\urls_'+IntToStr(i)+'.txt');
         Rewrite(URLfile);
         for j := Generic_TN[0,0] to Generic_TN[1,0] do begin
 //          writeln(URLfile, URL+'/'+IntToStr(zoom)+'/'+IntToStr(i)+'/'+IntToStr(j)+'.jpg');
           f_URL := StringReplace(URL,'{z}',IntToStr(zoom), [rfReplaceAll]);
-          f_URL := StringReplace(f_URL,'{x}',IntToStr(i), [rfReplaceAll]);
-          f_URL := StringReplace(f_URL,'{y}',IntToStr(j), [rfReplaceAll]);
+// bug          f_URL := StringReplace(f_URL,'{x}',IntToStr(i), [rfReplaceAll]);
+// bug          f_URL := StringReplace(f_URL,'{y}',IntToStr(j), [rfReplaceAll]);
+          f_URL := StringReplace(f_URL,'{y}',IntToStr(i), [rfReplaceAll]);
+          f_URL := StringReplace(f_URL,'{x}',IntToStr(j), [rfReplaceAll]);
           writeln(URLfile, f_URL);
           f_File := StringReplace(f_URL,'/','\', [rfReplaceAll]);
           f_File := ExtractFileName(f_File);
-          writeln(RENfile, 'rename ..\Overall\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
+          writeln(RENfile, 'rename '+Name+'\WG\'+IntToStr(i)+'\'+f_File+' '+IntToStr(j)+'.jpg');
         end;
         writeln(RENfile,'endlocal');
         CloseFile(RENfile);
@@ -1978,6 +1986,7 @@ procedure TForm_Utilities.Button_WGETClick(Sender: TObject);
 //  xyz_Order = 'ZYX'; // ZXY, ZYX, xxx_yyy_zz
 var
 //  URL : string; // 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile'
+  // may or may not have .jpg at end and if not, need a REName file batch file.
   URL : string; // 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}.jpg'
   Tile_Type : string;  // TMS or XYZ
   xyz_Order : string;  // ZXY, ZYX, xxx_yyy_zz
@@ -2094,6 +2103,7 @@ begin
       end;
       TilePath := Working_Folder+'\SourceTiles\'+TileName;
       ForceDirectories(TilePath+'\'+TileName);
+      // default zoom 10 for Overall map
       WGET_Generic(0, 0, TileRowCount, TileColumnCount, 10, TMS, SwapXY, URL,
         TileName, TilePath);
       Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd',
@@ -4274,6 +4284,7 @@ end;
 procedure TForm_Utilities.Button_TextureNameNormalizeClick(Sender: TObject);
 var
   FileName : String;
+  FileSize : LongInt;
   i : integer;
   Changed : boolean;
   SearchRec: TSearchRec;
@@ -4309,6 +4320,23 @@ begin
         for i := 0 to Count - 1 do begin
           FileName := Strings[i];
 
+          // 27 byte files are bad
+          // 89 byte files are empty
+          FileSize := GetFileSize(FileName);
+          if (FileSize = -1) then begin
+            ProgressBar_Status.StepIt;
+            Continue;
+          end else begin
+            if (FileSize <= 89) then begin
+              ForceDirectories(ExtractFilePath(Filename)+
+                '\Blank');
+              RenameFile(Filename,ExtractFilePath(Filename)+
+                '\Blank\'+ExtractFileName(Filename));
+              ProgressBar_Status.StepIt;
+              Continue;
+            end;
+          end;
+
           ReadCondorC3Dfile(FileName, false);
           // Need to normalize texture names for this object
           Changed := NormalizeObjectTextures;
@@ -4322,6 +4350,7 @@ begin
     finally
       ProgressBar_Status.Position := 0;
       MessageShow('Texture name normalize done.');
+      MessageShow('Hash file OHA needs to be re-done.');
       Screen.Cursor := crDefault;  // no longer busy
     end;
   end;

@@ -9,6 +9,9 @@ Shift-Click      - move  10 metres
 Ctrl-Click       - move  10 metres
 Shift-Ctrl-Click - move 100 metres
 
+- copy distance, position and angle to ClipBoard
+left mouse click
+
 - set direction
 Dbl-Click on 'Direction' Label
 (cursor is now cross)
@@ -37,3 +40,10 @@ left mouse release on other runway centre at other end
 or
 left mouse down on runway centre at desired take-off point on one end
 left mouse release on other runway centre at opposite take-off point
+
+- Set airport outline
+Dbl-Click on 'Altitude' Label
+(cursor is now cross)
+Shit-left mouse click to add points on polygon
+left mouse click to end
+

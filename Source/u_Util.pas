@@ -100,6 +100,8 @@ function OpenDialog(oDiag : TOpenDialog; VAR fName : string;
 function SaveDialog(sDiag : TSaveDialog; var fName : string;
   fDir, fFilter : string) : boolean;
 
+function GetFileSize(FileName : string) : LongInt;
+
 {============================================================================}
 IMPLEMENTATION
 
@@ -794,6 +796,21 @@ end;
 procedure RenameFolder(FolderOld, FolderNew: string);
 begin
   RenameFile(FolderOld, FolderNew);
+end;
+
+//---------------------------------------------------------------------------
+function GetFileSize(FileName : string) : LongInt;
+var
+  bFile : file of byte;
+begin
+  if (FileExists(FileName)) then begin
+    AssignFile(bFile, FileName);
+    Reset(bFile);
+    Result := FileSize(bFile);
+    CloseFile(bFile);
+  end else begin
+    Result := -1;
+  end;
 end;
 
 //---------------------------------------------------------------------------

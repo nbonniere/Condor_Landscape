@@ -1325,8 +1325,9 @@ begin
           if (DirectoryExists(u_BMP.BMPfolder +'Overall'+ '_combined')) then begin
             u_BMP.BMPfolder := u_BMP.BMPfolder +'Overall'+ '_combined';
           end;
-          Bitmap_GetWidthHeight('Overall.bmp');
-          if (BitmapSuccess) then begin
+//          Bitmap_GetWidthHeight('Overall.bmp');
+//          if (BitmapSuccess) then begin
+          if (Bitmap_GetWidthHeight('Overall.bmp')) then begin
             u_GMIDlog.Memo_Message := Memo_Info;
             u_GMIDlog.GMIDfolder := WorkingPathName+'\SourceTiles\'+
              'Overall';
@@ -1382,8 +1383,9 @@ begin
             if (DirectoryExists(u_BMP.BMPfolder +'\'+TileList[TileIndex].TileName + '_combined')) then begin
               u_BMP.BMPfolder := u_BMP.BMPfolder +'\'+TileList[TileIndex].TileName + '_combined';
             end;
-            Bitmap_GetWidthHeight(TileList[TileIndex].TileName+'.bmp');
-            if (BitmapSuccess) then begin
+//            Bitmap_GetWidthHeight(TileList[TileIndex].TileName+'.bmp');
+//            if (BitmapSuccess) then begin
+            if (Bitmap_GetWidthHeight(TileList[TileIndex].TileName+'.bmp')) then begin
               u_GMIDlog.Memo_Message := Memo_Info;
               u_GMIDlog.GMIDfolder := WorkingPathName+'\SourceTiles\'+TileName;
 //              ReadSourceBitmapExtents(TileIndex);
@@ -2158,6 +2160,7 @@ begin
       Unit_AirportPlacer.Memo_Message := Memo_Info;
     end else begin
     end;
+    Unit_AirportPlacer.WorkingFolder := WorkingPathName;
     Screen.Cursor := crHourGlass;  // Let user know we're busy...
     ReadAirportFile;
     Form_AirportPlacer.Initialize(Sender);

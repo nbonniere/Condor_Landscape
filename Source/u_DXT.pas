@@ -182,11 +182,15 @@ var
   dxt_Path     : String;
   dxt_FileName : String;
 
+  dds_Width : longint;
+  dds_Height : longint;
+
   Test_Select : t_Select;
 
 procedure Convert_DXT3_5_to_DXT1;
 procedure FixPuddles_DXT1;
 function  DXT_ImageWidth(FileName : String) : Longint;
+function  DXT_ImageSize(FileName : String) : Boolean;
 procedure DXT_Rotate_180(DDS_FileName, DDS_Rotated_FileName : string);
 procedure DXT_Reduce;
 procedure DXT_MakeEmpty(FileName : String);
@@ -604,12 +608,43 @@ begin
     Reset(DDS_File_In);
     BlockRead(DDS_File_In,DDS_Header,sizeof(DDS_Header));
 
+    // not just for DXT1, DXT3 and DXT5, also RGBA_32
     // check for DXT signature
-    if ((DDS_Header[0] = dds_Magic) AND (
-        (DDS_Header[hdr_DXT_Index] = hdr_DXT1) OR
-        (DDS_Header[hdr_DXT_Index] = hdr_DXT3)
-      )) then begin
+    if ((DDS_Header[0] = dds_Magic){ AND (
+         (DDS_Header[hdr_DXT_Index] = hdr_DXT1) OR
+         (DDS_Header[hdr_DXT_Index] = hdr_DXT3) OR
+         (DDS_Header[hdr_DXT_Index] = hdr_DXT5)
+        ) }
+      ) then begin
       Result := DDS_Header[hdr_Width];
+    end;
+    Close(DDS_File_in);
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+function DXT_ImageSize(FileName : String) : boolean;
+var
+  DDS_Header   : t_DDS_Header;
+begin
+  Result := false;
+  if (NOT fileExists(FileName)) then begin
+  end else begin
+    AssignFile(DDS_File_In,FileName);
+    Reset(DDS_File_In);
+    BlockRead(DDS_File_In,DDS_Header,sizeof(DDS_Header));
+
+    // not just for DXT1, DXT3 and DXT5, also RGBA_32
+    // check for DXT signature
+    if ((DDS_Header[0] = dds_Magic){ AND (
+         (DDS_Header[hdr_DXT_Index] = hdr_DXT1) OR
+         (DDS_Header[hdr_DXT_Index] = hdr_DXT3) OR
+         (DDS_Header[hdr_DXT_Index] = hdr_DXT5)
+       ) }
+      ) then begin
+      dds_Width := DDS_Header[hdr_Width];
+      dds_Height := DDS_Header[hdr_Height];
+      Result := True;
     end;
     Close(DDS_File_in);
   end;

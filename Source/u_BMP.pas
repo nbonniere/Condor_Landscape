@@ -415,7 +415,7 @@ const
                      $00,$00,$00,$00));
 }
 var
-  BitmapSuccess : boolean;
+//  BitmapSuccess : boolean;
   BitmapWidth : longint;
   BitmapHeight : longint;
   BitmapFileSize : longint;
@@ -441,7 +441,8 @@ var
 
 function BMP_ColorSize(FileName : String) : Longint;
 function BMP_ImageWidth(FileName : String) : Longint;
-Procedure Bitmap_GetWidthHeight(FileName:string);
+//Procedure Bitmap_GetWidthHeight(FileName:string);
+function Bitmap_GetWidthHeight(FileName:string) : boolean;
 //function ColorMatch(tColor1,tColor2 : longword):boolean;
 //function xColorMatch(tColor1,tColor2 : TColor):boolean;
 procedure CalcGradientColor(Height : real; var Color : Tcolor);
@@ -589,7 +590,7 @@ begin
 end;
 
 {----------------------------------------------------------------------------}
-Procedure Bitmap_GetWidthHeight(FileName:string);
+{Procedure Bitmap_GetWidthHeight(FileName:string);
 begin
   BitmapSuccess := false;
   if (NOT FileExists(BMPfolder+'\'+FileName)) then begin
@@ -606,6 +607,31 @@ begin
       GetWidthHeight;
       BitmapSuccess := true;
       if (BitmapSuccess) then begin
+        MessageShow(format('Bitmap width: %d  height: %d',[BitmapWidth, BitmapHeight]));
+      end;
+    end;
+    Close(BitmapFile);
+  end;
+end;
+}
+{----------------------------------------------------------------------------}
+function Bitmap_GetWidthHeight(FileName:string) : boolean;
+begin
+  Result := False; // assume for now
+  if (NOT FileExists(BMPfolder+'\'+FileName)) then begin
+//    MessageShow('Bitmap file Not Found');
+////    MessageShow(BMPfolder+'\'+FileName);
+//    Beep;
+  end else begin
+    AssignFile(BitmapFile,BMPfolder+'\'+FileName);
+    Reset(BitmapFile);
+    if (NOT Bitmap_CheckSignature) then begin
+      MessageShow('Invalid bitmap file');
+      Beep;
+    end else begin
+      GetWidthHeight;
+      Result := True;
+      if (Result) then begin
         MessageShow(format('Bitmap width: %d  height: %d',[BitmapWidth, BitmapHeight]));
       end;
     end;
@@ -1982,7 +2008,7 @@ end;
 }
 {----------------------------------------------------------------------------}
 begin { Initialization }
-  BitmapSuccess := false;
+//  BitmapSuccess := false;
   Memo_Message := nil;
 //  SetGradientColors([-300,0,100,700,1500],[clblack,clBlue,clGreen,clRed,clWhite]);
 //  SetGradientColors([-300,0,100,700,1500],[clblack,clBlue,clGreen,$0020C0E0,clWhite]);

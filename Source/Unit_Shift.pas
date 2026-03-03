@@ -1,6 +1,6 @@
 {
  * Unit_Shift.pas
- * Copyright (C) 2012- Nick BonniÃ¨re
+ * Copyright (C) 2012- Nick Bonnière
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -805,6 +805,64 @@ begin
   end;
 end;
 
+// limit TL xMin,yMax and BR xMax,Ymin
+// diagonal mirror for 257x257 for h1608.tr3f
+// Condor TL 141,142 BR 112,108
+const
+  xMin = 108;
+  yMin = 112;
+  xMax = 142;
+  yMax = 141;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure Smooth_TR3f(i, j, X, Y : integer);
+var
+  out_x, out_y : integer;
+  A, B, C : single; // for interpolation
+  Q : pFloatArray;
+  k : integer;
+
+begin
+  Q := @P;
+ // do smoothing with two nearest neighbours 4 times
+ for k := 0 to 4-1 do begin
+  // first smooth horizontally, then vertically
+  // start at bottom right
+  out_y := yMax; //257-1 -4; // 4 from edge for now
+  repeat
+    out_x := xMax; //257-1 -4; // 4 from edge for now
+    A := Q^[(X + out_x+1 + (Y + out_y)*(256+256+1))];
+    B := Q^[(X + out_x   + (Y + out_y)*(256+256+1))];
+    repeat
+      C := Q^[(X + out_x-1 + (Y + out_y)*(256+256+1))];
+      Q^[(X + out_x   + (Y + out_y)*(256+256+1))] := A/4 + B/2 + C/4;
+      // now move left
+      A := B; B := C;
+      dec(out_x,1);
+    until (out_x < xMin); //0 +5); // 5 from edge for now
+    // now move up
+    dec(out_y,1);
+  until (out_y < yMin); //0 +5); // 5 from edge for now
+  // now smooth vertically
+  // start at bottom right
+  out_x := xMax; //257-1 -4; // 4 from edge for now
+  repeat
+    out_y := yMax; //257-1 -4; // 4 from edge for now
+    A := Q^[(X + out_x + (Y + out_y+1)*(256+256+1))];
+    B := Q^[(X + out_x + (Y + out_y  )*(256+256+1))];
+    repeat
+      C := Q^[(X + out_x + (Y + out_y-1)*(256+256+1))];
+      Q^[(X + out_x + (Y + out_y)*(256+256+1))] := A/4 + B/2 + C/4;
+      // now move up
+      A := B; B := C;
+      dec(out_y,1);
+    until (out_y < yMin); //0 +5); // 5 from edge for now
+    // now move left
+    dec (out_x,1)
+  until (out_x < xMin); //0 +5); // 5 from edge for now
+ end;
+end;
+
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure Expand_TR3_TR3f(i, j, X, Y : integer);
 var
@@ -859,7 +917,10 @@ end;
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure ReadTheFile(i, j, X, Y : integer);
 var
-  k : integer;
+  k, m : integer;
+  Q : pFloatArray;
+  Test_File : File of Byte;
+//  Test_File : textFile;
 begin
   File_Name_a := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
   if (FileExists(FilePath_a+'\'+File_Folder+'\'+File_Name_a)) then begin
@@ -887,6 +948,35 @@ begin
         // now expand it from integer to floating-point
         // and interpolate from 3 to 4 steps
         Expand_TR3_TR3f(i, j, X, Y);
+{
+// for testing terrain smoothing
+  Q := @P;
+        AssignFile(Test_File,FilePath_a+'\'+File_Folder+'\..\T1_'+File_Name_a+'f');
+        Rewrite(Test_File);
+        for k := 0 to (xySize+xyExtra)-1 do begin
+          BlockWrite(Test_File, P^[(X + (Y + k) * (xySize+xySize+xyExtra)) *dSize],
+            (xySize+xyExtra)*dSize);
+//          for m := 0 to (xySize+xyExtra)-1 do begin
+//            Write(Test_File,format('%0.4f,' ,[Q^[(X +m + (Y + k) * (xySize+xySize+xyExtra))]]));
+//          end;
+//          Writeln(Test_File);
+        end;
+        CloseFile(Test_File);
+
+        Smooth_TR3f(i, j, X, Y);
+
+        AssignFile(Test_File,FilePath_a+'\'+File_Folder+'\..\T2_'+File_Name_a+'f');
+        Rewrite(Test_File);
+        for k := 0 to (xySize+xyExtra)-1 do begin
+          BlockWrite(Test_File, P^[(X + (Y + k) * (xySize+xySize+xyExtra)) *dSize],
+            (xySize+xyExtra)*dSize);
+//          for m := 0 to (xySize+xyExtra)-1 do begin
+//            Write(Test_File,format('%0.4f,' ,[Q^[(X +m + (Y + k) * (xySize+xySize+xyExtra))]]));
+//          end;
+//          Writeln(Test_File);
+        end;
+        CloseFile(Test_File);
+}
       end;
     end;
   end;
