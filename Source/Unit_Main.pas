@@ -106,6 +106,8 @@ type
     SaveDialog_File: TSaveDialog;
     OpenDialog_File: TOpenDialog;
     Button_Shift: TButton;
+    GroupBox_MapDate: TGroupBox;
+    Edit_MapDate: TEdit;
     procedure Button_CondorPathClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button_KMLClick(Sender: TObject);
@@ -1027,6 +1029,7 @@ begin
     u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
     u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
     u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
+    u_MakeGMID.GMIDMapDate := Edit_MapDate.Text;
     TileName := ComboBox_Single.text;
 
     if (TileName = 'Overall') then begin // only overall tile
@@ -2177,6 +2180,7 @@ begin
     u_MakeGMID.GMIDfolder := WorkingPathName;
     u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
     u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
+    u_MakeGMID.GMIDMapDate := Edit_MapDate.Text;
 //    Form_AirportPlacer.Position := poDefault;
     // offset to be able to see status and progressbar
     Form_AirportPlacer.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;
@@ -2386,6 +2390,7 @@ begin
   u_MakeGMID.GMIDProgramsfolder := DownloaderPathName;
   u_MakeGMID.GMIDMapID := ComboBox_MapID.Text;
   u_MakeGMID.GMIDMapType := ComboBox_MapType.Text;
+  u_MakeGMID.GMIDMapDate := Edit_MapDate.Text;
   Unit_Utilities.opVersion:= ComboBox_Version.text;
 
 //  Form_Utilities.Position := poDesigned;

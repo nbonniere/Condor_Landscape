@@ -65,6 +65,10 @@ type
 var
   Form_Merge: TForm_Merge;
 
+{----------------------------------------------------------------------------}
+type
+  IndexFile_Type = (Type_TR3, Type_FOR, Type_DDS, Type_TR3F, Type_C3D);
+
 var
   Memo_Message : TMemo;  // external TMemo for messages
   ProgressBar_Status : TProgressBar;
@@ -582,9 +586,6 @@ procedure TForm_Merge.Edit_NameChange(Sender: TObject);
 begin
   LandscapeName := Edit_Name.Text;
 end;
-
-type
-  IndexFile_Type = (Type_TR3, Type_FOR, Type_DDS, Type_TR3F, Type_C3D);
 
 {----------------------------------------------------------------------------}
 procedure Create_Dummy_Files(IF_Type : IndexFile_Type;

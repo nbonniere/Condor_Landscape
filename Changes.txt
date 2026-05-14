@@ -460,6 +460,15 @@ v0.10.12 - Feb 2026
   - Graphics - add polygon
   - DEM - USGS URL change
 
+v0.10.13 - Mar-May 2026
+  - Bug - some AutoGen C3D object may have 0 vectors/surfaces
+    - allow for that case when saving C3D as PX
+    - allow for that case in PX file read as well
+  - Bug - airportPlacer - dds too big not working right
+    - re-arrange code
+  - AirportPlacer - add 'flatten' based on outline.
+  - MakeGMID - for GEID add date to downloader param list
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

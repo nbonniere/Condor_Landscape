@@ -903,8 +903,10 @@ begin
     ParseCountIntArray(@pCountSurfaceArray(Ptr)^.aArray[i],';');
     ParseDelimiter([',']);
   end;
-  ParseCountIntArray(@pCountSurfaceArray(Ptr)^.aArray[Count-1],';');
-  ParseDelimiter([';']);
+  if (Count > 0) then begin
+    ParseCountIntArray(@pCountSurfaceArray(Ptr)^.aArray[Count-1],';');
+    ParseDelimiter([';']);
+  end;  
 end;
 
 {----------------------------------------------------------------------------}
@@ -950,8 +952,10 @@ begin
     ParseDelimiter([',']);
   end;
 
-  ParseFloatArray(ArraySize,@pCountFloatArray(Ptr)^.aArray[Count-1],[';']);
-  ParseDelimiter([';']);
+  if (Count > 0) then begin
+    ParseFloatArray(ArraySize,@pCountFloatArray(Ptr)^.aArray[Count-1],[';']);
+    ParseDelimiter([';']);
+  end;  
 end;
 
 {----------------------------------------------------------------------------}
@@ -1728,8 +1732,10 @@ begin // pMesh(pObjectItem(Items[i].data)^.oPointer)^.sArray
     WriteCountIntArray(@pCountSurfaceArray(Ptr)^.aArray[i],Delimiter);
     writeln(X_File,Delimiter);
   end;
-  WriteCountIntArray(@pCountSurfaceArray(Ptr)^.aArray[Count-1],Delimiter);
-  writeln(X_File,';');
+  if (Count > 0) then begin
+    WriteCountIntArray(@pCountSurfaceArray(Ptr)^.aArray[Count-1],Delimiter);
+    writeln(X_File,';');
+  end;
 end;
 
 {----------------------------------------------------------------------------}
@@ -4858,6 +4864,11 @@ begin
     Readline(@Temp_file,Version);
 //    xReadline(@Temp_file,Version);
 //    GT_ReadLine(@Temp_file,Version);
+    if (NOT (UpperCase(Version) = '800')) then begin
+//      ShowMessage('File version not recognized');
+      CloseFile(Temp_file);
+      beep; exit;
+    end;
 //    Readln(Temp_file,oType);
     Readline(@Temp_file,oType);
 //    xReadline(@Temp_file,oType);

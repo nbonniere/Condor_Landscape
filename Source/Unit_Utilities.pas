@@ -599,31 +599,37 @@ end;
 //-------------------------------------------------------------------------------------
 procedure TForm_Utilities.Button_TRN_BMPClick(Sender: TObject);
 var
+  i : integer;
   Filename : String;
 
 begin
-  OpenDialog1.Options := [ofFileMustExist];
+  OpenDialog1.Options := [ofAllowMultiSelect, ofFileMustExist];
   OpenDialog1.InitialDir := Initial_Folder;
   OpenDialog1.Filter := 'Terrain files (*.TRN;*.TR3;*.TR3F;*.RAW)|*.TRN;*.TR3;*.TR3F;*.RAW|All files (*.*)|*.*';
   OpenDialog1.FileName := '';
   if OpenDialog1.Execute then begin
     try
-      FileName := OpenDialog1.FileName;
-//      File_Folder := ExtractFileDir(OpenDialog1.FileName);
-      // read terrain header
-      u_Terrain.Memo_Message := Memo_Message;
-      u_Terrain.ProgressBar_Status := ProgressBar_Status;
-      if (UpperCase(ExtractFileExt(FileName)) = '.RAW') then begin
-        if (CheckBox_C16.checked) then begin
-          RAW_To_16bit_Bitmap(FileName, FileName+'-16.bmp');
-        end else begin
-          RAW_To_Greyscale_Bitmap(FileName, FileName+'-BW.bmp');
-        end;
-      end else begin
-        if (CheckBox_C16.checked) then begin
-          TRN_To_16bit_Bitmap(FileName,FileName+'-16.bmp');
-        end else begin
-          TRN_To_Greyscale_Bitmap(FileName,FileName+'-BW.bmp');
+      with OpenDialog1.Files do begin
+        for i := 0 to Count - 1 do begin
+          FileName := Strings[i];
+//          FileName := OpenDialog1.FileName;
+//          File_Folder := ExtractFileDir(OpenDialog1.FileName);
+          // read terrain header
+          u_Terrain.Memo_Message := Memo_Message;
+          u_Terrain.ProgressBar_Status := ProgressBar_Status;
+          if (UpperCase(ExtractFileExt(FileName)) = '.RAW') then begin
+            if (CheckBox_C16.checked) then begin
+              RAW_To_16bit_Bitmap(FileName, FileName+'-16.bmp');
+            end else begin
+              RAW_To_Greyscale_Bitmap(FileName, FileName+'-BW.bmp');
+            end;
+          end else begin
+            if (CheckBox_C16.checked) then begin
+              TRN_To_16bit_Bitmap(FileName,FileName+'-16.bmp');
+            end else begin
+              TRN_To_Greyscale_Bitmap(FileName,FileName+'-BW.bmp');
+            end;
+          end;
         end;
       end;
     finally
@@ -2006,7 +2012,7 @@ var
     WGET_Generic(i, j, i+1, j+1, strtoint(ZoomLevel), TMS, SwapXY, URL,
       TileName, TilePath);
 //    MakeBatchCombineFile(TilePath, TileName, '.umd');
-    Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd',
+    Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd', '',
                                TilePath, 'Batch_Combine_'+TileName+'.bat',
                                '0',
                                0,0,0,0
@@ -2106,7 +2112,7 @@ begin
       // default zoom 10 for Overall map
       WGET_Generic(0, 0, TileRowCount, TileColumnCount, 10, TMS, SwapXY, URL,
         TileName, TilePath);
-      Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd',
+      Make_Batch_DownloadCombine(td_C, TileName, '0', 'umd', '',
                                  TilePath, 'Batch_Combine_'+TileName+'.bat',
                                  '0',
                                  0,0,0,0

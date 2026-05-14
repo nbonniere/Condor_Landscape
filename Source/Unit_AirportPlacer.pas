@@ -56,9 +56,7 @@ type
     Label_Frequency: TLabel;
     Label_Coords: TLabel;
     Label_Tile: TLabel;
-    Label_UTM: TLabel;
     Label_AirportCount: TLabel;
-    Label_H_pos: TLabel;
     Edit_AirportName: TEdit;
     Edit_Latitude: TEdit;
     Edit_Altitude: TEdit;
@@ -103,6 +101,11 @@ type
     TreeView_O: TTreeView;
     PaintBox1: TPaintBox;
     Button_Grass3D: TButton;
+    PanelCoord: TPanel;
+    Label_UTM: TLabel;
+    Label_H_pos: TLabel;
+    Button_Flatten: TButton;
+    Button_Smooth: TButton;
     procedure Label_DirectionDblClick(Sender: TObject);
     procedure Label_LengthDblClick(Sender: TObject);
     procedure Label_WidthDblClick(Sender: TObject);
@@ -173,6 +176,8 @@ type
     procedure PaintBox1Paint(Sender: TObject);
     procedure Button_Grass3DClick(Sender: TObject);
     procedure Label_AltitudeDblClick(Sender: TObject);
+    procedure Button_FlattenClick(Sender: TObject);
+    procedure Button_SmoothClick(Sender: TObject);
   private
     { Private declarations }
     function LoadTileBitmap(TileName : string) : boolean;
@@ -204,7 +209,8 @@ uses
   FileCtrl, ClipBrd, Math,
   Unit_Graphics, Unit_Main, u_MakeGDAL, u_MakeDDS, Unit_HiResRunway,
   u_Terrain, u_Airport, u_TileList, u_UTM, u_MakeGMID, u_Util,
-  u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT, Unit_Help;
+  u_SceneryHDR, u_X_CX, u_VectorXY, u_BMP, u_DXT, Unit_Help,
+  u_CustomDraw, Unit_Shift;
 
 const
   T_Range  = Resolution * tColumns;        // 23040 km
@@ -376,7 +382,7 @@ begin
   CheckBox_Tow_Secondary_Left.checked := False;
 end;
 
-// change to relative UTM ???
+// relative UTM
 //---------------------------------------------------------------------------
 Procedure Write_Elevation_Outline(FilePath, FileName : string);
 var
@@ -393,7 +399,7 @@ begin
   CloseFile(Elev_File);
 end;
 
-// change to relative UTM ???
+// relative UTM
 //---------------------------------------------------------------------------
 Procedure Read_Elevation_Outline(FilePath, FileName : string);
 var
@@ -863,7 +869,8 @@ end;
 Procedure Draw_Elevation_Outline(useColor : TColor);
 var
   i : integer;
-  ScaleX , ScaleY : double;
+  ValueX , ValueY : single;
+  ScaleX , ScaleY : single;
 begin
   with Form_AirportPlacer do begin
 //    // for Image
@@ -880,9 +887,14 @@ begin
     Canvas.Pen.Width := 2;
     Canvas.Pen.Color := useColor;
     // start with last point to draw a closed surface
-    Canvas.MoveTo(round(Elev_Outline[Length(Elev_Outline)-1].X * ScaleX), Round(Elev_Outline[Length(Elev_Outline)-1].Y * ScaleY));
+    // convert from relative UTM
+    ValueX := apRange + apBR_X - Elev_Outline[Length(Elev_Outline)-1].X;
+    ValueY := apRange + apBR_Y - Elev_Outline[Length(Elev_Outline)-1].Y ;
+    Canvas.MoveTo(round(ValueX * ScaleX), Round(ValueY * ScaleY));
     for i := 0 to Length(Elev_Outline)-1 do begin
-      Canvas.LineTo(round(Elev_Outline[i].X * ScaleX), Round(Elev_Outline[i].Y * ScaleY));
+      ValueX := apRange + apBR_X - Elev_Outline[i].X;
+      ValueY := apRange + apBR_Y - Elev_Outline[i].Y ;
+      Canvas.LineTo(round(ValueX * ScaleX), Round(ValueY * ScaleY));
     end;
   end;
 end;
@@ -987,7 +999,12 @@ begin
     result := false;
     Exit; // fault, coordinates beyond scenery boundaries
   end;
-  //keep track of BottomRight reference
+end;
+
+//---------------------------------------------------------------------------
+Procedure Set_Terragen_Reference(TileIndex : integer);
+begin
+  //keep track of BottomRight reference BR
   apBR_X := TileList[TileIndex].TileUTMRight;
   apBR_Y := TileList[TileIndex].TileUTMBottom;
   // airport tile relative coords (relative to bottom right)
@@ -1032,9 +1049,12 @@ begin
       Row := RowCount div (tRows div 4) -2;
     end;
   end;
+end;
 
-  // 4 tiles BR to B+1,R+1
-
+// 4 tiles BR to B+1,R+1
+//---------------------------------------------------------------------------
+Procedure Set_Patch_Reference(Col, Row : integer);
+begin
   // keep track of BR reference
   apBR_X := Col*QT_Range; // UTM
   apBR_Y := Row*QT_Range;
@@ -1130,6 +1150,7 @@ begin
         // if DDS textures available, use 4 closest, otherwise use terragen tile
         if (RadioButton_DDS.Checked = true) then begin
           Find_DDS_Tiles(AirportEasting, AirportNorthing, DDS_Col, DDS_Row);
+          Set_Patch_Reference(DDS_Col, DDS_Row);
           if ((DDS_Col <> prevDDS_Col) OR (DDS_Row <> prevDDS_Row)) then begin
             prevDDS_Col := DDS_Col; prevDDS_Row := DDS_Row;
             BitmapAvail := false; // assume for now
@@ -1138,12 +1159,16 @@ begin
             for i := 0 to 2-1 do begin
               for j := 0 to 2-1 do begin
                 FileName := format('%s\Textures\t%s.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-                Temp := DXT_ImageWidth(FileName);
+                if (FileExists(Filename)) then begin
+                  Temp := DXT_ImageWidth(FileName);
+                end;
 
                 // check if reduced file exists - for now check for manually reduced file
                 if (Temp > 8192) then begin
                   FileName := format('%s\Textures\t%s.reduced.dds',[Airport_FolderName,MakeTileName(DDS_Col+(1-i),DDS_Row+(1-j), TileNameMode)]);
-                  Temp := DXT_ImageWidth(FileName);
+                  if (FileExists(Filename)) then begin
+                    Temp := DXT_ImageWidth(FileName);
+                  end;
                 end;
 
                 if (Temp > DDS_Size) then begin
@@ -1186,6 +1211,7 @@ end; }
             // i.e. avoid crashing Condor_Tiles
             if (DDS_Size > 8192) then begin
               MessageShow('DDS file too large');
+              beep;
               OutOfResources := true;
               DDS_Size := 1024; // choose a default size
             end;
@@ -1206,8 +1232,8 @@ end; }
             apZoomScale := 1.0;
 
             if (OutOfResources) then begin
-              Screen.Cursor := crDefault;  // no longer busy
-              beep; exit;
+//              Screen.Cursor := crDefault;  // no longer busy
+//              beep; exit;
             end else begin
               // load 4 dds tiles and draw onto Image_Tile
               for i := 0 to 2-1 do begin
@@ -1219,7 +1245,7 @@ end; }
                     if (NOT FileExists(FileName)) then begin
 //                    BitmapAvail := false; // no, change - allow even if no files
                       // blank image
-                      Screen.Cursor := crDefault;  // no longer busy
+                //      Screen.Cursor := crDefault;  // no longer busy
                 //      Image_Tile_Clear;
                 //      exit;
                       continue;
@@ -1252,6 +1278,7 @@ end; }
           CentreAirport;
         end else begin // try terragen tile
           Find_Terragen_Tile(AirportEasting, AirportNorthing, AirportTileIndex);
+          Set_Terragen_Reference(AirportTileIndex);
           // check to see if need to reload
           if (AirportTileIndex <> prevAirportTileIndex) then begin
             prevAirportTileIndex := AirportTileIndex;
@@ -1424,6 +1451,10 @@ end;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 begin
+  // make sure an airport has been loaded first
+  if (ItemIndex = -1) then begin
+    Exit;
+  end;
   All_Done := true; // assume for now
   dx := X - FMousePos.X;
   dy := Y - FMousePos.Y;
@@ -1466,9 +1497,9 @@ begin
         Index := length(Elev_Outline);
         SetLength(Elev_Outline,Index+1);
         CalcCentre;
-//        // convert to relative UTM
-//        ValueX := apRange - ValueX + apBR_X;
-//        ValueY := apRange - ValueY + apBR_Y;
+        // convert to relative UTM
+        ValueX :=  apRange - ValueX + apBR_X;
+        ValueY :=  apRange - ValueY + apBR_Y;
         Elev_Outline[Index].X := ValueX;
         Elev_Outline[Index].Y := ValueY;
         All_Done := false;
@@ -2558,13 +2589,13 @@ begin
   // need to create a more generic make_GMID to call here which includes download and combine - TBD
   FileName := 'Batch_Airport_Download.bat';
   Make_Batch_DownloadCombine(td_D, 'Airport',
-                             u_MakeGMID.GMIDMapID, u_MakeGMID.GMIDMapType,
+                             u_MakeGMID.GMIDMapID, u_MakeGMID.GMIDMapType, u_MakeGMID.GMIDMapDate,
                              FilePath, FileName,
                              Zoom_Level_Airport,
                              X_Min, X_Max, Y_Max, Y_Min);
   FileName := 'Batch_Airport_Combine.bat';
   Make_Batch_DownloadCombine(td_C, 'Airport',
-                             u_MakeGMID.GMIDMapID, u_MakeGMID.GMIDMapType,
+                             u_MakeGMID.GMIDMapID, u_MakeGMID.GMIDMapType, u_MakeGMID.GMIDMapDate,
                              FilePath, FileName,
                              Zoom_Level_Airport,
                              X_Min, X_Max, Y_Max, Y_Min);
@@ -2759,6 +2790,302 @@ end;
 procedure TForm_AirportPlacer.PaintBox1Paint(Sender: TObject);
 begin
   DrawObjects(0);
+end;
+
+//---------------------------------------------------------------------------
+const
+  xyExtra = 1;  // overlap column and row
+var
+  xySize  : integer;
+  P, Q : pByteArray;
+
+//---------------------------------------------------------------------------
+Procedure DumpP(Size : Integer; FileName : string);
+var
+  i, j : integer;
+  Mask_File : TextFile;
+begin
+    AssignFile(Mask_File, FileName);
+    Rewrite(Mask_File);
+    for i := 0 to Size-1 do begin    // Y direction
+      for j := 0 to Size-1 do begin  // X direction
+        write(Mask_File, format('%1.1d',[Q^[(j + i * (Size))]]));
+      end;
+      writeln(Mask_File);
+    end;
+    CloseFile(Mask_File);
+end;
+
+//---------------------------------------------------------------------------
+Procedure DrawOutline(X, Y, V : Integer);
+begin
+  Q^[(X + Y * (xySize+xySize+xyExtra))] := Byte(V);
+end;
+
+// terrain files are bottom right first, in columns
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_FlattenClick(Sender: TObject);
+const
+  Resolution = 90.0 / 3;  // TR3 metres
+  tr3Size  = 64 * 3;      // TR3 size
+var
+  k, m : integer;
+  i, j : integer;
+  Scale : single;
+  X1, Y1, X2, Y2 : longint;
+  Xmin, Ymin, Xmax, Ymax : longint;
+  avgElevation : single;
+  avgCount : single;
+  qElevation : string;
+  apElevation : Word;
+  PatchMask : byte;  // bit mask patches
+  SourcePath, SavePath : string;
+  eState : (eIdle, ePoly);
+  eSample : byte;
+  eElevation : Word;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure Check_PatchesAffected; // patches are diagonal mirrored with overlap
+begin
+  PatchMask := 0;
+  // patch on left 0..xySize, patch on right xySize..xySize+xySize
+  if (Xmin <= xySize) then begin
+    PatchMask := PatchMask OR $03; // could be patches 00 and 01
+  end;
+  if (Xmax >= xySize) then begin
+    PatchMask := PatchMask OR $0C; // could be patches 10 and 11
+  end;
+  if (Ymin > xySize) then begin
+    PatchMask := PatchMask AND $0A; // could be patches 00 and 01
+  end;
+  if (Ymax < xySize) then begin
+    PatchMask := PatchMask AND $05; // could be patches 10 and 11
+  end;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Procedure Check_Range(X, Y : longint);
+begin
+  if (X < Xmin) then begin
+    Xmin := X;
+  end else begin
+    if (X > Xmax) then begin
+      Xmax := X;
+    end;
+  end;
+  if (Y < Ymin) then begin
+    Ymin := Y;
+  end else begin
+    if (Y > Ymax) then begin
+      Ymax := Y;
+    end;
+  end;
+end;
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+begin
+  // an airport must be selected
+  if (ItemIndex = -1) then begin
+    exit; // can't proceed
+  end;
+  // must have an Elevation_Outline
+  if (length(Elev_Outline) <= 2) then begin
+    exit; // can't proceed
+  end;
+  // uses 4 patches for elevation
+  Find_DDS_Tiles(AirportEasting, AirportNorthing, i, j); // Patch_Col, Patch_Row
+
+  // create a mask from polygon outline
+  // must mirror data because elevation data load is mirrored.
+  xySize := tr3Size;
+  Q := AllocMem( (xySize+xySize+xyExtra) * (xySize+xySize+xyExtra) );
+  // then 'draw' the outline into the mask
+  // resolution is 30 metres
+  Scale := 1/Resolution;
+  // keep track of BottomRight reference BR
+  apBR_X := i*QT_Range; // relative UTM
+  apBR_Y := j*QT_Range;
+  apRange := QT_Range*2; // metres, 2x2 quarter tiles
+  // draw the outline & find the in-max range
+  Xmax:= 0; Ymax := 0; Xmin := xySize+xySize; Ymin := xySize+xySize;
+{  // relative UTM to mask coord, skip overlap xyExtra
+  X1 := xyExtra + round((apRange + apBR_X - Elev_Outline[Length(Elev_Outline)-1].X)*Scale);
+  Y1 := xyExtra + Round((apRange + apBR_Y - Elev_Outline[Length(Elev_Outline)-1].Y)*Scale);
+  for k := 0 to Length(Elev_Outline)-1 do begin
+    X2 := xyExtra + round((apRange + apBR_X - Elev_Outline[k].X)*Scale);
+    Y2 := xyExtra + round((apRange + apBR_Y - Elev_Outline[k].Y)*Scale);
+    Bresenham(X1, Y1, X2, Y2, k+1, DrawOutline); // draw a line segment
+    X1 := X2; Y1 := Y2;
+  end; }
+  // relative UTM to mask coord - mirrored
+  // X = apRange-Y
+  Y1 := round((-apBR_X + Elev_Outline[Length(Elev_Outline)-1].X)*Scale);
+  X1 := Round((-apBR_Y + Elev_Outline[Length(Elev_Outline)-1].Y)*Scale);
+  Check_Range(X1,Y1);
+  for k := 0 to Length(Elev_Outline)-1 do begin
+    Y2 := round((-apBR_X + Elev_Outline[k].X)*Scale);
+    X2 := round((-apBR_Y + Elev_Outline[k].Y)*Scale);
+    Check_Range(X2,Y2);
+    Bresenham(X1, Y1, X2, Y2, k+1, DrawOutline); // draw a line segment
+    X1 := X2; Y1 := Y2;
+  end;
+  // now check which patches will be affected
+  Check_PatchesAffected;
+
+  // dump the file to have a look
+//  DumpP(xySize+xySize+xyExtra, 'TEST_1.txt');
+
+  // then fill the outline
+  PolyFill(Q, xySize+xySize, xyExtra);
+
+  // dump the file to have a look
+//  DumpP(xySize+xySize+xyExtra, 'TEST_2.txt');
+
+  // now also need the TR3 elevation data
+  SetParameters(Type_TR3);
+  P := AllocMem( (xySize+xySize+xyExtra) * (xySize+xySize+xyExtra) * 2{dSize});
+ // save original affected TR3 if not saved already to be able to backtrack
+  SourcePath := WorkingFolder+'\..';
+  SavePath := WorkingFolder+'\HeightMaps';
+  ForceDirectories(SavePath);
+//  ForceDirectories(WorkingFolder+'\HeightMaps\22.5m'); // for tr3f
+//  copyX(WorkingFolder+'\..',WorkingFolder+'\HeightMaps',i,j)
+  if ((PatchMask AND $01) = $01) then begin
+    SaveTheFile(SourcePath, SavePath, i, j); // patch 00
+  end;
+  if ((PatchMask AND $04) = $04) then begin
+    SaveTheFile(SourcePath, SavePath, i, j+1); // patch 01
+  end;
+  if ((PatchMask AND $02) = $02) then begin
+    SaveTheFile(SourcePath, SavePath, i+1, j); // patch 10
+  end;
+  if ((PatchMask AND $08) = $08) then begin
+    SaveTheFile(SourcePath, SavePath, i+1, j+1); // patch 11
+  end;
+
+  // then read TR3 - NOTE: diagonal mirror!
+  // add path and P to function for now. TBD better way?
+  // TBD - only read ones needed - TBD
+  ReadTheFile(SourcePath,P,i  ,j  ,0,     0);      // file 0,0
+  ReadTheFile(SourcePath,P,i,  j+1,xySize,0);      // file 0,1
+  ReadTheFile(SourcePath,P,i+1,j,  0,     xySize); // file 1,0
+  ReadTheFile(SourcePath,P,i+1,j+1,xySize,xySize); // file 1,1
+
+  // use the defined elevation in the airport object, or
+  // use the elevation of the tile of the centre of the airport, or
+  // use the average elevation within the outline?
+  avgCount := 0.0; avgElevation := 0.0;
+  for k := 0 to xySize+xySize-1 do begin    // Y direction
+    for m := 0 to xySize+xySize-1 do begin  // X direction
+      if (Q^[(m + k * (xySize+xySize+xyExtra))] <> 0) then begin
+        avgElevation := avgElevation + PWordArray(P)^[(m + k * (xySize+xySize+xyExtra))];
+        avgCount := avgCount + 1;
+      end;
+    end;
+  end;
+  avgElevation := avgElevation / avgCount;
+  // ask user
+  qElevation := format('%d',[round(avgElevation)]);
+  if InputQuery('Airport Elevation','Elevation (m):' , qElevation) then begin
+    apElevation := round(StrToFloat(qElevation));
+//    // flatten the area, with one average on the edge for transition
+    // flatten the area
+    for k := 0 to xySize+xySize-1 do begin    // Y direction, skip overlap
+      for m := 0 to xySize+xySize-1 do begin  // X direction, skip overlap
+        if (Q^[(m + k * (xySize+xySize+xyExtra))] <> 0) then begin
+          PWordArray(P)^[(m + k * (xySize+xySize+xyExtra))] := apElevation;
+        end;
+      end;
+    end;
+
+    // now horizontally and vertically, at each edge, slope the elevation to
+    // avoid a sharp edge
+    // horizontally first
+    eState := eIdle;
+    for k := 0 to xySize+xySize-1 do begin    // Y direction, skip overlap
+      for m := 0 to xySize+xySize-1 do begin  // X direction, skip overlap
+        eSample := Q^[(m + k * (xySize+xySize+xyExtra))];
+        case eSample of
+          0: begin
+            case eState of
+              ePoly: begin
+                // get elevation 2 forward from edge
+                eElevation := PWordArray(P)^[(m+2-1 + k * (xySize+xySize+xyExtra))];
+                PWordArray(P)^[(m+1-1 + k * (xySize+xySize+xyExtra))] := round((apElevation + eElevation)/2);
+                eState := eIdle
+              end;
+            end;
+          end;
+          255: begin end; // do nothing
+          else begin
+            case eState of
+              eIdle: begin
+                // get elevation 2 back
+                eElevation := PWordArray(P)^[(m-2 + k * (xySize+xySize+xyExtra))];
+                PWordArray(P)^[(m-1 + k * (xySize+xySize+xyExtra))] := round((apElevation + eElevation)/2);
+                eState := ePoly
+              end;
+            end;
+          end;
+        end;
+      end;
+    end;
+    // vertically next
+    eState := eIdle;
+    for m := 0 to xySize+xySize-1 do begin    // Y direction, skip overlap
+      for k := 0 to xySize+xySize-1 do begin  // X direction, skip overlap
+        eSample := Q^[(m + k * (xySize+xySize+xyExtra))];
+        case eSample of
+          0: begin
+            case eState of
+              ePoly: begin
+                // get elevation 2 forward from edge
+                eElevation := PWordArray(P)^[(m + (k+2-1) * (xySize+xySize+xyExtra))];
+                PWordArray(P)^[(m + (k+1-1) * (xySize+xySize+xyExtra))] := round((apElevation + eElevation)/2);
+                eState := eIdle
+              end;
+            end;
+          end;
+          255: begin end; // do nothing
+          else begin
+            case eState of
+              eIdle: begin
+                // get elevation 2 back
+                eElevation := PWordArray(P)^[(m + (k-2) * (xySize+xySize+xyExtra))];
+                PWordArray(P)^[(m + (k-1) * (xySize+xySize+xyExtra))] := round((apElevation + eElevation)/2);
+                eState := ePoly
+              end;
+            end;
+          end;
+        end;
+      end;
+    end;
+
+    // now save the TR3 elevation data tiles that are affected
+    // write TR3 - NOTE: diagonal mirror!
+    if ((PatchMask AND $01) = $01) then begin
+      WriteTheFile(SourcePath,P,i  ,j  ,0,     0);      // file 0,0
+    end;
+    if ((PatchMask AND $04) = $04) then begin
+      WriteTheFile(SourcePath,P,i,  j+1,xySize,0);      // file 0,1
+    end;
+    if ((PatchMask AND $02) = $02) then begin
+      WriteTheFile(SourcePath,P,i+1,j,  0,     xySize); // file 1,0
+    end;
+    if ((PatchMask AND $08) = $08) then begin
+      WriteTheFile(SourcePath,P,i+1,j+1,xySize,xySize); // file 1,1
+    end;
+  end else begin
+    // abort changes
+  end;
+  // all done
+  FreeMem(P);
+  FreeMem(Q);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_AirportPlacer.Button_SmoothClick(Sender: TObject);
+begin
 end;
 
 //---------------------------------------------------------------------------

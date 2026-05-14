@@ -81,6 +81,7 @@ var
   GMIDProgramsFolder : string; // external path for library
   GMIDMapID : string;    // external path for maps ID
   GMIDMapType : string;  // external path for maps type
+  GMIDMapDate : string;  // external path for map date
   ZoomLevel : string;
 
 function OpenDLL : boolean;
@@ -96,7 +97,7 @@ Procedure MakeGMIDquarterTile(geid : boolean; CurrentRow, CurrentColumn, offset_
 Procedure MakeGMID_All_Combine_BatchFile;
 
 Procedure Make_Batch_DownloadCombine(Which : Type_DC;
-                                     Name, ID, mType,
+                                     Name, ID, mType, mDate,
                                      FilePath, FileName : string;
                                      ZoomLevel : string;
                                      XL, XR, YT, YB : real);
@@ -142,27 +143,34 @@ end;
 
 //-------------------------------------------------------------------------------------
 Procedure Make_Batch_DownloadCombine(Which : Type_DC;
-                                     Name, ID, mType,
+                                     Name, ID, mType, mDate,
                                      FilePath, FileName : string;
                                      ZoomLevel : string;
                                      XL, XR, YT, YB : real);
 
 //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Procedure Do_Downloader;
+var
+  DateField : string;
 begin
+  DateField := ''; // assume for now
   if (mType = 'geid') then begin // only for geid
     ZoomLevel := inttostr(strtoint(ZoomLevel)+1); // +1 for geid
     ID := ZoomLevel;     // for geid start zoom level
+    if (mDate <> '') then begin
+      DateField := ' "'+mDate+'"'; // for geid and date non-blank
+    end;
   end;
   writeln(GMIDfile,'if NOT exist "'+GMIDProgramsFolder+'\downloader.exe" (echo ERROR: "'+GMIDProgramsFolder+'\downloader.exe" NOT found & pause & exit /b 9)');
 
-  writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s', [
+  writeln(GMIDfile,format('%s %s %s %s %1.8f %1.8f %1.8f %1.8f %s%s', [
                      '"'+GMIDProgramsFolder+'\downloader.exe"',
                      Name,
                      ID,
                      ZoomLevel,
                      XL, XR, YT, YB,
-                     '"'+FilePath+'"'
+                     '"'+FilePath+'"',
+                     DateField
                      ]));
 end;
 
@@ -337,7 +345,8 @@ begin
     writeln(GMIDfile);
     writeln(GMIDfile,'[HistoryDate]');
 //    writeln(GMIDfile,'HistoryDate=2009-07-07');
-    writeln(GMIDfile,'HistoryDate='+FormatDateTime('yyyy-mm-dd', Date()));
+//    writeln(GMIDfile,'HistoryDate='+FormatDateTime('yyyy-mm-dd', Date()));
+    writeln(GMIDfile,'HistoryDate='+GMIDMapDate);
   end;
 
   // close the file
@@ -347,7 +356,7 @@ begin
   begin
     // now make a batch Download only file
     FileName := 'Batch_Download_'+TileList[TileIndex].TileName+'.bat';
-    Make_Batch_DownloadCombine(td_D, TileList[TileIndex].TileName, GMIDMapID, GMIDMapType,
+    Make_Batch_DownloadCombine(td_D, TileList[TileIndex].TileName, GMIDMapID, GMIDMapType, GMIDMapDate,
                                FilePath, FileName,
                                ZoomLevel,
                                Tile_Left_Long - Xsize,
@@ -358,7 +367,7 @@ begin
 
     // now make a batch combine only file
     FileName := 'Batch_Combine_'+TileList[TileIndex].TileName+'.bat';
-    Make_Batch_DownloadCombine(td_C, TileList[TileIndex].TileName, GMIDMapID, GMIDMapType,
+    Make_Batch_DownloadCombine(td_C, TileList[TileIndex].TileName, GMIDMapID, GMIDMapType, GMIDMapDate,
                                FilePath, FileName,
                                ZoomLevel,
                                Tile_Left_Long - Xsize,
@@ -479,7 +488,7 @@ begin
   begin
     // now make a batch Download only file
     FileName := 'Batch_Download_'+TileName+'.bat';
-    Make_Batch_DownloadCombine(td_D, TileName, GMIDMapID, GMIDMapType,
+    Make_Batch_DownloadCombine(td_D, TileName, GMIDMapID, GMIDMapType, GMIDMapDate,
                                FilePath, FileName,
                                ZoomLevel,
                                Tile_Left_Long - Xsize,
@@ -490,7 +499,7 @@ begin
 
     // now make a batch combine only file
     FileName := 'Batch_Combine_'+TileName+'.bat';
-    Make_Batch_DownloadCombine(td_C, TileName, GMIDMapID, GMIDMapType,
+    Make_Batch_DownloadCombine(td_C, TileName, GMIDMapID, GMIDMapType, GMIDMapDate,
                                FilePath, FileName,
                                ZoomLevel,
                                Tile_Left_Long - Xsize,
@@ -543,6 +552,7 @@ begin
   // Virtual Earth Satellite Maps
   writeln(GMIDfile,'[MapsType]');
   writeln(GMIDfile,'MapsType=6');
+  GMIDMapDate := '';
 
   writeln(GMIDfile,'[AREA]');
   writeln(GMIDfile,'LeftLongitude='+format('%1.8f',[Tile_Left_Long - Xsize]));
@@ -559,7 +569,7 @@ begin
 
   // now make a batch download & combine file
   FileName := 'Batch_Download.bat';
-  Make_Batch_DownloadCombine(td_Both, 'Overall', GMIDMapID, GMIDMapType,
+  Make_Batch_DownloadCombine(td_Both, 'Overall', GMIDMapID, GMIDMapType, GMIDMapDate,
                              FilePath, FileName,
                              Default_Zoom,
                              Tile_Left_Long - Xsize,
@@ -569,7 +579,7 @@ begin
                             );
   // now make a batch combine only file
   FileName := 'Batch_Combine.bat';
-  Make_Batch_DownloadCombine(td_C, 'Overall', GMIDMapID, GMIDMapType,
+  Make_Batch_DownloadCombine(td_C, 'Overall', GMIDMapID, GMIDMapType, GMIDMapDate,
                              FilePath, FileName,
                              Default_Zoom,
                              Tile_Left_Long - Xsize,

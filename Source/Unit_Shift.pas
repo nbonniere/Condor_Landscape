@@ -71,6 +71,10 @@ type
 var
   Form_Shift: TForm_Shift;
 
+{----------------------------------------------------------------------------}
+type
+  IndexFile_Type = (Type_TR3, Type_FOR, Type_DDS, Type_TR3F, Type_C3D);
+
 var
   Memo_Message : TMemo;  // external TMemo for messages
   ProgressBar_Status : TProgressBar;
@@ -91,6 +95,11 @@ var
 //  DXT_Type : string;
   LandscapeList : Tstrings;
   mgVersion : string;
+
+function SetParameters(IF_Type : IndexFile_Type) : boolean;
+Procedure ReadTheFile(FilePath_a : string; P : pByteArray; i, j, X, Y : integer);
+Procedure WriteTheFile(FilePath : string; P : pByteArray; i, j, X, Y : integer);
+Procedure SaveTheFile(srcFilePath, destFilePath : string; i, j : integer);
 
 //===========================================================================
 IMPLEMENTATION
@@ -128,6 +137,15 @@ var
 var
   oe : Extents; // overall extents
   ce : Extents; // crop extents
+
+var
+  File_Prefix, File_Ext, File_Folder : string;
+  resolution : single;
+  xySize, xyExtra : Integer;
+  dSize : integer;
+  P : pByteArray;
+  Patch_File : File of Byte;
+  FileCount : integer;  // need at least one file of 2 or 4 to generate TR3F file
 
 {----------------------------------------------------------------------------}
 Procedure MessageShow(Info : string);
@@ -667,9 +685,6 @@ begin
   LandscapeName := Edit_Name.Text;
 end;
 
-type
-  IndexFile_Type = (Type_TR3, Type_FOR, Type_DDS, Type_TR3F, Type_C3D);
-
 {----------------------------------------------------------------------------}
 {procedure Create_Dummy_Files(IF_Type : IndexFile_Type;
   FilePath, Name : string);
@@ -755,52 +770,60 @@ begin
   ProgressBar_Status.Position := 0;
 end;
 }
+
 {----------------------------------------------------------------------------}
-procedure Copy_ReIndex_Files(IF_Type : IndexFile_Type;
-  Offset_X, Offset_Y : single;
-  FilePath, FilePath_a, Name_a : string);
-var
-  TRN_File : File of Byte;      // use Word instead of Byte and terrain-size ???
-  i,j : integer;
-  File_Prefix, File_Ext, File_Folder : string;
-  File_Name, File_Name_a : string;
-  resolution : single;
-  xySize, xyExtra : Integer;
-  Patch_File : File of Byte;
-  P : pByteArray;
-  dSize : integer;
-  Patch_Files : array [0..4-1] of File of Byte;
-  DDS_Headers : array [0..4-1] of array[0..32-1] of Cardinal; // TDDSHeader in u_DDS.pas
-  DDS_MipMap :  array [0..4-1] of integer;
-  DDS_DXT_Type :  array [0..4-1] of integer;
-  DDS_dSize : array [0..4-1] of integer;
-  ref_Index : integer;
-  ref_Mipmap : integer;
-  FileCount : integer;  // need at least one file of 2 or 4 to generate TR3F file
-
-  ExtractedIndexes : array[0..16-1] of Cardinal;
-  ExtractedAlphas : array[0..16-1] of Cardinal;
-const
-  MaskTable : array[0..4-1] of array[0..8-1] of byte = (
-    (5,4,5,4,1,0,1,0), (7,6,7,6,3,2,3,2),
-    (13,12,13,12,9,8,9,8), (15,14,15,14,11,10,11,10)
-    );
-
-// determine if 2 or 4 files are needed for the shift
-// for a purely horizontal ot vertical shift, only 2 files needed, not 4
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
-function TwoOrFourFiles(X, Y : single) : byte;
+function SetParameters(IF_Type : IndexFile_Type) : boolean;
 begin
-  // create a bit mask for which files are needed
-  result := $01; // file 0,0 is always needed
-  if (X = 0) then begin // or within +/- 15 ?
-    result := result OR $04; // file 0,1
-  end else begin
-    result := result OR $02; // file 1,0
-    if (Y = 0) then begin
-    end else begin
-      result := result OR $04; // file 0,1
-      result := result OR $08; // file 1,1
+  result := true; //assume for now
+  case IF_Type of
+    Type_TR3: begin
+      File_Prefix := 'h';
+      File_Ext := '.tr3';
+      File_Folder := 'HeightMaps';
+      Resolution := 90.0 / 3;
+      xySize := 64 * 3;
+      xyExtra := 1;
+      dSize := 2;  // 2 byte integer
+    end;
+    Type_TR3f: begin // only a few TR3F files - how to deal with...
+      File_Prefix := 'h';
+      File_Ext := '.tr3f';
+      File_Folder := 'HeightMaps\22.5m';
+      Resolution := 90.0 / 4;
+      xySize := 64 * 4;
+      xyExtra := 1;
+      dSize := 4;  // 4 byte floating-point
+//      dSize := sizeof(single);  // 4 byte floating-point
+    end;
+    Type_FOR: begin // V2, V3
+      File_Prefix := '';
+      File_Ext := '.for';
+      File_Folder := 'ForestMaps';
+      Resolution := 90.0 / 8;
+      xySize := 64 * 8;
+      xyExtra := 0;
+      dSize := 1;  // 1 byte containing two forest bits
+    end;
+    Type_DDS: begin
+      File_Prefix := 't';
+      File_Ext := '.dds';
+      File_Folder := 'Textures';
+//      Resolution := 0; // variable
+//      xySize := 0;     // variable
+//      xyExtra := 0;
+//      dSize := 0;      // variable
+    end;
+    Type_C3D: begin // autogen
+      File_Prefix := 'o';
+      File_Ext := '.c3d';
+      File_Folder := 'AutoGen';
+//      Resolution := 0; // not applicable
+//      xySize := 0;     // not applicable
+//      xyExtra := 0;    // not applicable
+//      dSize := 0;      // not applicable
+    end;
+    else begin
+      result := true; // unknown type
     end;
   end;
 end;
@@ -814,7 +837,7 @@ const
   xMax = 142;
   yMax = 141;
 
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+{----------------------------------------------------------------------------}
 Procedure Smooth_TR3f(i, j, X, Y : integer);
 var
   out_x, out_y : integer;
@@ -863,7 +886,7 @@ begin
  end;
 end;
 
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+{----------------------------------------------------------------------------}
 Procedure Expand_TR3_TR3f(i, j, X, Y : integer);
 var
   in_x, in_y : integer;
@@ -914,13 +937,25 @@ begin
   until (out_y = 257-1);
 end;
 
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
-Procedure ReadTheFile(i, j, X, Y : integer);
+{----------------------------------------------------------------------------}
+Procedure SaveTheFile(srcFilePath, destFilePath : string; i, j : integer);
+var
+  File_Name : string;
+begin
+  File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
+  if (NOT FileExists(destFilePath+'\'+File_Name)) then begin
+    CopyFile(pchar(srcFilePath+'\'+File_Folder+'\'+File_Name),
+             pchar(destFilePath+'\'+File_Name),false);
+  end;
+end;
+
+{----------------------------------------------------------------------------}
+Procedure ReadTheFile(FilePath_a : string; P : pByteArray; i, j, X, Y : integer);
 var
   k, m : integer;
   Q : pFloatArray;
   Test_File : File of Byte;
-//  Test_File : textFile;
+  File_Name_a : string;
 begin
   File_Name_a := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
   if (FileExists(FilePath_a+'\'+File_Folder+'\'+File_Name_a)) then begin
@@ -982,12 +1017,31 @@ begin
   end;
 end;
 
+{----------------------------------------------------------------------------}
+Procedure WriteTheFile(FilePath : string; P : pByteArray; i, j, X, Y : integer);
+var
+  k, m : integer;
+  File_Name : string;
+begin
+  File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
+  if (FileExists(FilePath+'\'+File_Folder+'\'+File_Name)) then begin
+    AssignFile(Patch_File,FilePath+'\'+File_Folder+'\'+File_Name);
+    Rewrite(Patch_File);
+    for k := 0 to (xySize+xyExtra)-1 do begin
+      BlockWrite(Patch_File, P^[(X + (Y + k) * (xySize+xySize+xyExtra)) *dSize],
+        (xySize+xyExtra)*dSize);
+    end;
+    CloseFile(Patch_File);
+  end;
+end;
+
 // X, Y swaped for diagonal mirror
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
-Procedure WriteTheFile(i, j : integer; X, Y : single);
+{----------------------------------------------------------------------------}
+Procedure WriteTheFile_Offset(FilePath : string; P : pByteArray; i, j : integer; X, Y : single);
 var
   k : integer;
   oX, oY : integer;
+  File_Name : string;
 begin
   File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
 
@@ -1017,6 +1071,56 @@ begin
       (xySize+xyExtra)*dSize);
   end;
   CloseFile(Patch_File);
+end;
+
+{----------------------------------------------------------------------------}
+procedure Copy_ReIndex_Files(IF_Type : IndexFile_Type;
+  Offset_X, Offset_Y : single;
+  FilePath, FilePath_a, Name_a : string);
+var
+  TRN_File : File of Byte;      // use Word instead of Byte and terrain-size ???
+  i,j : integer;
+//  File_Prefix, File_Ext, File_Folder : string;
+//  File_Name, File_Name_a : string;
+//  resolution : single;
+//  xySize, xyExtra : Integer;
+//  dSize : integer;
+//  Patch_File : File of Byte;
+//  P : pByteArray;
+  Patch_Files : array [0..4-1] of File of Byte;
+  DDS_Headers : array [0..4-1] of array[0..32-1] of Cardinal; // TDDSHeader in u_DDS.pas
+  DDS_MipMap :  array [0..4-1] of integer;
+  DDS_DXT_Type :  array [0..4-1] of integer;
+  DDS_dSize : array [0..4-1] of integer;
+  ref_Index : integer;
+  ref_Mipmap : integer;
+//  FileCount : integer;  // need at least one file of 2 or 4 to generate TR3F file
+
+  ExtractedIndexes : array[0..16-1] of Cardinal;
+  ExtractedAlphas : array[0..16-1] of Cardinal;
+const
+  MaskTable : array[0..4-1] of array[0..8-1] of byte = (
+    (5,4,5,4,1,0,1,0), (7,6,7,6,3,2,3,2),
+    (13,12,13,12,9,8,9,8), (15,14,15,14,11,10,11,10)
+    );
+
+// determine if 2 or 4 files are needed for the shift
+// for a purely horizontal ot vertical shift, only 2 files needed, not 4
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+function TwoOrFourFiles(X, Y : single) : byte;
+begin
+  // create a bit mask for which files are needed
+  result := $01; // file 0,0 is always needed
+  if (X = 0) then begin // or within +/- 15 ?
+    result := result OR $04; // file 0,1
+  end else begin
+    result := result OR $02; // file 1,0
+    if (Y = 0) then begin
+    end else begin
+      result := result OR $04; // file 0,1
+      result := result OR $08; // file 1,1
+    end;
+  end;
 end;
 
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
@@ -1052,6 +1156,8 @@ type
 // assumptions: DXT1,3,5, width=height, complete number of mipmaps
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure DDS_OpenTheFile(Index, i, j : integer; FileMask, Mask : byte);
+var
+  File_Name_a : string;
 begin
   if (NOT ((FileMask AND Mask) = Mask)) then begin
     exit; // skip (only 2 files, not 4)
@@ -1471,14 +1577,6 @@ begin
 end;
 
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
-Procedure DDS_Open_WriteTheFile(i, j : integer);
-begin
-  File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
-  AssignFile(Patch_File,FilePath+'\'+File_Folder+'\'+File_Name);
-  Rewrite(Patch_File);
-end;
-
-{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 Procedure DDS_WriteTheFile(X, Y : single);
 var
   k : integer;
@@ -1533,6 +1631,17 @@ Procedure Process_DDS(i, j : integer; X, Y : single);
 var
   index_X, index_Y : integer;
   FileMask : byte;
+  File_Name : string;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
+Procedure DDS_Open_WriteTheFile(i, j : integer);
+begin
+  File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
+  AssignFile(Patch_File,FilePath+'\'+File_Folder+'\'+File_Name);
+  Rewrite(Patch_File);
+end;
+
+{ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 begin
   // need a reference patch
   // use the patch that has the largest data block
@@ -1614,6 +1723,7 @@ end;
 Procedure Process_C3D(i, j : integer; X, Y : single); // autogen
 var
   index_X, index_Y : integer;
+  File_Name_a : string;
 begin
   // need a reference patch
   // use the patch that has the largest data block
@@ -1637,67 +1747,19 @@ begin
     // read and shift with FTM
     ReadCondorC3Dfile(FilePath_a+'\'+File_Folder+'\'+File_Name_a, false);
     // Need to copy textures for this object
-    CopyObjectTextures(FilePath+'\'+File_Folder,File_Name,
-                       FilePath_a+'\'+File_Folder,File_Name_a,
+    CopyObjectTextures(FilePath+'\'+File_Folder,'',
+                       FilePath_a+'\'+File_Folder,'',
                     '','');
     // now write the updated file
-    File_Name := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
-    WriteCondorC3Dfile(FilePath+'\'+File_Folder+'\'+File_Name);
+    File_Name_a := format('%s%s%s',[File_Prefix,MakeTileName(i, j, TileNameMode),File_Ext]);
+    WriteCondorC3Dfile(FilePath+'\'+File_Folder+'\'+File_Name_a);
   end;
 end;
 
 { - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - }
 begin
-  case IF_Type of
-    Type_TR3: begin
-      File_Prefix := 'h';
-      File_Ext := '.tr3';
-      File_Folder := 'HeightMaps';
-      Resolution := 90.0 / 3;
-      xySize := 64 * 3;
-      xyExtra := 1;
-      dSize := 2;  // 2 byte integer
-    end;
-    Type_TR3f: begin // only a few TR3F files - how to deal with...
-      File_Prefix := 'h';
-      File_Ext := '.tr3f';
-      File_Folder := 'HeightMaps\22.5m';
-      Resolution := 90.0 / 4;
-      xySize := 64 * 4;
-      xyExtra := 1;
-      dSize := 4;  // 4 byte floating-point
-//      dSize := sizeof(single);  // 4 byte floating-point
-    end;
-    Type_FOR: begin // V2, V3
-      File_Prefix := '';
-      File_Ext := '.for';
-      File_Folder := 'ForestMaps';
-      Resolution := 90.0 / 8;
-      xySize := 64 * 8;
-      xyExtra := 0;
-      dSize := 1;  // 1 byte containing two forest bits
-    end;
-    Type_DDS: begin
-      File_Prefix := 't';
-      File_Ext := '.dds';
-      File_Folder := 'Textures';
-//      Resolution := 0; // variable
-//      xySize := 0;     // variable
-//      xyExtra := 0;
-//      dSize := 0;      // variable
-    end;
-    Type_C3D: begin // autogen
-      File_Prefix := 'o';
-      File_Ext := '.c3d';
-      File_Folder := 'AutoGen';
-//      Resolution := 0; // not applicable
-//      xySize := 0;     // not applicable
-//      xyExtra := 0;    // not applicable
-//      dSize := 0;      // not applicable
-    end;
-    else begin
-      Beep; Exit;
-    end;
+  if (NOT SetParameters(IF_Type)) then begin
+    Beep; Exit;
   end;
   // get destination file column(width) and row(height) counts
   AssignFile(TRN_File,FilePath+'\'+LandscapeName+'.trn');
@@ -1716,15 +1778,15 @@ begin
             P := AllocMem( (xySize+xySize+xyExtra) * (xySize+xySize+xyExtra) * dSize);
             // read 2 or 4 files depending on offsets
             // diagonal mirror (x, y swap) for TR3, TR3f, FOR
-            ReadTheFile(i,j,0,0); // file 0,0 is always needed
+            ReadTheFile(FilePath_a,P,i,j,0,0); // file 0,0 is always needed
             if (Offset_X = 0) then begin // or within +/- 15 ?
-              ReadTheFile(i,j+1,xySize,0); // file 0,1
+              ReadTheFile(FilePath_a,P,i,j+1,xySize,0); // file 0,1
             end else begin
-              ReadTheFile(i+1,j,0,xySize); // file 1,0
+              ReadTheFile(FilePath_a,P,i+1,j,0,xySize); // file 1,0
               if (Offset_Y = 0) then begin
               end else begin
-                ReadTheFile(i,j+1,xySize,0); // file 0,1
-                ReadTheFile(i+1,j+1,xySize,xySize) // file 1,1
+                ReadTheFile(FilePath_a,P,i,j+1,xySize,0); // file 0,1
+                ReadTheFile(FilePath_a,P,i+1,j+1,xySize,xySize) // file 1,1
               end;
             end;
             // now write the file
@@ -1734,9 +1796,9 @@ begin
               // for forest, can tweak if desired
               if ((IF_Type = Type_FOR) AND (Form_Shift.CheckBox_ApTweak.Checked) AND (t3f_Found)) then begin
                 // make a shift referenced to TR3F resolution
-                WriteTheFile(i, j, Offset_X - t3f_Error_X, Offset_Y - t3f_Error_Y);
+                WriteTheFile_Offset(FilePath,P,i, j, Offset_X - t3f_Error_X, Offset_Y - t3f_Error_Y);
               end else begin
-                WriteTheFile(i, j, Offset_X, Offset_Y);
+                WriteTheFile_Offset(FilePath,P,i, j, Offset_X, Offset_Y);
               end;
             end;
             FreeMem(P);
@@ -1831,7 +1893,8 @@ begin
       Copy_ReIndex_Files(Type_DDS,
         sh_E_W, sh_N_S,
         Condor_folder+'\Landscapes\'+LandscapeName,
-        Condor_folder+'\Landscapes\'+Name, Name);
+        Condor_folder+'\Landscapes\'+Name,
+        Name);
     end;
   end;
 exit;
@@ -1860,7 +1923,8 @@ exit;
       Copy_ReIndex_Files(Type_TR3,
         sh_E_W, sh_N_S,
         Condor_folder+'\Landscapes\'+LandscapeName,
-        Condor_folder+'\Landscapes\'+Name, Name);
+        Condor_folder+'\Landscapes\'+Name,
+        Name);
     end;
   end;
 
@@ -1875,7 +1939,8 @@ exit;
         Copy_ReIndex_Files(Type_TR3F,
           sh_E_W, sh_N_S,
           Condor_folder+'\Landscapes\'+LandscapeName,
-          Condor_folder+'\Landscapes\'+Name, Name);
+          Condor_folder+'\Landscapes\'+Name,
+          Name);
       end;
     end;
   end;
@@ -1912,7 +1977,8 @@ exit;
       Copy_ReIndex_Files(Type_FOR,
         sh_E_W, sh_N_S,
         Condor_folder+'\Landscapes\'+LandscapeName,
-        Condor_folder+'\Landscapes\'+Name, Name);
+        Condor_folder+'\Landscapes\'+Name,
+        Name);
     end;
   end;
 
@@ -1924,7 +1990,8 @@ exit;
       Copy_ReIndex_Files(Type_DDS,
         sh_E_W, sh_N_S,
         Condor_folder+'\Landscapes\'+LandscapeName,
-        Condor_folder+'\Landscapes\'+Name, Name);
+        Condor_folder+'\Landscapes\'+Name,
+        Name);
     end;
   end;
 //  // then add an empty.dds file, to account for any missing tiles
@@ -2158,7 +2225,8 @@ exit;
         Copy_ReIndex_Files(Type_C3D,
           sh_E_W, sh_N_S,
           Condor_folder+'\Landscapes\'+LandscapeName,
-          Condor_folder+'\Landscapes\'+Name, Name);
+          Condor_folder+'\Landscapes\'+Name,
+          Name);
       end;
     end;
   end;

@@ -573,9 +573,10 @@ procedure TForm_Objects.TreeView_ObjectChange(Sender: TObject;
   Node: TTreeNode);
 begin
 //  Label_FileName.Caption := IntToStr(Node.AbsoluteIndex);
-  if ((Node.Data <> nil) AND (pObjectItem(Node.Data)^.oType = oMesh)) then begin
 //  if ((Node.Data <> nil) AND ((pObjectItem(Node.Data)^.oType = oMesh) OR
 //                              (pObjectItem(Node.Data)^.oType = o3Dmesh)) ) then begin
+//  if ((Node.Data <> nil) AND (pObjectItem(Node.Data)^.oType = oMesh)) then begin
+  if ((Node <> nil) AND (Node.Data <> nil) AND (pObjectItem(Node.Data) <> nil) AND (pObjectItem(Node.Data)^.oType = oMesh)) then begin
     SelectedMeshNode := Node;
     Button_Show3D.enabled := true;
     Button_Centre.enabled := true;
