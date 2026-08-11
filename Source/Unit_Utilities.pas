@@ -4270,6 +4270,7 @@ begin
   end else begin
     Unit_WarpCrop.objFolder := Condor_Folder+'\Landscapes'; // default
   end;
+  Unit_WarpCrop.Library_Folder := Library_Folder;
   Unit_WarpCrop.Memo_Message := Memo_Message;
 
 //  Form_WarpCrop.Left := Self.Left + ProgressBar_Status.left + ProgressBar_Status.width + 10;

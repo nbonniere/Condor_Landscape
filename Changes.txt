@@ -469,6 +469,11 @@ v0.10.13 - Mar-May 2026
   - AirportPlacer - add 'flatten' based on outline.
   - MakeGMID - for GEID add date to downloader param list
 
+v0.10.14 - Jul-Aug 2026
+  - Warp-Crop bitmap
+    - Add help button and help file
+    - Change to use DLT homography instead of GDAL  
+
 
 Issues:
 - Condor_Tiles does not use calibration data for showing airports and objects so they will be

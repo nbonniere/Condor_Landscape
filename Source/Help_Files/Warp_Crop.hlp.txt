@@ -1,0 +1,20 @@
+Perspective correction (Bitmap Warp and Crop) Help
+
+- scroll bitmap
+CTRL-Left-Mouse Down on bitmap and move mouse to scroll
+
+- select pixel coordinate
+SHIFT-Left-Mouse Click on bitmap for desired point
+
+- If no roof peak point desired, leave 'Peak' coordinates blank
+
+- select point to enter/edit
+Dbl-Click the point label or the text box of any point X or Y coordinate
+- green select-pointer moves to desired point
+
+- adjust point coordinate
+Use the left-right and up-down buttons
+- if SHIFT is used, move is done by 2 pixels
+- if CTRL is used, move is doubled
+
+For proper Peak adjustment, tweak the 4 corner points until the center yellow line goes through the peak

@@ -83,6 +83,13 @@ type
     UpDown_Horiz: TUpDown;
     UpDown_Vert: TUpDown;
     PaintBox1: TPaintBox;
+    Button_Help: TButton;
+    GroupBox_Output: TGroupBox;
+    Label_Width: TLabel;
+    ComboBox_Width: TComboBox;
+    Label_Height: TLabel;
+    ComboBox_Height: TComboBox;
+    Button_Create: TButton;
     procedure Button_OpenClick(Sender: TObject);
     procedure Button_Load_ParametersClick(Sender: TObject);
     procedure Button_Save_ParametersClick(Sender: TObject);
@@ -118,11 +125,16 @@ type
       Shift: TShiftState; X, Y: Integer);
     procedure Button_ExecuteBatchClick(Sender: TObject);
     procedure PaintBox1Paint(Sender: TObject);
+    procedure Button_HelpClick(Sender: TObject);
+    procedure Button_CreateClick(Sender: TObject);
+    procedure ComboBox_HeightChange(Sender: TObject);
+    procedure ComboBox_WidthChange(Sender: TObject);
   private
     { Private declarations }
     function LoadBitmap(FileName : string) : boolean;
     procedure MyScrollHorz(Sender: TObject);
     procedure MyScrollVert(Sender: TObject);
+    Procedure MakeWarp3_4_BatchFile(FilePath, FileName : string; Warp3_4 : Warp_Type);
     procedure MakeWarpBatchFile(FilePath, FileName : string; Warp3_4 : Warp_Type);
     procedure DrawObjects(Sender: TObject);
     function  Validate(Sender: TObject) : boolean;
@@ -134,6 +146,7 @@ type
 var
   Form_WarpCrop : TForm_WarpCrop;
 
+  Library_Folder : string;    // external path for file
   Memo_Message : TMemo;  // external TMemo for messages
   ObjFolder : string;
   ObjFolderOpen : boolean;
@@ -145,8 +158,11 @@ implementation
 
 uses
   ClipBrd,
-  Unit_Main, Unit_Graphics, Unit_Coords, Unit_Utilities,
-  u_Util, u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT;
+  Unit_Main, Unit_Graphics, Unit_Coords, Unit_Utilities, Unit_Help,
+  u_Util, u_TileList, u_Object, u_SceneryHDR, u_VectorXY, u_BMP, u_DXT, u_Perspective;
+
+const
+  CB_Size : array[0..4] of integer = (128,256,512,1024,2048);
 
 var
   GUI_State : (IdleScreen, SelectScreen, ScrollScreen, CancelScreen);
@@ -162,6 +178,8 @@ var
   BMP_FileName : string;
   coordCorners : (TLX,TLY,TRX,TR_Y,BRX,BRY,BLX,BLY,PKX,PKY);
   FMousePos: TPoint;
+  Corrected_Width  : Integer; // 512
+  Corrected_Height : Integer; // 256
 
 // TScrollBox addition
 //---------------------------------------------------------------------------
@@ -247,6 +265,12 @@ begin
 
   // select first in sequence
   coordCorners := TLX;
+
+  // select default size
+  ComboBox_Width.ItemIndex := 2; // 512
+  ComboBox_WidthChange(nil);
+  ComboBox_Height.ItemIndex := 1; // 256
+  ComboBox_HeightChange(nil);
 end;
 
 //---------------------------------------------------------------------------
@@ -256,6 +280,10 @@ var
   QuadCorners : TCoordXY_Array;
   qVertexCount : integer;
   TriangleFound, QuadFound : boolean;
+
+  // need extrapolated corners for triangle
+  PeakCorners : TCoordXY_Array;
+  CentreLine : TCoordXY_Array;
 
 //---------------------------------------------------------------------------
 function Convert(Str : string; var value : integer) : boolean;
@@ -276,6 +304,47 @@ begin
   end else begin
     result := false;
   end;
+end;
+
+// need to merge TPoint2D and TCoordXY_Array !
+//---------------------------------------------------------------------------
+var
+  PeakXY, wPeakXY : TPoint2D;
+  P1, P2, P3, P4 : TPoint2D;
+  P5, P6, wP5, wP6 : TPoint2D;
+  CentreXY, wCentreXY : array[0..1] of TPoint2D;
+
+//---------------------------------------------------------------------------
+procedure CalcExtraPoints;
+begin
+  P1.X := QuadCorners[0].X; P1.Y := QuadCorners[0].Y; // TL
+  P2.X := QuadCorners[1].X; P2.Y := QuadCorners[1].Y; // TR
+  P3.X := QuadCorners[2].X; P3.Y := QuadCorners[2].Y; // BR
+  P4.X := QuadCorners[3].X; P4.Y := QuadCorners[3].Y; // BL
+
+  PrepareDLTHomography(Corrected_Width, Corrected_Height,
+    P1, P2, P3, P4,
+    H, invH);
+
+  // warp peak of triangle point
+  PeakXY.X := TriangleCorners[2].X; PeakXY.Y := TriangleCorners[2].Y;
+  wPeakXY := TransformPoint(H, PeakXY);
+  // create points wP6, wP7, a line going through the peak point
+  wP5.X := 0;               wP5.Y := wPeakXY.Y;
+  wP6.X := Corrected_Width; wP6.Y := wPeakXY.Y;
+  // create P6 and P7 on original image
+  P5 := TransformPoint(invH, wP5);
+  P6 := TransformPoint(invH, wP6);
+  PeakCorners[0].X := P5.X; PeakCorners[0].Y := P5.Y;
+  PeakCorners[1].X := P6.X; PeakCorners[1].Y := P6.Y;
+  // create centre line points
+  wCentreXY[0].X := Corrected_Width div 2; wCentreXY[0].Y := 0;
+  wCentreXY[1].X := Corrected_Width div 2; wCentreXY[0].Y := wPeakXY.Y;
+  // create centre line on original image
+  CentreXY[0] := TransformPoint(invH, wCentreXY[0]);
+  CentreXY[1] := TransformPoint(invH, wCentreXY[1]);
+  CentreLine[0].X := CentreXY[0].X; CentreLine[0].Y := CentreXY[0].Y;
+  CentreLine[1].X := CentreXY[1].X; CentreLine[1].Y := CentreXY[1].Y;
 end;
 
 //---------------------------------------------------------------------------
@@ -383,6 +452,19 @@ begin
       TriangleCorners[2].Y := value;
       tVertexCount := 3;
       TriangleFound := true;
+      // now calculate the extra corners, because 4 points are needed
+      // need quad corners first
+      if QuadFound then begin
+        setlength(PeakCorners,4);
+        // first, common corners
+        PeakCorners[2] := QuadCorners[1];
+        PeakCorners[3] := QuadCorners[0];
+        // next, extra corners
+        setlength(CentreLine,2);
+        CalcExtraPoints;
+      end else begin
+        continue;
+      end;
     end else begin
       continue;
     end;
@@ -430,11 +512,19 @@ begin
       Canvas.Pen.Style := psSolid;
       Canvas.Pen.Width := 1;
       Canvas.Pen.Color := clRed;
-      Canvas.MoveTo(round(TriangleCorners[0].X * ScaleX), Round(TriangleCorners[0].Y * ScaleY));
-      for i := 1 to tVertexCount-1 do begin
+      Canvas.MoveTo(round(TriangleCorners[tVertexCount-1].X * ScaleX), Round(TriangleCorners[tVertexCount-1].Y * ScaleY));
+      for i := 0 to tVertexCount-1 do begin
         Canvas.LineTo(round(TriangleCorners[i].X * ScaleX), Round(TriangleCorners[i].Y * ScaleY));
       end;
-      Canvas.LineTo(round(TriangleCorners[0].X * ScaleX), Round(TriangleCorners[0].Y * ScaleY));
+
+      Canvas.Pen.Color := clYellow;
+      Canvas.MoveTo(round(PeakCorners[qVertexCount-1].X * ScaleX), Round(PeakCorners[qVertexCount-1].Y * ScaleY));
+      for i := 0 to qVertexCount-1-1 do begin
+        Canvas.LineTo(round(PeakCorners[i].X * ScaleX), Round(PeakCorners[i].Y * ScaleY));
+      end;
+
+      Canvas.MoveTo(round(CentreLine[1].X * ScaleX), Round(CentreLine[1].Y * ScaleY));
+      Canvas.LineTo(round(CentreLine[0].X * ScaleX), Round(CentreLine[0].Y * ScaleY));
     end;
   end;
 end;
@@ -842,6 +932,65 @@ end;
 
 // make GDAL based warp/crop batch file, with 3 or 4 reference points
 //---------------------------------------------------------------------------
+Procedure TForm_WarpCrop.MakeWarp3_4_BatchFile(FilePath, FileName : string; Warp3_4 : Warp_Type);
+var
+  WarpFile : TextFile;
+begin
+  AssignFile(Warpfile, FilePath +'\'+ FileName + '.bat');
+  Rewrite(Warpfile);
+
+  writeln(Warpfile,'@echo off');
+  writeln(Warpfile,'rem Enable Delayed Expansion for !Variables! ');
+  writeln(Warpfile,'setlocal EnableDelayedExpansion');
+  writeln(Warpfile,'set PATH=%PATH%;"'+Library_Folder+'"');
+  writeln(Warpfile,'set GDAL_DATA='+Library_Folder+'\..\share\epsg_csv');
+  // suppress generation of .xml file
+  writeln(Warpfile,'set GDAL_PAM_ENABLED=NO');
+  writeln(Warpfile,'rem goto directory where batch file is');
+  writeln(Warpfile,'cd /d %~dp0');
+
+  writeln(Warpfile,'rem convert bitmap to GeoTiff to embed the lat/long coordinates');
+  writeln(Warpfile,'rem sourcebmp set externally');
+  writeln(Warpfile,'set destinationtiff=TEMP.tif');
+  writeln(Warpfile,'rem reference points set externally');
+  writeln(Warpfile,'rem crop to dummy UTM coordinates');
+  writeln(Warpfile,'set utm_zone=59');
+  writeln(Warpfile,'set utm_grid=south');
+  writeln(Warpfile,'set utm_left=419360.0');
+  writeln(Warpfile,'set utm_bottom=5046400.0');
+  writeln(Warpfile,'set utm_right=442400.0');
+  writeln(Warpfile,'set utm_top=5069440.0');
+  writeln(Warpfile,'set utm_middle=430880.0');
+  writeln(Warpfile,'if exist %destinationTIFF% del %destinationTIFF%');
+  if (Warp3_4 = Warp4) then begin
+    write  (Warpfile,'gdal_translate -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -gcp %TopLeftX% %TopLeftY% %utm_left% %utm_top% -gcp %TopRightX% %TopRightY% %utm_right% %utm_top% -gcp %BotRightX% %BotRightY% %utm_right% %utm_bottom% ');
+    writeln(Warpfile,'-gcp %BotLeftX% %BotLeftY% %utm_left% %utm_bottom% %sourcebmp% %destinationtiff%');
+  end else begin
+    writeln(Warpfile,'gdal_translate -a_srs "+proj=utm +zone=%utm_zone% +%utm_grid% +datum=WGS84" -gcp %TopLeftX% %TopLeftY% %utm_left% %utm_bottom% -gcp %TopRightX% %TopRightY% %utm_right% %utm_bottom% -gcp %PeakX% %PeakY% %utm_middle% %utm_top% %sourcebmp% %destinationtiff%');
+  end;
+  writeln(Warpfile,'rem re-size');
+  writeln(Warpfile,'set image_width=1024');
+  writeln(Warpfile,'set image_height=512');
+  writeln(Warpfile,'set sourcetiff=TEMP.tif');
+  writeln(Warpfile,'set destinationtiff=TEMP_Warped.tif');
+  writeln(Warpfile,'rem convert, with cropping, and re-sizing');
+  writeln(Warpfile,'if exist %destinationTIFF% del %destinationTIFF%');
+  writeln(Warpfile,'gdalwarp.exe -r lanczos -of GTiff -ts %image_width% %image_height% -te %utm_left% %utm_bottom% %utm_right% %utm_top% %sourcetiff% %destinationtiff%');
+  writeln(Warpfile,'del %sourcetiff%');
+  writeln(Warpfile,'rem convert to bitmap');
+  writeln(Warpfile,'set sourcetiff=TEMP_Warped.tif');
+  writeln(Warpfile,'rem destinationbmp set externally');
+  writeln(Warpfile,'gdal_translate -of BMP %sourcetiff% %destinationbmp%');
+  writeln(Warpfile,'del %sourcetiff%');
+  writeln(Warpfile,'endlocal');
+
+  // close the file
+  CloseFile(Warpfile);
+  MessageShow({root}FileName + '.bat done.');
+end;
+
+// make GDAL based warp/crop batch file, with 3 or 4 reference points
+//---------------------------------------------------------------------------
 Procedure TForm_WarpCrop.MakeWarpBatchFile(FilePath, FileName : string; Warp3_4 : Warp_Type);
 var
   WarpFile : TextFile;
@@ -880,7 +1029,7 @@ begin
 
   // close the file
   CloseFile(Warpfile);
-  MessageShow(rootFileName + '.bat done.');
+  MessageShow({root}FileName + '.bat done.');
 end;
 
 //---------------------------------------------------------------------------
@@ -1135,11 +1284,59 @@ begin
   if (QuadFound) then begin
     // use parameter root file name
     MakeWarpBatchFile(objFolder, rootFileName, Warp4);
+    // also make the warping batchfile
+    MakeWarp3_4_BatchFile(objFolder, 'Warp-4', Warp4);
   end;
 
   if (TriangleFound) then begin
     // if peak not blank then do warp-3 as well
     MakeWarpBatchFile(objFolder, rootFileName+'-peak', Warp3);
+    // also make the warping batchfile
+    MakeWarp3_4_BatchFile(objFolder, 'Warp-3', Warp3);
+  end;
+end;
+
+// make DLT homography based perspective corrected files
+//---------------------------------------------------------------------------
+procedure TForm_WarpCrop.Button_CreateClick(Sender: TObject);
+var
+  Dest: TBitmap;
+begin
+  validate(Sender);
+
+  if (QuadFound) then begin
+    // need an output bitmap
+    Dest := TBitmap.Create;
+    // set the output canvas size
+    Dest.Width :=  Corrected_Width;
+    Dest.Height := Corrected_Height;
+    // create a corrected bitmap
+    RectifyBitmapDLTbilinear(Image_Tile.Picture.Bitmap, Dest, H, InvH);
+    // use parameter root file name
+    Dest.SaveToFile(objFolder+'\'+rootFileName+'.bmp');
+    Dest.Free;
+  end;
+
+  if (TriangleFound) then begin // if peak not blank then do peak as well
+    // need an output bitmap
+    Dest := TBitmap.Create;
+    // set the output canvas size
+    Dest.Width :=  Corrected_Width;
+    Dest.Height := Corrected_Height;
+    // use the new PeakCorners
+    P1.X := PeakCorners[0].X; P1.Y := PeakCorners[0].Y; // TL
+    P2.X := PeakCorners[1].X; P2.Y := PeakCorners[1].Y; // TR
+    P3.X := PeakCorners[2].X; P3.Y := PeakCorners[2].Y; // BR
+    P4.X := PeakCorners[3].X; P4.Y := PeakCorners[3].Y; // BL
+    // prepare new matrix
+    PrepareDLTHomography(Corrected_Width, Corrected_Height,
+    P1, P2, P3, P4,
+    H, invH);
+    // create a corrected bitmap
+    RectifyBitmapDLTbilinear(Image_Tile.Picture.Bitmap, Dest, H, InvH);
+    // use parameter root file name
+    Dest.SaveToFile(objFolder+'\'+rootFileName+'-peak.bmp');
+    Dest.Free;
   end;
 end;
 
@@ -1162,6 +1359,26 @@ end;
 procedure TForm_WarpCrop.PaintBox1Paint(Sender: TObject);
 begin
   Form_WarpCrop.DrawObjects(nil);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_WarpCrop.Button_HelpClick(Sender: TObject);
+begin
+  Form_Help.ShowHelp('Warp_Crop.hlp.txt',
+    Self.Left + ScrollBox_Image.left + 8,
+    Self.Top + ScrollBox_Image.Top + 30);
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_WarpCrop.ComboBox_HeightChange(Sender: TObject);
+begin
+  Corrected_Height :=  CB_Size[(ComboBox_Height.itemIndex)];
+end;
+
+//---------------------------------------------------------------------------
+procedure TForm_WarpCrop.ComboBox_WidthChange(Sender: TObject);
+begin
+  Corrected_Width :=  CB_Size[(ComboBox_Width.itemIndex)];
 end;
 
 //---------------------------------------------------------------------------
